@@ -1,0 +1,101 @@
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=array@400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
+@import "tailwindcss";
+@import "katex/dist/katex.min.css";
+
+:root {
+  /* Backgrounds — Light Theme */
+  --bg-base: #F0F4F8;
+  --bg-elevated: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F8FAFC;
+  --bg-nav: #FFFFFF;
+  --bg-input: #FFFFFF;
+  --bg-overlay: rgba(15, 23, 42, 0.55);
+
+  /* Borders */
+  --border-subtle: rgba(148, 163, 184, 0.5);
+  --border-muted: rgba(148, 163, 184, 0.3);
+  --border-active: rgba(72, 190, 255, 0.6);
+  --border-focus: rgba(72, 190, 255, 0.9);
+
+  /* Brand Accents */
+  --cyan: #0EA5E9;
+  --forest: #16A34A;
+  --mint: #22C55E;
+  --amber: #D97706;
+  --crimson: #DC2626;
+
+  /* Text */
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --text-tertiary: #94A3B8;
+  --text-inverse: #FFFFFF;
+
+  /* JEE Palette Colors */
+  --jee-answered: #22C55E;
+  --jee-visited: #F59E0B;
+  --jee-not-visited: #CBD5E1;
+  --jee-review: #F97316;
+  --jee-review-answered: #0EA5E9;
+  --jee-not-answered: #EF4444;
+
+  /* Accuracy heatmap */
+  --heat-low-bg: rgba(220, 38, 38, 0.1);
+  --heat-low-border: #DC2626;
+  --heat-mid-bg: rgba(217, 119, 6, 0.1);
+  --heat-mid-border: #D97706;
+  --heat-high-bg: rgba(34, 197, 94, 0.1);
+  --heat-high-border: #22C55E;
+
+  --font-ui: 'Satoshi', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-brand: 'Syne', sans-serif;
+  --font-mono: 'Array', ui-monospace, 'JetBrains Mono', monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font: inherit; cursor: pointer; border: none; background: none; }
+input, textarea, select { font: inherit; color: inherit; }
+a { color: var(--cyan); text-decoration: none; }
+a:hover { text-decoration: underline; }
+img { max-width: 100%; display: block; }
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.5); border-radius: 3px; }
+
+/* KaTeX: make $$..$$ display math render as centered block, not inline */
+.katex-display {
+  display: block !important;
+  margin: 1em 0 !important;
+  text-align: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+@keyframes streak-pulse {
+  0%, 100% { text-shadow: 0 0 20px rgba(34,197,94,0.3); }
+  50% { text-shadow: 0 0 50px rgba(34,197,94,0.8), 0 0 80px rgba(34,197,94,0.3); }
+}
+
+@keyframes timer-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
