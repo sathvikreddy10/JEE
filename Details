@@ -1,0 +1,470 @@
+# Testify — PRD, Changes & Context
+
+> This file is the canonical reference for the project. It's long by design — drop it into a new chat to come up to speed fast.
+
+---
+
+## 1. Product Requirements Document (PRD)
+
+### 1.1 Vision
+**Testify** is a self-hosted JEE/NEET test platform that runs on free tiers with a Next.js 16 frontend (Vercel) and an Express + ws backend (Railway/Render). It targets two audiences in one product:
+
+- **Students** — take institute-scheduled timed papers (with JEE Advanced partial marking), practice papers, daily challenges, and review detailed analytics
+- **Coaches/Admins** — manage a question bank, publish papers to batches, run analytics across students/papers/batches, manage credentials, merge duplicate topics
+
+### 1.2 Core Features
+
+| Feature | Notes |
+|---|---|
+| Cookie auth (students + admins) | Independent cookies, independent tables, dual-check on login |
+| Multi-user isolation | Users only see their own sessions/results |
+| Per-test leaderboards | Ranked by score, with attempt count |
+| JEE Advanced partial marking | Subject to marking scheme; recomputed on question edit |
+| Paper-level attempt limits | `attemptsAllowed` per set, per user |
+| Unique paper names | DB-level uniqueness, no auto-deletion (papers persist forever) |
+| Admin-managed question bank | `QuestionSet` + `Question` tables; admin has full editability |
+| Question-delete reward | Student gets full marks for deleted questions (synthetic row in analytics) |
+| Exam keyboard nav | Tab/Shift+Tab/arrows/Enter/Home/End, server-authoritative timer |
+| Tests catalog | Tabs: Active → Institute available → Practice available → Attempted → Locked |
+| Batch system | Students in multiple batches; papers in multiple batches; scheduled windows |
+| Bulk-add roster | Paste email list → auto-create users with default password `"password123"` |
+| Plain-text passwords | `UserCredential` table — explicit user request, no encryption |
+| Manual topic clash detection | Sortable table, multi-select merge, recompute affected sessions synchronously |
+| Student analytics | Weekly + by-subject + per-paper (real data) |
+| Admin analytics | 4 views: overview, per-student, per-paper, per-batch |
+| Late-start buffer | Per-BatchPaper grace period (default 10 min) for joining late; default 0-60 |
+| No active tests card | Friendly empty state when nothing is live |
+
+### 1.3 Non-functional
+- $0/month — free tiers, self-hosted
+- FE and BE deployable independently
+- Express (not Fastify), plain `ws` (not socket.io)
+- SQLite for now, Postgres deferred
+- Local dev only for now
+- TypeScript, App Router, Tailwind, KaTeX for LaTeX
+- Light theme, generous padding, green + cyan accents
+- Badge variants: `cyan | mint | forest | crimson | amber | muted`
+- Heavy console logging (client + server)
+
+### 1.4 Roles
+
+**Student:**
+- Take exams (institute / practice / daily challenge)
+- See their analytics
+- See leaderboards
+- **Zero editability** on any content — always
+
+**Admin:**
+- Create/edit/delete question bank entries
+- Create/edit papers (including marking scheme, time limit, attempts allowed, batch assignments, buffer minutes)
+- Create/edit batches
+- Add members (single + bulk) — auto-creates users with default password
+- See all credentials in plain text; copy/export
+- Manage topics (rename, promote orphan, merge with recompute)
+- See all analytics (overview, students, papers, batches)
+- **Full editability** on questions/marking even after attempts; on edit, **recompute every completed session's score synchronously**
+
+### 1.5 Security & Auth Model
+- Student cookie: `testify_session` (7-day)
+- Admin cookie: `testify_admin` (7-day, separate)
+- Admins in `data/admins.csv` (bcrypt)
+- Admin tables: `Admin` + `AdminAuthSession` (independent of student tables)
+- Login dual-check: `UserCredential.plainPassword === input` first, then `bcrypt.compare(input, User.passwordHash)`
+- Audit-flagged issues that are **deferred**: unauthenticated `/api/admin/*` GETs, missing exam ownership checks, XSS sink in `MathRenderer`, TOCTOU in /exam/answer, daily challenge uniqueness, recompute-outside-transaction
+
+### 1.6 Buffer / Grace Period (newest feature)
+- **Semantics:** late-start shifts the exam window. Students can join anytime in `[scheduledStart, scheduledStart + bufferMinutes]`
+- **Storage:** `BatchPaper.bufferMinutes Int @default(10)` (auto-applied to existing rows on db push)
+- **Range:** 0-60 minutes (validated server-side, clamped client-side)
+- **Scope:** per-BatchPaper (most flexible)
+- **Once joined:** exam runs for `timeLimit` from `startTime` (no hard cap)
+- **`scheduledEnd`** retained for display but no longer enforced
+- **PRACTICE papers** skip the check entirely
+- **Server-side errors:**
+  - 423 (Locked) if `now < scheduledStart`: `{ error: "This exam isn't open yet. It opens at [time]." }`
+  - 410 (Gone) if `now > scheduledStart + buffer`: `{ error: "You missed this exam's join window. The latest start was [time]." }`
+  - 403 (Forbidden) if INSTITUTE paper but user in no assigned batch: `{ code: "NO_BATCH_ACCESS" }`
+- **UI:**
+  - Inline `Buffer (min)` number input next to datetime pickers in admin papers form
+  - "Latest start: [time]" helper text + "Join window: [start → deadline]" in form
+  - My Papers cards show "Buffer: X min" + new "Live/Past/Scheduled/Closed" status
+  - Student `/tests` cards show "Join by: [deadline]" on INSTITUTE papers
+
+### 1.7 File Structure
+```
+testify/
+├── apps/
+│   ├── frontend/             # Next.js 16 (App Router, Tailwind, proxy.ts)
+│   └── backend/              # Express + ws + Prisma v5 + SQLite
+├── shared/                   # Shared TS types
+├── package.json              # workspaces: apps/*, shared/
+└── Details                   # This file
+```
+
+### 1.8 Routes
+- `app/(dashboard)/` — student routes (Home, Tests, Results, Analysis)
+- `app/(admin)/` — admin routes (Questions, Papers, Batches, Topics, Analytics, Credentials)
+- `app/exam/` — exam runner
+- `proxy.ts` — auth gate, PUBLIC_PATHS allowlist
+
+### 1.9 DB Models (14 total)
+- `User { id, email @unique, name, passwordHash, ... }`
+- `UserCredential { id, userId @unique, plainPassword, setByAdminId?, setAt }` — **plain-text**
+- `Admin { id, email @unique, name, passwordHash }` (in `data/admins.csv` for bootstrap)
+- `AdminAuthSession { id, adminId, token, expiresAt }`
+- `UserSession { id, userId, token, expiresAt }`
+- `QuestionSet { id, name @unique, kind (PRACTICE|INSTITUTE), exam (JEE_MAIN|JEE_ADVANCED|NEET), timeLimit, attemptsAllowed, markingScheme Json, subject, pattern, tags, isActive }`
+- `Question { id, setId, type, text, options Json?, correctAnswer, explanation, topic, topicId?, topicRel?, positiveMarks, negativeMarks, order, imageUrl?, images Json? }`
+- `Batch { id, name, description, isActive }`
+- `BatchMember { id, batchId, userId, addedAt }`
+- `BatchPaper { id, setId, batchId, scheduledStart, scheduledEnd, bufferMinutes Int @default(10) }`
+- `Topic { id, name @unique, subject?, createdAt }`
+- `ExamSession { id, userId, setId, status (IN_PROGRESS|COMPLETED|ABANDONED), startTime, endTime?, durationSeconds, analytics Json }`
+- `ExamAnswer { id, sessionId, questionId, selectedAnswer, isMarked, isAnswered }`
+- `DailyChallenge { id, dateKey, setId, createdAt }`
+
+### 1.10 Conventions & Rules
+- **No two papers may have the same name** — DB-level uniqueness
+- **Every paper ever made stored in DB** — no auto-deletion
+- **Each paper has `attemptsAllowed` setting** — per-user limit
+- **Plain-text passwords OK in DB** (UserCredential table)
+- **Auto-create new users when added by email** with default password `"password123"`
+- **PRACTICE papers = batch-agnostic** (always visible to all logged-in users)
+- **INSTITUTE papers require batch assignment** (enforced server-side)
+- **"No active tests" = friendly info card** when `instituteFresh.length === 0`
+- **In-progress exam per (user, set) blocks new starts with 409**
+- **All admin analytics views** (overview, per-student, per-paper, per-batch)
+- **Manual topic clash detection** — sortable table, multi-select merge
+- **Recompute all affected sessions synchronously** when topics are merged
+- **Prisma `/* */` block comments not supported** — use `//` style only
+- **Heavy console logging** (client + server) — every fetch/click logged
+- **User runs `npm`/`npx` commands manually** (Windows EPERM on `query_engine-windows.dll.node`)
+- **Skip security audit work; focus on UX and MVP building**
+
+### 1.11 Status Badge Variants
+- `fresh=cyan/Available`
+- `inProgress=mint/In Progress`
+- `attempted=amber/Attempted`
+- `exhausted=crimson/Locked`
+
+### 1.12 Action Label Logic (student /tests cards)
+- `fresh` → `Start`
+- `inProgress` → `Resume`
+- `attempted` → `Re-attempt (if attempts left) else View Result`
+- `exhausted` → `Locked`
+
+### 1.13 Resume / Start / View Result Flows
+- **Resume:** click Resume → `router.push("/exam?sessionId=...inProgressSessionId")`
+- **Start:** click Start → `POST /api/exam/start` with `{ setId }` → 200 `{ sessionId }` → push; 409 with `inProgressSessionId` → resume that; 423/410/403 → show error message
+- **View result:** `router.push("/results/session/${set.lastSessionId}")`
+
+### 1.14 Tests Catalog Section Order
+1. Active (live right now)
+2. Institute (available, scheduled in future)
+3. Practice (available)
+4. Attempted
+5. Locked
+
+### 1.15 Topbar
+- **Student items:** Home, Tests, Results, Analysis
+- **Admin pages via direct routes**, no admin nav in topbar (admin pages have their own sidebar via `(admin)/layout.tsx`)
+- **Path detection:** `currentScreen = SCREENS.find(s => s.path === pathname)?.id || "dashboard"`
+- **Dashboard layout `isFullBleed`:** `pathname === "/admin" || pathname === "/exam"`
+
+### 1.16 Date/Time
+- All timestamps stored as ISO 8601 UTC in DB
+- Datetime pickers in form are local timezone
+- Analytics uses IST (`istDateKey(d)` helper: `d.getTime() + IST offset`, then UTC date components)
+
+### 1.17 Analytics Architecture
+- **Student side:** computed client-side from `/api/student/history` + `/api/student/stats`
+- **Admin side:** uses `buildSessionAnalytics` from `marking.ts` for per-session topic stats; aggregates computed in JS
+- **Overview 30-day window:** pre-builds last 30 days in `dayMap`, only includes sessions within that range
+- **Per-question difficulty:** sorts hardest-first by default; uses `session.analytics` JSON (`questions[]` with `status: "correct"|"skipped"|"wrong"`)
+- **Topic breakdown** parses `session.analytics.topicAnalysis[]` aggregated across sessions
+
+---
+
+## 2. Changes Log
+
+### Phase 1 — Credentials System
+- **1A** `UserCredential` model in `schema.prisma` (`{ id, userId @unique, plainPassword, setByAdminId?, setAt }`)
+- **1B** `routes/auth.ts` dual-check login: `UserCredential.plainPassword` first, then bcrypt `User.passwordHash`
+- **1C** `routes/batch.ts` auto-create + bulk endpoint: `upsertUserByEmail` helper; `POST /batches/:id/members` auto-creates missing user; new `POST /batches/:id/members/bulk` (max 100 emails, per-email status)
+- **1D** `routes/credentials.ts` (admin-only): `GET /admin/credentials`, `GET /admin/credentials/export.csv`, `PUT /admin/credentials/:userId` (updates both plain + bcrypt)
+- **1E** `server.ts`: wired `credentialsRouter` at `/admin/credentials`
+- **1F** Batches page bulk add UI: toggle Single/Bulk; textarea with live counter; status badges per email (NEW/ADDED/EXISTS/BAD); initial password banner
+- **1G** Admin credentials page (`app/(admin)/credentials/page.tsx`): Excel-feel table; search incl. password; inline edit; Copy/Copy All/Export CSV
+- **1H** Admin nav added "Credentials" to `NAV` in `app/(admin)/layout.tsx`
+
+### Phase 2 — Student Analytics
+- **2A** Removed mock data: deleted `CHAPTER_ACCURACY` from `apps/frontend/lib/mock-data.ts`
+- **2B** Rewrote analysis page: real `/api/student/stats` + `/api/student/history`; weekly + by-subject + per-paper sections; empty state CTA
+
+### Phase 3 — Admin Analytics
+- **3A** `routes/analytics.ts` (admin-only, `requireAdmin` at router level): `GET /admin/analytics/overview` (KPIs + 30d sessionsByDay + active7d), `GET /admin/analytics/students?batchId=N` (table with last activity), `GET /admin/analytics/students/:id` (KPIs + perPaper + topicStrength + recentSessions), `GET /admin/analytics/papers/:setId` (KPIs + perQuestion sorted hardest first + topicBreakdown + students), `GET /admin/analytics/batches/:id` (KPIs + perStudent + perPaper with Live/Upcoming/Past status), `GET /admin/analytics/options` (batches + students for selectors)
+- **3B** `app/(admin)/analytics/page.tsx`: tabs Overview | Students | Batches; sessions-by-day bar chart (last 30d, IST-keyed); student table with batch filter
+- **3C** `app/(admin)/analytics/student/[id]/page.tsx`: student deep-dive (KPIs, per-paper, topic strength bars, recent sessions)
+- **3D** `app/(admin)/analytics/paper/[setId]/page.tsx`: paper detail (KPIs, per-question difficulty hardest-first, topic breakdown, students with "Show top 20/all")
+- **3E** `app/(admin)/analytics/batch/[id]/page.tsx`: batch detail (KPIs, papers with Live/Upcoming/Past badges, students)
+
+### Phase 4 — Topic Management
+- **4A** `Topic` model in `schema.prisma` (`{ id, name @unique, subject?, createdAt }`); `Question` got `topicId Int?` + `topicRel Topic?` (SetNull)
+- **4B** `routes/topics.ts` (admin-only): `GET /admin/topics` (canonical + orphans with stats), `POST /admin/topics`, `PUT /admin/topics/:id` (rename + sync `Question.topic`), `DELETE /admin/topics/:id` (409 if questions linked), `POST /admin/topics/merge` (upsert target + update Questions + recompute affected sessions synchronously)
+- **4C** `routes/admin.ts` question create/edit: upserts canonical Topic by name + links `question.topicId` + `question.topic` (both create and update handlers)
+- **4D** `routes/exam.ts` `buildSessionAnalytics` callers: both `include: { topicRel: true }`; uses `q.topicRel?.name ?? q.topic`
+- **4E** Admin topics page (`app/(admin)/topics/page.tsx`): sortable/filterable table (canonical + orphan), multi-select checkboxes, "Merge selected" modal, inline rename, "Promote orphan" + "Add new" actions, success/error banner
+
+### Phase 5 — History + Results Merge (Option B)
+- `/results` is tabbed hub, `/history` redirects to it, `/results/session/[id]` for full session detail
+- Tabs: Recent | All History | Analytics
+
+### Phase 6 — Seed
+- Seed creates "JEE Main 2026 Batch" (3 users, 1 paper, now → now+30d)
+- 3 demo users, 15 JEE questions, admin `"seed@testify.app"`
+
+### Phase 7 — Batches UI
+- **Phase 3B** Admin papers form batch multi-select + date/time pickers (`apps/frontend/app/(admin)/papers/page.tsx`)
+- **Phase 4A** Student `/tests` page batch awareness with live-window display
+- **Phase 4B** Dashboard "Your batch" badge
+
+### Phase 8 — Server Wiring
+- `server.ts` wires `topicsRouter` + `analyticsRouter`; admin nav `[Questions, Papers, Batches, Topics, Analytics, Credentials]`; `proxy.ts` PUBLIC_PATHS adds `/topics`, `/analytics`, `/credentials`, `/api/admin/analytics`, `/api/admin/topics`, `/api/admin/credentials`, `/api/batches`
+- **Critical ordering fix (NEW):** specific admin sub-routers (`/admin/credentials`, `/admin/topics`, `/admin/analytics`) MUST mount BEFORE the broad `/admin` mount in `server.ts` (Express matches in order; adminRouter has no catch-all but if one is ever added, the order matters)
+
+### Phase 9 — Buffer / Grace Period (CURRENT)
+- **9A** Schema: `bufferMinutes Int @default(10)` added to `BatchPaper` in `schema.prisma`
+- **9B** `routes/sets.ts`: both filter (line 118) and live-batch return (line 201) updated to use `[scheduledStart, scheduledStart + bufferMinutes*60_000]`; live payload now returns `bufferMinutes` + `joinDeadline`
+- **9C** `routes/exam.ts`: `POST /exam/start` looks up `BatchMember` for user + set's `BatchPaper`; returns **423** `{ code: "NOT_YET_OPEN", opensAt, joinDeadline }` if `now < scheduledStart`; **410** `{ code: "WINDOW_CLOSED", joinDeadline, scheduledStart }` if `now > scheduledStart + buffer`; **403** `{ code: "NO_BATCH_ACCESS" }` if INSTITUTE paper but user in no assigned batch. PRACTICE papers skip the check. `opensAtSafe(d)` helper added
+- **9D** `routes/admin.ts` POST/PUT `/sets`: accept `bufferMinutes` in each `batchAssignments[]` (default 10, validate 0-60, floor to int); persisted on `BatchPaper`; responses include `bufferMinutes` + `joinDeadline`. PUT replaces all assignments for the set in a transaction (`deleteMany` + recreate). GET list + GET single set responses also return `bufferMinutes` + `joinDeadline`
+- **9E** `server.ts`: reordered so `/admin/credentials`, `/admin/topics`, `/admin/analytics` mount BEFORE `/admin`
+- **9F** Frontend papers form: `BufferAssignment.bufferMinutes: number` in type; default 10 on add; inline `Buffer (min)` number input (min 0, max 60) next to datetime pickers; helper text shows "Latest start: [time]" + "Join window: [start → deadline]"
+- **9G** My Papers cards: show "+Xm" after start time; status uses `now ∈ [scheduledStart, scheduledStart + buffer]` for `isLive`; new "Closed" state for past buffer
+- **9H** Frontend topics + analytics pages: pending (error state with retry + 404 hint)
+- **9I** Frontend `/tests` cards: pending (show "Join by: [deadline]" on INSTITUTE papers)
+- **9J** Shared types: pending (`bufferMinutes` + `joinDeadline` on `TestSetBatchPaper`)
+
+---
+
+## 3. Current State
+
+### Completed
+- All Phase 1-8 changes
+- Phase 9 A, B, C, D, E, F, G (backend + server.ts + papers form + My Papers cards)
+
+### In Progress
+- Phase 9 H: Frontend topics + analytics error states
+- Phase 9 I: Frontend `/tests` cards deadline display
+- Phase 9 J: Shared type update
+
+### Blocked
+- User runs `npm`/`npx` commands manually (per past precedent: my commands timeout/hit EPERM on `query_engine-windows.dll.node`)
+- Several audit-flagged critical security issues — **deferred per user direction**
+
+---
+
+## 4. Critical Context
+
+### 4.1 User's 404 bug (resolved by server.ts reorder)
+- `GET /admin/topics 404` and `GET /admin/analytics 404` because the dev server started at 7:24 AM (before topics.ts and analytics.ts were created). tsx watch did not pick up the new files. **Fix: restart backend AND/OR fix router order**
+- `server.ts` was mounting `app.use("/admin", adminRouter)` BEFORE specific sub-routers. Worked only by accident because adminRouter had no catch-all. **Now reordered.**
+
+### 4.2 Schema Push + Seed
+- `db push` works
+- Reseed destroys data — re-seed wipes QuestionSets/Questions/Users/ExamSessions/now also Batches
+- JEE seeded set is INSTITUTE kind — visible only via the seeded "JEE Main 2026 Batch" (all 3 demo users, window now → now+30d, bufferMinutes defaults to 10)
+- For testing date windows: set window to "now → now+24h" in admin
+
+### 4.3 Prisma Generate EPERM Workaround
+```
+taskkill /F /IM node.exe /T
+rd /s /q node_modules\.prisma
+npx prisma generate --schema prisma/schema.prisma
+npx prisma db push --accept-data-loss --schema prisma/schema.prisma
+```
+
+### 4.4 Buffer Feature — Semantic Confirmed
+- User confirmed: "late-start shifts the exam window" — students can join anytime in `[scheduledStart, scheduledStart + buffer]`
+- Once joined, exam runs for `timeLimit` from `startTime` (no hard cap)
+- `scheduledEnd` retained for display but no longer enforced
+- PRACTICE papers skip the check
+- Buffer scope: per-BatchPaper (most flexible)
+- Buffer default: 10 min, range 0-60
+- UI: inline buffer input next to datetime, show "Latest start" helper text
+- Student must see join deadline on test cards
+
+### 4.5 /exam/start Errors (Pluralized for the UI)
+- 423 Locked: `{ error: "This exam isn't open yet. It opens at [time]." }`
+- 410 Gone: `{ error: "You missed this exam's join window. The latest start was [time]." }`
+- 403 Forbidden: `{ error: "You don't have access to this exam." }` (NO_BATCH_ACCESS)
+- 409 Conflict: existing in-progress session (resume it)
+
+### 4.6 Plain-Text Passwords (User-Confirmed OK)
+- `UserCredential` table — anyone with DB access sees them
+- Explicitly user-requested. No encryption
+- Login dual-check: `UserCredential.plainPassword === input` OR `bcrypt.compare(input, User.passwordHash)`
+
+### 4.7 Audit-Flagged Issues (Deferred)
+- Unauthenticated `/api/admin/*` GETs
+- Missing ownership checks on `/api/exam/:id/{answer,end}`
+- `MathRenderer` XSS sink
+- TOCTOU in /exam/answer
+- Daily challenge uniqueness
+- Recompute-outside-transaction in admin question edit
+
+### 4.8 Topbar / Nav
+- Topbar items: Home, Tests, Results, Analysis (4 student items)
+- Admin pages via direct routes
+- Path detection: `currentScreen = SCREENS.find(s => s.path === pathname)?.id || "dashboard"`
+- Dashboard layout `isFullBleed`: `pathname === "/admin" || pathname === "/exam"`
+- Admin nav: `[Questions, Papers, Batches, Topics, Analytics, Credentials]`
+
+### 4.9 File Locations
+- **Prisma schema:** `apps/backend/prisma/schema.prisma`
+- **Seed:** `apps/backend/prisma/seed.ts`
+- **Server:** `apps/backend/src/server.ts`
+- **Auth:** `apps/backend/src/routes/auth.ts`
+- **Batches:** `apps/backend/src/routes/batch.ts`
+- **Credentials:** `apps/backend/src/routes/credentials.ts`
+- **Sets:** `apps/backend/src/routes/sets.ts`
+- **Admin:** `apps/backend/src/routes/admin.ts`
+- **Exam:** `apps/backend/src/routes/exam.ts`
+- **Topics:** `apps/backend/src/routes/topics.ts`
+- **Analytics:** `apps/backend/src/routes/analytics.ts`
+- **Marking lib:** `apps/backend/src/lib/marking.ts` (with `buildSessionAnalytics`)
+- **Shared types:** `shared/src/types.ts`
+- **Frontend dashboard pages:** `apps/frontend/app/(dashboard)/{page,tests,results,analysis,history}/...`
+- **Frontend admin pages:** `apps/frontend/app/(admin)/{papers,batches,credentials,topics,analytics}/...`
+- **Frontend exam:** `apps/frontend/app/exam/...`
+- **Topbar:** `apps/frontend/components/Topbar.tsx`
+- **Proxy (auth gate):** `apps/frontend/proxy.ts`
+- **Next config (API rewrite):** `apps/frontend/next.config.ts`
+
+### 4.10 Specific Code Patterns
+
+**`opensAtSafe(d)` helper** added to `routes/exam.ts` to wrap `d.toISOString()` for inline use inside error responses.
+
+**Topic merge cascade:** updates `Question.topic` string AND `Question.topicId` FK in one transaction; then loops over distinct `setId`s and re-runs `buildSessionAnalytics` for each completed session.
+
+**Topic delete guard:** refuses if any `Question.topicId === id`.
+
+**BatchPaper validation:** start < end (rejected 400); both must be valid ISO 8601; batch ids must exist; **bufferMinutes must be 0-60** (rejected 400).
+
+**Batch deletion guard:** 409 if any members or papers.
+
+**Member add with auto-create:** returns 409 if already in batch.
+
+**Bulk add parse:** `text.split(/[\s,;]+/)` → trim → lowercase → dedup; max 100 emails.
+
+**C:\Users\sathv\pnpm-lock.yaml:** unrelated lockfile causing Turbopack warning (harmless).
+
+**Prisma generate EPERM workaround:** `taskkill /F /IM node.exe /T` + `rd /s /q node_modules\.prisma` + retry.
+
+### 4.11 Schema Comments Rule
+- Prisma schema only allows `//` line comments — no `/* */` blocks
+
+### 4.12 Analytics Helper
+- `istDateKey(d)`: `d.getTime() + IST offset`, then UTC date components
+- Analytics overview 30-day window: pre-builds last 30 days in `dayMap`, only includes sessions within that range
+
+### 4.13 Status Badge Variants (Reiterated)
+- `fresh=cyan/Available`
+- `inProgress=mint/In Progress`
+- `attempted=amber/Attempted`
+- `exhausted=crimson/Locked`
+
+### 4.14 Buffer Storage
+- `BatchPaper.bufferMinutes Int @default(10)` (auto-applied to existing rows on db push)
+- Buffer PUT semantics: full replace of assignments (deleteMany + recreate) for the set
+
+### 4.15 Single-Source Analytics
+- `buildSessionAnalytics` in `marking.ts` is the single source of truth
+- Callers pass `topicRel?.name ?? q.topic` for topic name
+
+---
+
+## 5. Next Steps (Concrete)
+
+1. **User runs** (because Windows EPERM):
+   ```
+   taskkill /F /IM node.exe /T
+   rd /s /q node_modules\.prisma
+   npx prisma generate --schema prisma/schema.prisma
+   npx prisma db push --accept-data-loss --schema prisma/schema.prisma
+   npm run dev   (restart so new routes load)
+   ```
+
+2. **Phase 9H — Topics + Analytics error states:**
+   - Add `error` state + retry button + "Backend may need restart" hint to `/admin/topics`
+   - Same for `/admin/analytics` (all 3 tabs: Overview, Students, Batches)
+
+3. **Phase 9I — `/tests` cards:**
+   - Update `TestSetBatchPaper` type to include `bufferMinutes` + `joinDeadline`
+   - Show "Join by: [deadline]" on INSTITUTE test cards
+
+4. **Verification:**
+   - `/admin/topics` returns 200, shows canonical + orphan topics
+   - `/admin/analytics` returns 200, shows KPIs
+   - Papers form: buffer input editable per assignment, persisted on save
+   - Student catalog: shows "Join by" deadline per INSTITUTE card
+   - Buffer enforcement: start exam at `scheduledStart + buffer + 1 min` → 410 with friendly error
+   - Student who starts exactly at `scheduledStart + buffer - 1` → 200 OK
+
+5. **Future phases (parking lot):**
+   - Scheduled tests enhancements
+   - Multi-chapter practice test builder
+   - Achievements
+   - All-India rank
+   - Security lock-down
+   - Error toasts globally
+   - Mobile responsive overhaul
+
+---
+
+## 6. Open Questions for User
+
+1. Is "Buffer (min)" the right label or should it say "Grace period" / "Late start window"?
+2. Should the buffer cap at 60 min or be unlimited?
+3. When `scheduledStart + buffer` is past, should the paper auto-hide from `/tests` (current behavior: shows "Past/Closed" status, still visible)?
+4. Should we add a global toast system for /exam/start errors (423/410/403/409)?
+5. Should the analytics page refresh every N seconds when on Overview tab?
+6. Should we add an "Expired" or "Locked" state to the catalog for past INSTITUTE papers that the student never attempted?
+
+---
+
+## 7. Quick-Start Cheat Sheet
+
+### Dev startup
+```
+cd C:\Users\sathv\Desktop\testify
+npm run dev          # runs FE (3000) + BE (4000)
+```
+
+### Test users
+- `student1@testify.app` / `password123`
+- `student2@testify.app` / `password123`
+- `student3@testify.app` / `password123`
+
+### Test admin
+- `seed@testify.app` / (password from `data/admins.csv`)
+
+### Useful endpoints
+- `GET /api/student/history`
+- `GET /api/student/stats`
+- `POST /api/exam/start` `{ setId }`
+- `GET /api/sets/mine`
+- `GET /api/admin/topics`
+- `GET /api/admin/analytics/overview`
+- `GET /api/admin/credentials`
+
+### Prisma cheat
+```
+npx prisma studio --schema apps/backend/prisma/schema.prisma
+npx prisma generate --schema apps/backend/prisma/schema.prisma
+npx prisma db push --accept-data-loss --schema apps/backend/prisma/schema.prisma
+npx prisma db seed --schema apps/backend/prisma/schema.prisma
+```
+
+---
+
+**Last updated:** During the buffer/grace-period feature work (Phase 9).

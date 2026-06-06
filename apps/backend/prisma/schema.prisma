@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id            Int             @id @default(autoincrement())
+  email         String          @unique
+  name          String
+  passwordHash  String
+  createdAt     DateTime        @default(now())
+  sessions      AuthSession[]
+  examSessions  ExamSession[]
+  batchMembers  BatchMember[]
+  credential    UserCredential?
+  notifications Notification[]
+}
+
+model UserCredential {
+  id            Int      @id @default(autoincrement())
+  userId        Int      @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plainPassword String
+  setByAdminId  Int?
+  setByAdmin    Admin?   @relation(fields: [setByAdminId], references: [id])
+  setAt         DateTime @default(now())
+}
+
+model AuthSession {
+  token     String   @id
+  userId    Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Admin {
+  id           Int                @id @default(autoincrement())
+  email        String             @unique
+  name         String
+  createdAt    DateTime           @default(now())
+  sessions     AdminAuthSession[]
+  batches      Batch[]
+  credentials  UserCredential[]
+}
+
+model AdminAuthSession {
+  token     String   @id
+  adminId   Int
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([adminId])
+}
+
+model QuestionSet {
+  id              Int           @id @default(autoincrement())
+  name            String
+  subject         String
+  pattern         String
+  timeLimit       Int
+  attemptsAllowed Int           @default(1)
+  kind            String        @default("INSTITUTE") // "INSTITUTE" | "PRACTICE"
+  exam            String        @default("JEE_MAIN")  // "JEE_MAIN" | "JEE_ADVANCED" | "NEET" | "CUSTOM"
+  tags            String        @default("[]")        // JSON array of free-form chips
+  markingScheme   String?       // JSON: { positive, negative, partialCredit, partialUnit, skipPenalty }
+  publishedAt     DateTime?     // null until admin clicks "Mark Ready to Schedule"
+  questions       Question[]
+  sessions        ExamSession[]
+  batchPapers     BatchPaper[]
+  dailyChallenges BatchDailyChallenge[]
+
+  @@unique([name])
+}
+
+model Question {
+  id            Int             @id @default(autoincrement())
+  setId         Int
+  type          String
+  text          String
+  options       String?
+  correctAnswer String
+  explanation   String
+  topic         String
+  topicId       Int?
+  imageUrl      String?
+  images        String?
+  order         Int
+  difficulty    String          @default("medium")
+  positiveMarks Int             @default(4)
+  negativeMarks Int             @default(1)
+  set           QuestionSet     @relation(fields: [setId], references: [id])
+  topicRel      Topic?          @relation(fields: [topicId], references: [id], onDelete: SetNull)
+  answers       StudentAnswer[]
+
+  @@index([topicId])
+  @@index([topic])
+}
+
+model Topic {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  subject   String?
+  createdAt DateTime   @default(now())
+  questions Question[]
+
+  @@index([subject])
+}
+
+model ExamSession {
+  id            Int                    @id @default(autoincrement())
+  setId         Int
+  userId        Int?
+  studentName   String
+  kind          String                 @default("regular")
+  startTime     DateTime               @default(now())
+  endTime       DateTime?
+  timeLimit     Int
+  completed     Boolean                @default(false)
+  score         Int?
+  total         Int?
+  analytics     String?
+  questionOrder String?                // JSON array of question ids in shuffled order
+  tabSwitches   Int                    @default(0)  // Count of tab switches
+  flaggedAt     DateTime?              // When student was red-flagged
+  flagReason    String?                // e.g., "Tab switch: 4"
+  autoEndedAt   DateTime?              // When auto-ended due to 7+ switches
+  set           QuestionSet            @relation(fields: [setId], references: [id])
+  user          User?                  @relation(fields: [userId], references: [id])
+  answers       StudentAnswer[]
+
+  @@index([userId])
+  @@index([setId, completed])
+  @@index([flaggedAt])
+  @@index([autoEndedAt])
+}
+
+model StudentAnswer {
+  id              Int         @id @default(autoincrement())
+  sessionId       Int
+  questionId      Int
+  selectedOption  String?
+  isCorrect       Boolean?
+  timeSpent       Int         @default(0)
+  markedForReview Boolean     @default(false)
+  confidence      Int?
+  session         ExamSession @relation(fields: [sessionId], references: [id])
+  question        Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+}
+
+model BatchDailyChallenge {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  setId     Int
+  date      String   // YYYY-MM-DD
+  startTime DateTime
+  endTime   DateTime
+  createdBy String   @default("admin")
+  createdAt DateTime @default(now())
+  batch     Batch    @relation(fields: [batchId], references: [id])
+  set       QuestionSet @relation(fields: [setId], references: [id])
+
+  @@unique([batchId, date])
+  @@index([date])
+  @@index([batchId])
+}
+
+// ───────────────────  Batches  ───────────────────
+
+model Batch {
+  id          Int           @id @default(autoincrement())
+  name        String        @unique
+  description String?
+  createdBy   String        // admin email
+  isActive    Boolean       @default(true)
+  createdAt   DateTime      @default(now())
+  members     BatchMember[]
+  papers      BatchPaper[]
+  dailyChallenges BatchDailyChallenge[]
+  admin       Admin?        @relation(fields: [createdBy], references: [email])
+}
+
+model BatchMember {
+  id       Int      @id @default(autoincrement())
+  batchId  Int
+  userId   Int
+  joinedAt DateTime @default(now())
+  batch    Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, userId])
+  @@index([userId])
+}
+
+model BatchPaper {
+  id             Int         @id @default(autoincrement())
+  batchId        Int
+  setId          Int
+  scheduledStart DateTime
+  scheduledEnd   DateTime
+  bufferMinutes  Int         @default(10)
+  notifiedAt     DateTime?   // null until admin clicks "Send to Students" for this batch
+  goTime         DateTime?   // null until admin clicks "Go" for this batch
+  addedAt        DateTime    @default(now())
+  addedBy        String      // admin email
+  batch          Batch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  set            QuestionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, setId])
+  @@index([batchId])
+  @@index([setId])
+  @@index([goTime])
+}
+
+// ───────────────────  Notifications  ───────────────────
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    Int?
+  adminId   Int?
+  type      String    // "PAPER_READY" | "PAPER_NOTIFIED" | "PAPER_LIVE" | "BUFFER_CLOSING" | "BUFFER_CLOSED"
+  title     String
+  body      String
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+  @@index([adminId, readAt, createdAt])
+}

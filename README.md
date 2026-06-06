@@ -1,36 +1,96 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Testify — JEE/NEET Practice Platform
 
-## Getting Started
+A free, self-hosted test platform for JEE/NEET aspirants with per-test leaderboards, daily challenges, and JEE Advanced partial marking.
 
-First, run the development server:
+## Architecture
+
+```
+testify/
+├── apps/
+│   ├── frontend/   Next.js 16 (App Router) — UI only, no DB
+│   └── backend/    Express + ws + Prisma — API + WebSocket
+└── shared/         Shared TypeScript types
+```
+
+The frontend never queries the database directly. All `/api/*` requests are rewritten by Next.js to `http://localhost:4000/*`. The two apps can be deployed independently (Vercel + Railway/Render).
+
+## First-time setup
+
+```bash
+# 1. Install root + workspace deps
+npm install
+
+# 2. Set up backend (Prisma client + SQLite + seed data)
+cd apps/backend
+npm install
+npx prisma generate
+npx prisma db push --accept-data-loss
+npx prisma db seed
+cd ../..
+
+# 3. Set up frontend
+cd apps/frontend
+npm install
+cd ../..
+```
+
+> Note: if `npx prisma` commands error with `EPERM` on Windows, stop any running Node processes first:
+> `Get-Process node | Stop-Process -Force`
+
+## Development
+
+From the workspace root:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts both apps via `concurrently`:
+- Backend → http://localhost:4000
+- Frontend → http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+To run them separately:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev:be   # backend only
+npm run dev:fe   # frontend only
+```
 
-## Learn More
+## Demo accounts (seeded)
 
-To learn more about Next.js, take a look at the following resources:
+| Email | Password |
+| --- | --- |
+| `sathvik@testify.app` | `password123` |
+| `arjun@testify.app` | `password123` |
+| `priya@testify.app` | `password123` |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Environment
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### `apps/backend/.env`
+```
+PORT=4000
+DATABASE_URL=file:./prisma/dev.db
+FRONTEND_URL=http://localhost:3000
+SESSION_COOKIE=testify_session
+SESSION_TTL_DAYS=30
+```
 
-## Deploy on Vercel
+### `apps/frontend/.env.local`
+```
+BACKEND_URL=http://localhost:4000
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Deploy
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Frontend** → Vercel (root: `apps/frontend`, build: `next build`)
+- **Backend** → Railway / Render / Fly.io (root: `apps/backend`, start: `node dist/server.js`)
+- **Database** → Postgres in prod (swap `provider` to `postgresql` in `schema.prisma` and re-run `prisma db push`)
+
+## Roadmap
+
+- [x] Auth (email + password, bcryptjs, cookies)
+- [x] Per-test leaderboards
+- [x] Multi-user data isolation
+- [ ] JEE Advanced partial-marking engine
+- [ ] Live proctoring via WebSocket (tab switches, flagged events)
+- [ ] Phone OTP login
