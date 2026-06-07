@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brutalist color scheme matching the HTML UI -->
+    <color name="bg_white">#FFFFFF</color>
+    <color name="fg_black">#000000</color>
+    <color name="muted_gray">#666666</color>
+    <color name="accent_yellow">#FFF9C4</color>
+    <color name="accent_yellow_dark">#FFF200</color>
+    <color name="border_black">#000000</color>
+    <color name="surface_white">#FFFFFF</color>
+    <color name="badge_bg">#F5F5F5</color>
+    <color name="section_bg">#F5F5F5</color>
+    <color name="crimson">#F85149</color>
+    <color name="amber">#FFAA00</color>
+    <color name="forest">#22C55E</color>
+    <color name="cyan">#06B6D4</color>
+    <color name="overlay_bg">#80000000</color>
+    <color name="transparent">#00000000</color>
+</resources>

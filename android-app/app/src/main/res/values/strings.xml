@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">TestLab Offline</string>
+    <string name="start_test">Start Test</string>
+    <string name="mathematics_test">Mathematics Practice Test</string>
+    <string name="test_description">Multiple choice questions • 60 minutes • Instant scoring</string>
+    <string name="question">Question</string>
+    <string name="of">of</string>
+    <string name="next">Next</string>
+    <string name="previous">Previous</string>
+    <string name="submit">Submit Test</string>
+    <string name="skip">Skip</string>
+    <string name="mark_review">Mark for Review</string>
+    <string name="unmark_review">Unmark Review</string>
+    <string name="time_remaining">Time Remaining</string>
+    <string name="confirm_submit_title">Submit Test?</string>
+    <string name="confirm_submit_message">Are you sure you want to submit the test? You cannot change your answers after submitting.</string>
+    <string name="confirm_exit_title">Exit Test?</string>
+    <string name="confirm_exit_message">If you exit now, your progress will be lost. Are you sure?</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="test_submitted">Test Submitted!</string>
+    <string name="score">Score</string>
+    <string name="out_of">out of</string>
+    <string name="questions_answered">questions answered</string>
+    <string name="warning">Warning</string>
+    <string name="exit_warning">You are about to exit the test. All progress will be lost.</string>
+    <string name="fullscreen_mode">Fullscreen test mode enabled</string>
+</resources>
