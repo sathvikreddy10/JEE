@@ -70,7 +70,7 @@ function subjectInitial(subject: string): string {
   return subject.slice(0, 2).toUpperCase();
 }
 
-function actionLabel(set: TestSet): { label: string; variant: "primary" | "solid" | "outline" | "ghost" | "danger"; target: "resume" | "start" | "reattempt" | "view" | "locked" | "waiting" } {
+function actionLabel(set: TestSet): { label: string; variant: "primary" | "solid" | "outline" | "ghost" | "danger"; target: "resume" | "start" | "reattempt" | "view" | "locked" | "waiting" | "practice" } {
   switch (set.status) {
     case "inProgress":
       return { label: "Resume", variant: "primary", target: "resume" };
@@ -83,7 +83,7 @@ function actionLabel(set: TestSet): { label: string; variant: "primary" | "solid
         ? { label: "Re-attempt", variant: "solid", target: "reattempt" }
         : { label: "View Result", variant: "outline", target: "view" };
     case "exhausted":
-      return { label: "Locked", variant: "ghost", target: "locked" };
+      return { label: "View Result", variant: "outline", target: "view" };
   }
 }
 
@@ -156,17 +156,19 @@ function WaitingCountdown({ batchPapers }: { batchPapers: TestSetBatchPaper[] })
 interface TestCardProps {
   set: TestSet;
   onAction: (set: TestSet) => void;
+  onPractice?: (set: TestSet) => void;
   isFocused: boolean;
   tabIndex: number;
   onFocusCard: () => void;
 }
 
-function TestCard({ set, onAction, isFocused, tabIndex, onFocusCard }: TestCardProps) {
+function TestCard({ set, onAction, onPractice, isFocused, tabIndex, onFocusCard }: TestCardProps) {
   const act = actionLabel(set);
   const status = STATUS_BADGE[set.status];
   const kind = KIND_BADGE[set.kind];
   const exam = EXAM_BADGE[set.exam];
-  const isLocked = set.status === "exhausted";
+  const isLocked = set.status === "exhausted" && set.attemptsUsed >= set.attemptsAllowed;
+  const canPractice = set.status === "attempted" || set.status === "exhausted";
 
   return (
     <div
@@ -315,7 +317,7 @@ function TestCard({ set, onAction, isFocused, tabIndex, onFocusCard }: TestCardP
         )}
       </div>
 
-      <div className="mt-auto pt-1">
+      <div className="mt-auto pt-1 flex gap-2 flex-wrap">
         <Button
           variant={act.variant}
           size="sm"
@@ -327,6 +329,18 @@ function TestCard({ set, onAction, isFocused, tabIndex, onFocusCard }: TestCardP
         >
           {act.label} {act.target !== "view" && act.target !== "locked" ? "→" : ""}
         </Button>
+        {canPractice && onPractice && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onPractice(set);
+            }}
+          >
+            Practice 🔄
+          </Button>
+        )}
       </div>
     </div>
   );
@@ -517,6 +531,17 @@ export default function TestsCatalogPage() {
         cli.err("start exam", e);
         setStartError((e as Error).message);
         setStartingId(null);
+      }
+    },
+    [router]
+  );
+
+  const practiceSet = useCallback(
+    (set: TestSet) => {
+      if (set.lastSessionId != null) {
+        router.push(`/exam?sessionId=${set.lastSessionId}&practice=true`);
+      } else {
+        cli.err("practice", "No completed session available for practice");
       }
     },
     [router]
@@ -873,6 +898,7 @@ export default function TestsCatalogPage() {
                     key={s.id}
                     set={s}
                     onAction={startSet}
+                    onPractice={practiceSet}
                     isFocused={focusedIdx === idx}
                     tabIndex={focusedIdx === idx ? 0 : -1}
                     onFocusCard={() => setFocusedIdx(idx)}
@@ -891,6 +917,7 @@ export default function TestsCatalogPage() {
                     <TestCard
                       set={s}
                       onAction={startSet}
+                      onPractice={practiceSet}
                       isFocused={focusedIdx === idx}
                       tabIndex={focusedIdx === idx ? 0 : -1}
                       onFocusCard={() => setFocusedIdx(idx)}
@@ -910,6 +937,7 @@ export default function TestsCatalogPage() {
                     <TestCard
                       set={s}
                       onAction={startSet}
+                      onPractice={practiceSet}
                       isFocused={focusedIdx === idx}
                       tabIndex={focusedIdx === idx ? 0 : -1}
                       onFocusCard={() => setFocusedIdx(idx)}
@@ -929,6 +957,7 @@ export default function TestsCatalogPage() {
                     <TestCard
                       set={s}
                       onAction={startSet}
+                      onPractice={practiceSet}
                       isFocused={focusedIdx === idx}
                       tabIndex={focusedIdx === idx ? 0 : -1}
                       onFocusCard={() => setFocusedIdx(idx)}
@@ -953,6 +982,7 @@ export default function TestsCatalogPage() {
                     <TestCard
                       set={s}
                       onAction={startSet}
+                      onPractice={practiceSet}
                       isFocused={focusedIdx === idx}
                       tabIndex={focusedIdx === idx ? 0 : -1}
                       onFocusCard={() => setFocusedIdx(idx)}
@@ -972,6 +1002,7 @@ export default function TestsCatalogPage() {
                     <TestCard
                       set={s}
                       onAction={startSet}
+                      onPractice={practiceSet}
                       isFocused={focusedIdx === idx}
                       tabIndex={focusedIdx === idx ? 0 : -1}
                       onFocusCard={() => setFocusedIdx(idx)}

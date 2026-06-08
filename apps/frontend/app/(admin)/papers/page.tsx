@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { log as cli } from "@/lib/logger";
@@ -160,6 +160,10 @@ export default function PapersPage() {
   const [drafts, setDrafts] = useState<DraftQuestion[]>([blankDraft()]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [excelImporting, setExcelImporting] = useState(false);
+  const [excelPreview, setExcelPreview] = useState<any[] | null>(null);
+  const [showExcelConfirm, setShowExcelConfirm] = useState(false);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   // Batch assignments (only relevant when kind === "INSTITUTE")
   const [assignments, setAssignments] = useState<BatchAssignment[]>([]);
@@ -253,6 +257,70 @@ export default function PapersPage() {
   const addDraft = () => setDrafts((p) => [...p, blankDraft()]);
   const removeDraft = (idx: number) =>
     setDrafts((p) => p.filter((_, i) => i !== idx));
+
+  const downloadTemplate = async () => {
+    try {
+      const res = await fetch("/api/admin/questions/template");
+      if (!res.ok) { cli.err("template download", res.status); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "question_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      cli.success("Template downloaded");
+    } catch (e) {
+      cli.err("download template", e);
+    }
+  };
+
+  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelImporting(true);
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const base64 = (event.target?.result as string)?.split(",")[1];
+        if (!base64) { setExcelImporting(false); return; }
+        const data = await fetchJSON<{ total: number; rows: any[] }>("/api/admin/questions/parse-excel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file: base64 }),
+        });
+        setExcelPreview(data.rows);
+        setShowExcelConfirm(true);
+      } catch (e) {
+        cli.err("excel import", e);
+        alert("Failed to parse Excel: " + (e as Error).message);
+      } finally {
+        setExcelImporting(false);
+      }
+    };
+    reader.onerror = () => { setExcelImporting(false); cli.err("excel import", "FileReader error"); };
+    reader.readAsDataURL(file);
+  };
+
+  const confirmExcelImport = () => {
+    if (!excelPreview) return;
+    const newDrafts = excelPreview.map((r) => ({
+      type: (["mcq", "mcq-multiple", "numeric", "fill-in-the-blanks"].includes(r.type) ? r.type : "mcq") as QuestionType,
+      text: r.text,
+      options: r.type === "mcq" || r.type === "mcq-multiple" ? r.options : ["", "", "", ""],
+      correctAnswer: r.correctAnswer,
+      explanation: r.explanation,
+      topic: r.topic,
+      positiveMarks: r.positiveMarks,
+      negativeMarks: r.negativeMarks,
+    }));
+    setDrafts((p) => [...p, ...newDrafts]);
+    setShowExcelConfirm(false);
+    setExcelPreview(null);
+    cli.success(`Imported ${newDrafts.length} questions from Excel`);
+  };
 
   const importFromBank = (setId: number, questionId: number) => {
     const src = bank.flatMap((b) => b.questions).find((q) => q.id === questionId);
@@ -662,7 +730,20 @@ export default function PapersPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>Questions ({drafts.length})</h3>
-                <Button type="button" size="sm" variant="outline" onClick={addDraft}>+ Add Question</Button>
+                <div className="flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={downloadTemplate}>📄 Template</Button>
+                  <input
+                    ref={excelInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: "none" }}
+                    onChange={handleExcelImport}
+                  />
+                  <Button type="button" size="sm" variant="outline" disabled={excelImporting} onClick={() => excelInputRef.current?.click()}>
+                    {excelImporting ? "Parsing…" : "📥 Import Excel"}
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={addDraft}>+ Add Question</Button>
+                </div>
               </div>
               <div className="flex flex-col gap-5">
                 {drafts.map((d, i) => (
@@ -1023,6 +1104,56 @@ export default function PapersPage() {
           </div>
         )}
       </div>
+
+      {/* Excel Import Confirmation Modal */}
+      {showExcelConfirm && excelPreview && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => { setShowExcelConfirm(false); setExcelPreview(null); }}
+        >
+          <div
+            className="rounded-[12px] p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-brand)", color: "var(--text-primary)" }} className="mb-2">
+              Import {excelPreview.length} Questions from Excel?
+            </h3>
+            <p className="text-xs font-mono mb-4" style={{ color: "var(--text-secondary)" }}>
+              These will be added to your current question drafts. You can edit them before submitting.
+            </p>
+            <div className="flex flex-col mb-4" style={{ gap: 4, maxHeight: 400, overflowY: "auto" }}>
+              {excelPreview.slice(0, 20).map((r, i) => (
+                <div
+                  key={r.row || i}
+                  className="flex items-center gap-3 px-3 py-2 rounded"
+                  style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}
+                >
+                  <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)", minWidth: 36 }}>
+                    #{i + 1}
+                  </span>
+                  <span className="text-[10px] font-mono uppercase" style={{ color: "var(--cyan)", minWidth: 80 }}>{r.type}</span>
+                  <span className="text-xs truncate" style={{ color: "var(--text-primary)" }}>{r.text?.slice(0, 80)}</span>
+                </div>
+              ))}
+              {excelPreview.length > 20 && (
+                <p className="text-[10px] font-mono pt-2" style={{ color: "var(--text-tertiary)" }}>
+                  + {excelPreview.length - 20} more
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end">
+              <Button variant="outline" size="sm" onClick={() => { setShowExcelConfirm(false); setExcelPreview(null); }}>
+                Cancel
+              </Button>
+              <Button size="sm" onClick={confirmExcelImport}>
+                Import {excelPreview.length} Questions
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

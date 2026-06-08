@@ -28,6 +28,10 @@ interface QuestionData {
   selectedAnswer?: string;
   markedForReview?: boolean;
   timeSpent?: number;
+  // Fields available when loading a completed session for review/practice
+  correctAnswer?: string;
+  explanation?: string;
+  isCorrect?: boolean;
 }
 
 interface PendingSave {
@@ -49,6 +53,7 @@ function ExamPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionIdParam = searchParams.get("sessionId");
+  const isPractice = searchParams.get("practice") === "true";
 
   const [questions, setQuestions] = useState<QuestionData[]>([]);
   const [, setTimeLimit] = useState(600);
@@ -78,6 +83,9 @@ function ExamPageInner() {
   const [isTerminated, setIsTerminated] = useState(false);
   const [showTabSwitchModal, setShowTabSwitchModal] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; severity: "gray" | "amber" | "crimson"; count: number }[]>([]);
+  // Practice mode: local-only results
+  const [showPracticeResults, setShowPracticeResults] = useState(false);
+  const [practiceScore, setPracticeScore] = useState<{ score: number; total: number; percent: number } | null>(null);
 
   // Audio beep for tab switch (Web Audio API)
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -181,7 +189,7 @@ function ExamPageInner() {
 
         if (cancelled) return;
 
-        if (data.completed) {
+        if (data.completed && !isPractice) {
           cli.info("Session already completed — redirecting to results");
           router.replace(`/results/session/${sessionIdParam}`);
           return;
@@ -233,6 +241,7 @@ function ExamPageInner() {
 
   // Tab switch detection: every visibility change = 1 tab switch
   useEffect(() => {
+    if (isPractice) return; // disabled in practice mode
     if (!sessionIdParam || sessionIdParam === "0" || isTerminated) return;
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
@@ -313,6 +322,54 @@ function ExamPageInner() {
 
     cli.info(`Ending exam session=${sessionIdParam}`);
 
+    // Practice mode: compute local score and show results overlay
+    if (isPractice) {
+      let score = 0;
+      let total = 0;
+      for (const q of questions) {
+        const correctAns = q.correctAnswer;
+        if (!correctAns) continue;
+        const correct = (() => {
+          try {
+            // MCQ multiple: compare JSON arrays
+            if (q.type === "mcq-multiple") {
+              const correctArr = JSON.parse(correctAns);
+              const userArr = JSON.parse(answers[q.id] || "[]");
+              return JSON.stringify(correctArr.sort()) === JSON.stringify(userArr.sort());
+            }
+            // Numeric: exact match
+            if (q.type === "numeric") {
+              return (answers[q.id] || "").trim() === correctAns.trim();
+            }
+            // Fill-in-the-blanks: case-insensitive
+            if (q.type === "fill-in-the-blanks") {
+              return (answers[q.id] || "").trim().toLowerCase() === correctAns.trim().toLowerCase();
+            }
+            // MCQ single: letter match
+            return answers[q.id] === correctAns;
+          } catch {
+            return false;
+          }
+        })();
+        const pos = 4; // default positive marks
+        const neg = 1; // default negative marks
+        if (!answers[q.id] || answers[q.id] === "") {
+          // skipped: 0 marks
+        } else if (correct) {
+          score += pos;
+        } else {
+          score -= neg;
+        }
+        total += pos;
+      }
+      const percent = total > 0 ? Math.round((score / total) * 100) : 0;
+      setPracticeScore({ score, total, percent });
+      setShowPracticeResults(true);
+      setEnding(false);
+      cli.success(`[PRACTICE] Score: ${score}/${total} (${percent}%)`);
+      return;
+    }
+
     if (sessionIdParam && sessionIdParam !== "0") {
       // Flush any pending saves first
       if (pendingQueue.length > 0) {
@@ -382,6 +439,11 @@ function ExamPageInner() {
 
   // Save answer to backend instantly, with retry fallback
   const saveAnswer = useCallback(async (questionId: number, option: string, timeSpent: number, markedForReview?: boolean) => {
+    if (isPractice) {
+      // Practice mode: no backend calls, just log
+      cli.info(`[PRACTICE] q=${questionId} → ${option === "" ? "(skipped)" : option} (${timeSpent}s)${markedForReview ? " [review]" : ""}`);
+      return;
+    }
     if (!sessionIdParam || sessionIdParam === "0") return;
     try {
       await apiCall("POST", `/api/exam/${sessionIdParam}/answer`, {
@@ -395,7 +457,7 @@ function ExamPageInner() {
       cli.warn(`Instant save failed for q=${questionId}, queuing for retry`);
       setPendingQueue((prev) => [...prev, { questionId, selectedOption: option, timeSpent, attempts: 1 }]);
     }
-  }, [sessionIdParam]);
+  }, [sessionIdParam, isPractice]);
 
   // Save marked-for-review state independently
   const saveMarkedForReview = useCallback(async (questionId: number, marked: boolean) => {
@@ -575,6 +637,14 @@ function ExamPageInner() {
 
   return (
     <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
+      {/* Practice Mode Banner */}
+      {isPractice && (
+        <div className="w-full py-2 px-6 text-center" style={{ background: "rgba(72,190,255,0.12)", borderBottom: "1px solid var(--cyan)" }}>
+          <div className="font-bold text-xs" style={{ color: "var(--cyan)" }}>
+            PRACTICE MODE — This session is not recorded. No backend updates, no proctoring.
+          </div>
+        </div>
+      )}
       {/* Tab Switch Warning / Red Flag Banner */}
       {isTerminated && (
         <div className="w-full py-3 px-6 text-center" style={{ background: "var(--crimson)", color: "#fff" }}>
@@ -927,6 +997,57 @@ function ExamPageInner() {
             <div className="flex justify-center">
               <Button variant="primary" onClick={() => setShowTabSwitchModal(false)}>
                 I understand — Stay on this page
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Practice Results Overlay */}
+      {showPracticeResults && practiceScore && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-[70]"
+          style={{ background: "rgba(0,0,0,0.85)" }}
+        >
+          <div
+            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6"
+            style={{ background: "var(--bg-card)", border: "2px solid var(--cyan)" }}
+          >
+            <div className="text-center">
+              <div className="text-5xl mb-4">📋</div>
+              <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--cyan)" }}>
+                Practice Session Complete
+              </h2>
+              <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+                This was a practice run. Your score is not recorded on the server.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
+                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Score</span>
+                <span className="text-2xl font-mono font-bold" style={{ color: "var(--mint)" }}>
+                  {practiceScore.score} / {practiceScore.total}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
+                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Percentage</span>
+                <span className="text-2xl font-mono font-bold" style={{ color: "var(--cyan)" }}>
+                  {practiceScore.percent}%
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
+                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Questions Answered</span>
+                <span className="text-lg font-mono font-bold" style={{ color: "var(--text-primary)" }}>
+                  {Object.keys(answers).filter(k => answers[Number(k)]).length} / {questions.length}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={() => router.push("/tests")}>
+                Back to Tests
+              </Button>
+              <Button className="flex-1" onClick={() => window.location.reload()}>
+                Retry Again
               </Button>
             </div>
           </div>

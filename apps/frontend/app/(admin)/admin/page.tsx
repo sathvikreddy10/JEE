@@ -77,6 +77,7 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
   const [excelUploading, setExcelUploading] = useState(false);
   const [excelResults, setExcelResults] = useState<any>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
@@ -219,13 +220,16 @@ export default function AdminPage() {
   const downloadTemplate = async () => {
     try {
       const res = await fetch("/api/admin/questions/template");
+      if (!res.ok) { cli.err("template download", res.status); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
       a.download = "question_template.xlsx";
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
       cli.success("Template downloaded");
     } catch (e) {
       cli.err("download template", e);
@@ -237,14 +241,11 @@ export default function AdminPage() {
     if (!file) return;
     setExcelUploading(true);
     setExcelResults(null);
-    try {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
         const base64 = (event.target?.result as string)?.split(",")[1];
-        if (!base64) {
-          setExcelUploading(false);
-          return;
-        }
+        if (!base64) { setExcelUploading(false); return; }
         const data = await fetchJSON<{ total: number; success: number; failed: number; results: any[] }>("/api/admin/questions/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -255,13 +256,15 @@ export default function AdminPage() {
         if (data.success > 0) {
           loadQuestions(filterSetId);
         }
-      };
-      reader.readAsDataURL(file);
-    } catch (e) {
-      cli.err("excel upload", e);
-    } finally {
-      setExcelUploading(false);
-    }
+      } catch (e) {
+        cli.err("excel upload", e);
+        alert("Upload failed: " + (e as Error).message);
+      } finally {
+        setExcelUploading(false);
+      }
+    };
+    reader.onerror = () => { setExcelUploading(false); cli.err("excel upload", "FileReader error"); };
+    reader.readAsDataURL(file);
   };
 
   return (
@@ -283,18 +286,16 @@ export default function AdminPage() {
               </div>
               <div className="flex gap-2">
                 <Button size="sm" variant="outline" onClick={downloadTemplate}>📄 Template</Button>
-                <label className="cursor-pointer">
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls"
-                    style={{ display: "none" }}
-                    onChange={handleExcelUpload}
-                    disabled={excelUploading}
-                  />
-                  <Button size="sm" variant="outline" disabled={excelUploading}>
-                    {excelUploading ? "Uploading…" : "📥 Excel Upload"}
-                  </Button>
-                </label>
+                <input
+                  ref={excelInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  style={{ display: "none" }}
+                  onChange={handleExcelUpload}
+                />
+                <Button size="sm" variant="outline" disabled={excelUploading} onClick={() => excelInputRef.current?.click()}>
+                  {excelUploading ? "Uploading…" : "📥 Excel Upload"}
+                </Button>
                 <Button size="sm" onClick={startNew}>+ New</Button>
               </div>
             </div>

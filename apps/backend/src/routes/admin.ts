@@ -1746,3 +1746,34 @@ adminRouter.post("/questions/upload", async (req, res) => {
     return res.status(500).json({ error: "Internal error" });
   }
 });
+
+// POST /admin/questions/parse-excel — parse Excel and return rows as JSON (without saving)
+adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
+  try {
+    const { file } = req.body;
+    if (!file) return res.status(400).json({ error: "Missing file (base64)" });
+
+    const buffer = Buffer.from(file, "base64");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const dataRows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+    const rows = dataRows.map((r, idx) => ({
+      row: idx + 2, // +1 for header, +1 for 0-index
+      type: (r.type || "mcq").trim().toLowerCase(),
+      text: (r.text || "").trim(),
+      options: [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""],
+      correctAnswer: (r.correctAnswer || "A").trim(),
+      explanation: (r.explanation || "").trim(),
+      topic: (r.topic || "General").trim(),
+      positiveMarks: Number(r.positiveMarks) || 4,
+      negativeMarks: Number(r.negativeMarks) || 1,
+      order: Number(r.order) || idx + 1,
+    }));
+
+    return res.json({ total: rows.length, rows });
+  } catch (e) {
+    log.err("POST /admin/questions/parse-excel", e);
+    return res.status(500).json({ error: "Failed to parse Excel" });
+  }
+});

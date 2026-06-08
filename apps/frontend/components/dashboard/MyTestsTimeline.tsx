@@ -94,8 +94,7 @@ export default function MyTestsTimeline() {
   const [items, setItems] = useState<MyTestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [expandedWeeks, setExpandedWeeks] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState<string>("upcoming");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -116,26 +115,17 @@ export default function MyTestsTimeline() {
     load();
   }, [load]);
 
-  const filtered = useMemo(() => {
-    if (filterStatus === "all") return items;
-    if (filterStatus === "active") return items.filter((i) => ["fresh", "inProgress", "attempted"].includes(i.status));
-    if (filterStatus === "completed") return items.filter((i) => ["attempted", "exhausted"].includes(i.status));
-    if (filterStatus === "missed") return items.filter((i) => ["missed", "expiredIncomplete"].includes(i.status));
-    return items.filter((i) => i.status === filterStatus);
-  }, [items, filterStatus]);
+  // Tab filtering
+  const upcoming = useMemo(() => items.filter((i) => ["waiting", "fresh"].includes(i.status)), [items]);
+  const inProgress = useMemo(() => items.filter((i) => i.status === "inProgress"), [items]);
+  const completed = useMemo(() => items.filter((i) => ["attempted", "exhausted"].includes(i.status)), [items]);
+  const missed = useMemo(() => items.filter((i) => ["missed", "expiredIncomplete"].includes(i.status)), [items]);
 
-  const grouped = useMemo(() => groupByWeek(filtered), [filtered]);
-
-  const missedCount = items.filter((i) => i.status === "missed" || i.status === "expiredIncomplete").length;
-  const activeCount = items.filter((i) => ["fresh", "inProgress", "attempted"].includes(i.status)).length;
-
-  const toggleWeek = (label: string) => {
-    setExpandedWeeks((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
+  const tabData = {
+    upcoming: { items: upcoming, label: "Upcoming", count: upcoming.length },
+    inProgress: { items: inProgress, label: "In Progress", count: inProgress.length },
+    completed: { items: completed, label: "Completed", count: completed.length },
+    missed: { items: missed, label: "Missed", count: missed.length },
   };
 
   if (loading) {
@@ -163,236 +153,255 @@ export default function MyTestsTimeline() {
     );
   }
 
+  const currentTab = tabData[activeTab as keyof typeof tabData];
+
   return (
     <div className="flex flex-col" style={{ gap: 24 }}>
-      {/* Header + Filters */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1
-              style={{
-                fontSize: 28,
-                fontWeight: 700,
-                fontFamily: "var(--font-brand)",
-                letterSpacing: "-0.02em",
-                color: "var(--text-primary)",
-              }}
-            >
-              My Tests
-            </h1>
-            <p className="mt-1" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Every test ever scheduled for you — attempted, missed, and upcoming.
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {missedCount > 0 && (
-              <div
-                className="px-3 py-1.5 rounded-full text-xs font-mono"
-                style={{ background: "rgba(220,38,38,0.1)", color: "var(--crimson)", border: "1px solid var(--crimson)" }}
-              >
-                🚨 Missed {missedCount} test{missedCount === 1 ? "" : "s"}
-              </div>
-            )}
-            {activeCount > 0 && (
-              <div
-                className="px-3 py-1.5 rounded-full text-xs font-mono"
-                style={{ background: "rgba(94,243,140,0.1)", color: "var(--mint)", border: "1px solid var(--mint)" }}
-              >
-                {activeCount} active
-              </div>
-            )}
-            <Button size="sm" variant="outline" onClick={load}>Refresh</Button>
-          </div>
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1
+            style={{
+              fontSize: 28,
+              fontWeight: 700,
+              fontFamily: "var(--font-brand)",
+              letterSpacing: "-0.02em",
+              color: "var(--text-primary)",
+            }}
+          >
+            My Tests
+          </h1>
+          <p className="mt-1" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
+            All your scheduled tests — upcoming, in progress, completed, and missed.
+          </p>
         </div>
-
-        {/* Filter chips */}
-        <div className="flex gap-2 flex-wrap">
-          {[
-            { value: "all", label: "All" },
-            { value: "active", label: "Active" },
-            { value: "completed", label: "Completed" },
-            { value: "missed", label: "Missed" },
-            { value: "waiting", label: "Upcoming" },
-          ].map((opt) => (
-            <button
-              key={opt.value}
-              onClick={() => setFilterStatus(opt.value)}
-              className="px-3 py-1.5 text-xs font-medium rounded-full transition-all"
-              style={{
-                fontFamily: "var(--font-mono)",
-                background: filterStatus === opt.value ? "rgba(72,190,255,0.12)" : "var(--bg-input)",
-                color: filterStatus === opt.value ? "var(--cyan)" : "var(--text-secondary)",
-                border: `1px solid ${filterStatus === opt.value ? "var(--border-active)" : "var(--border-subtle)"}`,
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <Button size="sm" variant="outline" onClick={load}>Refresh</Button>
       </div>
 
-      {/* Empty state */}
-      {items.length === 0 && (
+      {/* 4 Sub-tabs */}
+      <div className="flex gap-2 flex-wrap">
+        {([
+          { key: "upcoming", label: "Upcoming", color: "var(--amber)" },
+          { key: "inProgress", label: "In Progress", color: "var(--mint)" },
+          { key: "completed", label: "Completed", color: "var(--forest)" },
+          { key: "missed", label: "Missed", color: "var(--crimson)" },
+        ] as const).map((tab) => {
+          const isActive = activeTab === tab.key;
+          const tabInfo = tabData[tab.key as keyof typeof tabData];
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className="px-4 py-2 text-sm font-medium rounded-lg transition-all flex items-center gap-2"
+              style={{
+                fontFamily: "var(--font-mono)",
+                background: isActive ? `${tab.color}15` : "var(--bg-input)",
+                color: isActive ? tab.color : "var(--text-secondary)",
+                border: `1px solid ${isActive ? tab.color : "var(--border-subtle)"}`,
+              }}
+            >
+              {tab.label}
+              <span
+                className="text-xs px-1.5 py-0.5 rounded-full"
+                style={{
+                  background: isActive ? `${tab.color}25` : "var(--bg-card)",
+                  color: isActive ? tab.color : "var(--text-secondary)",
+                }}
+              >
+                {tabInfo.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Empty state for current tab */}
+      {currentTab.count === 0 && (
         <Card>
           <div className="text-center py-12">
-            <span className="text-4xl mb-4 block">📋</span>
+            <span className="text-4xl mb-4 block">
+              {activeTab === "upcoming" ? "📅" : activeTab === "inProgress" ? "⏳" : activeTab === "completed" ? "✅" : "❌"}
+            </span>
             <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
-              No tests yet
+              No {currentTab.label.toLowerCase()} tests
             </h3>
-            <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
-              You are not assigned to any batches with scheduled tests.
+            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
+              {activeTab === "upcoming"
+                ? "No upcoming tests scheduled for your batches."
+                : activeTab === "inProgress"
+                ? "You have no tests in progress."
+                : activeTab === "completed"
+                ? "You haven't completed any tests yet."
+                : "You haven't missed any tests."}
             </p>
           </div>
         </Card>
       )}
 
-      {/* Timeline grouped by week */}
-      <div className="flex flex-col" style={{ gap: 20 }}>
-        {grouped.map((group) => (
-          <div key={group.label} className="flex flex-col" style={{ gap: 12 }}>
-            <button
-              onClick={() => toggleWeek(group.label)}
-              className="flex items-center gap-3 text-left"
-              style={{ color: "var(--text-primary)", fontFamily: "var(--font-brand)", fontSize: 16, fontWeight: 600 }}
-            >
-              <span>{group.label}</span>
-              <span className="text-[11px] font-mono uppercase px-2 py-0.5 rounded-full" style={{ background: "var(--bg-input)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}>
-                {group.items.length}
-              </span>
-              <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
-                {expandedWeeks.has(group.label) ? "▾" : "▸"}
-              </span>
-            </button>
-            {(expandedWeeks.has(group.label) || group.label === "This Week") && (
-              <div className="flex flex-col" style={{ gap: 10, paddingLeft: 12, borderLeft: "2px solid var(--border-subtle)" }}>
-                {group.items.map((item) => (
-                  <TestCard key={item.id} item={item} router={router} />
-                ))}
-              </div>
-            )}
-          </div>
+      {/* Vertical list for current tab */}
+      <div className="flex flex-col" style={{ gap: 12 }}>
+        {currentTab.items.map((item) => (
+          <DetailedTestCard key={item.id} item={item} router={router} />
         ))}
       </div>
     </div>
   );
 }
 
-function TestCard({ item, router }: { item: MyTestItem; router: ReturnType<typeof useRouter> }) {
+function DetailedTestCard({ item, router }: { item: MyTestItem; router: ReturnType<typeof useRouter> }) {
   const cfg = STATUS_CONFIG[item.status];
   const date = formatDate(item.scheduledStart);
-  const percent = item.lastScore != null && item.lastScore !== null
+  const percent = item.lastScore != null && item.questionCount > 0
     ? Math.round((item.lastScore / Math.max(1, item.questionCount * 4)) * 100)
     : null;
+  const isCompleted = item.status === "attempted" || item.status === "exhausted";
+  const canPractice = isCompleted && item.lastSessionId != null;
 
   return (
-    <Card
-      onClick={() => {
-        if (item.status === "inProgress" && item.inProgressSessionId) {
-          router.push(`/exam?sessionId=${item.inProgressSessionId}`);
-        } else if (item.status === "missed" || item.status === "expiredIncomplete") {
-          // No action — just a visual card
-        } else if (item.canRetake) {
-          router.push(`/tests`);
-        } else if (item.lastSessionId) {
-          router.push(`/results/session/${item.lastSessionId}`);
-        }
-      }}
-      style={{
-        cursor: item.status === "missed" || item.status === "expiredIncomplete" ? "default" : "pointer",
-        opacity: item.status === "missed" || item.status === "expiredIncomplete" ? 0.75 : 1,
-        padding: 0,
-      }}
-    >
-      <div className="flex items-center gap-4 p-5">
-        {/* Date badge */}
-        <div
-          className="flex flex-col items-center justify-center shrink-0"
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: 10,
-            background: item.status === "missed" || item.status === "expiredIncomplete"
-              ? "rgba(220,38,38,0.08)"
-              : "rgba(72,190,255,0.10)",
-            border: `1px solid ${item.status === "missed" || item.status === "expiredIncomplete" ? "var(--crimson)" : "var(--border-active)"}`,
-          }}
-        >
-          <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>
-            {date.month}
-          </span>
-          <span className="text-lg font-bold font-mono" style={{ color: "var(--text-primary)" }}>
-            {date.date}
-          </span>
-          <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
-            {date.day}
-          </span>
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
-              {item.setName}
-            </h3>
-            <Badge variant={cfg.variant}>{cfg.label}</Badge>
-            <Badge variant="muted">{item.exam}</Badge>
-          </div>
-          <p className="text-[11px] font-mono" style={{ color: "var(--text-secondary)" }}>
-            {item.subject} · {item.questionCount} Q · {Math.floor(item.timeLimit / 60)}m
-          </p>
-          <p className="text-[11px] font-mono mt-1" style={{ color: "var(--text-tertiary)" }}>
-            {cfg.description}
-            {item.status === "missed" && item.missedAt && (
-              <span style={{ color: "var(--crimson)" }}>
-                {" "}· Window closed on {new Date(item.missedAt).toLocaleDateString()}
-              </span>
-            )}
-          </p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span
-              className="text-[10px] font-mono px-2 py-0.5 rounded"
-              style={{ background: "rgba(72,190,255,0.10)", color: "var(--cyan)", border: "1px solid var(--border-active)" }}
-            >
-              {item.batchName}
+    <Card style={{ padding: 0 }}>
+      <div className="p-5 flex flex-col gap-3">
+        {/* Top row: Date + Info + Actions */}
+        <div className="flex items-start gap-4">
+          {/* Date badge */}
+          <div
+            className="flex flex-col items-center justify-center shrink-0"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 10,
+              background: item.status === "missed" || item.status === "expiredIncomplete"
+                ? "rgba(220,38,38,0.08)"
+                : item.status === "inProgress"
+                ? "rgba(94,243,140,0.08)"
+                : "rgba(72,190,255,0.10)",
+              border: `1px solid ${item.status === "missed" || item.status === "expiredIncomplete"
+                ? "var(--crimson)"
+                : item.status === "inProgress"
+                ? "var(--mint)"
+                : "var(--border-active)"}`,
+            }}
+          >
+            <span className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>
+              {date.month}
+            </span>
+            <span className="text-lg font-bold font-mono" style={{ color: "var(--text-primary)" }}>
+              {date.date}
+            </span>
+            <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+              {date.day}
             </span>
           </div>
-        </div>
 
-        {/* Score / Action */}
-        <div className="flex items-center gap-4 shrink-0">
-          {item.status === "attempted" || item.status === "exhausted" ? (
-            <div className="text-right">
-              {item.lastScore != null && (
-                <div className="font-mono font-semibold text-lg" style={{ color: percent != null && percent >= 60 ? "var(--mint)" : percent != null && percent >= 40 ? "var(--amber)" : "var(--crimson)" }}>
-                  {item.lastScore}
-                  <span className="text-xs" style={{ color: "var(--text-secondary)" }}>/{item.questionCount * 4}</span>
-                </div>
+          {/* Info */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1 flex-wrap">
+              <h3 className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>
+                {item.setName}
+              </h3>
+              <Badge variant={cfg.variant}>{cfg.label}</Badge>
+              <Badge variant="muted">{item.exam}</Badge>
+            </div>
+            <p className="text-[11px] font-mono" style={{ color: "var(--text-secondary)" }}>
+              {item.subject} · {item.questionCount} Q · {Math.floor(item.timeLimit / 60)}m
+            </p>
+            <p className="text-[11px] font-mono mt-1" style={{ color: "var(--text-tertiary)" }}>
+              {cfg.description}
+              {item.status === "missed" && item.missedAt && (
+                <span style={{ color: "var(--crimson)" }}>
+                  {" "}· Window closed on {new Date(item.missedAt).toLocaleDateString()}
+                </span>
               )}
-              {percent != null && (
-                <div className="text-xs font-mono" style={{ color: percent >= 60 ? "var(--mint)" : percent >= 40 ? "var(--amber)" : "var(--crimson)" }}>
-                  {percent}%
-                </div>
+            </p>
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span
+                className="text-[10px] font-mono px-2 py-0.5 rounded"
+                style={{ background: "rgba(72,190,255,0.10)", color: "var(--cyan)", border: "1px solid var(--border-active)" }}
+              >
+                {item.batchName}
+              </span>
+              {item.status === "waiting" && item.goTime && (
+                <span className="text-[10px] font-mono" style={{ color: "var(--amber)" }}>
+                  GO at {new Date(item.goTime).toLocaleTimeString()}
+                </span>
               )}
-              {item.attemptsUsed > 1 && (
-                <div className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
-                  {item.attemptsUsed}/{item.attemptsAllowed} attempts
-                </div>
+              {item.status === "fresh" && item.joinDeadline && (
+                <span className="text-[10px] font-mono" style={{ color: "var(--mint)" }}>
+                  Join by {new Date(item.joinDeadline).toLocaleTimeString()}
+                </span>
               )}
             </div>
-          ) : item.status === "inProgress" ? (
-            <div className="text-right">
+          </div>
+
+          {/* Score / Actions */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {isCompleted && (
+              <div className="text-right">
+                {item.lastScore != null && (
+                  <div className="font-mono font-semibold text-lg" style={{ color: percent != null && percent >= 60 ? "var(--mint)" : percent != null && percent >= 40 ? "var(--amber)" : "var(--crimson)" }}>
+                    {item.lastScore}
+                    <span className="text-xs" style={{ color: "var(--text-secondary)" }}>/{item.questionCount * 4}</span>
+                  </div>
+                )}
+                {percent != null && (
+                  <div className="text-xs font-mono" style={{ color: percent >= 60 ? "var(--mint)" : percent >= 40 ? "var(--amber)" : "var(--crimson)" }}>
+                    {percent}%
+                  </div>
+                )}
+                {item.attemptsUsed > 1 && (
+                  <div className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                    {item.attemptsUsed}/{item.attemptsAllowed} attempts
+                  </div>
+                )}
+              </div>
+            )}
+            {item.status === "inProgress" && (
               <Badge variant="mint">Resume →</Badge>
-            </div>
-          ) : item.status === "fresh" || item.status === "waiting" ? (
-            <div className="text-right">
-              <Badge variant="cyan">{item.status === "fresh" ? "Start →" : "Waiting"}</Badge>
-            </div>
-          ) : (
-            <div className="text-right">
+            )}
+            {item.status === "fresh" && (
+              <Badge variant="cyan">Start →</Badge>
+            )}
+            {item.status === "waiting" && (
+              <Badge variant="amber">Waiting</Badge>
+            )}
+            {(item.status === "missed" || item.status === "expiredIncomplete") && (
               <span className="text-xs font-mono" style={{ color: "var(--crimson)" }}>
                 {item.status === "missed" ? "Missed" : "Expired"}
               </span>
-            </div>
+            )}
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex gap-2 flex-wrap justify-end">
+          {item.status === "inProgress" && item.inProgressSessionId && (
+            <Button size="sm" variant="primary" onClick={() => router.push(`/exam?sessionId=${item.inProgressSessionId}`)}>
+              Resume
+            </Button>
+          )}
+          {item.status === "fresh" && (
+            <Button size="sm" variant="primary" onClick={() => router.push(`/tests`)}>
+              Start
+            </Button>
+          )}
+          {item.status === "waiting" && (
+            <Button size="sm" variant="outline" disabled>
+              Waiting
+            </Button>
+          )}
+          {isCompleted && item.lastSessionId && (
+            <Button size="sm" variant="outline" onClick={() => router.push(`/results/session/${item.lastSessionId}`)}>
+              View Result
+            </Button>
+          )}
+          {canPractice && (
+            <Button size="sm" variant="outline" onClick={() => router.push(`/exam?sessionId=${item.lastSessionId}&practice=true`)}>
+              Practice 🔄
+            </Button>
+          )}
+          {item.canRetake && item.status !== "inProgress" && (
+            <Button size="sm" variant="solid" onClick={() => router.push(`/tests`)}>
+              Re-attempt
+            </Button>
           )}
         </div>
       </div>
