@@ -181,6 +181,129 @@ studentRouter.get("/history", async (req, res) => {
   }
 });
 
+// GET /student/my-tests
+// Returns every test ever scheduled for the student's batches, with attempt/missed status
+studentRouter.get("/my-tests", async (req, res) => {
+  log.api("GET", "/student/my-tests");
+  try {
+    const user = userOr401(req);
+    const now = new Date();
+
+    // 1. Get user's batches
+    const memberships = await prisma.batchMember.findMany({
+      where: { userId: user.id },
+      select: { batchId: true },
+    });
+    const batchIds = memberships.map((m) => m.batchId);
+    if (batchIds.length === 0) return res.json({ items: [] });
+
+    // 2. Get all batch papers for those batches
+    const batchPapers = await prisma.batchPaper.findMany({
+      where: { batchId: { in: batchIds } },
+      include: {
+        set: {
+          select: {
+            id: true,
+            name: true,
+            subject: true,
+            exam: true,
+            kind: true,
+            timeLimit: true,
+            attemptsAllowed: true,
+            _count: { select: { questions: true } },
+          },
+        },
+        batch: { select: { id: true, name: true } },
+      },
+      orderBy: { scheduledStart: "desc" },
+    });
+
+    // 3. Get all user sessions for those sets
+    const setIds = Array.from(new Set(batchPapers.map((bp) => bp.setId)));
+    const sessions = await prisma.examSession.findMany({
+      where: { userId: user.id, setId: { in: setIds } },
+      orderBy: { startTime: "desc" },
+    });
+
+    // 4. Build per-set session maps
+    const sessionsBySet = new Map<number, typeof sessions>();
+    for (const s of sessions) {
+      const arr = sessionsBySet.get(s.setId) ?? [];
+      arr.push(s);
+      sessionsBySet.set(s.setId, arr);
+    }
+
+    // 5. Build result items
+    const items = batchPapers.map((bp) => {
+      const setSess = sessionsBySet.get(bp.setId) ?? [];
+      const completed = setSess.filter((s) => s.completed);
+      const inProgress = setSess.find((s) => !s.completed && !s.endTime);
+      const expiredIncomplete = setSess.find((s) => !s.completed && s.endTime);
+      const attemptsUsed = completed.length + (expiredIncomplete ? 1 : 0);
+      const attemptsAllowed = bp.set.attemptsAllowed;
+
+      const bestScore = completed.length > 0 ? Math.max(...completed.map((s) => s.score ?? 0)) : null;
+      const lastScore = completed.length > 0 ? (completed[0]?.score ?? null) : null;
+      const lastSessionId = completed.length > 0 ? completed[0].id : null;
+      const inProgressSessionId = inProgress ? inProgress.id : null;
+
+      const windowEnd = new Date(bp.scheduledEnd.getTime() + (bp.bufferMinutes ?? 0) * 60_000);
+      const isWindowOpen = now >= bp.scheduledStart && now <= windowEnd;
+      const isWindowPast = now > windowEnd;
+      const isWindowFuture = now < bp.scheduledStart;
+
+      let status: string;
+      if (inProgress) {
+        status = "inProgress";
+      } else if (completed.length > 0 && attemptsUsed >= attemptsAllowed) {
+        status = "exhausted";
+      } else if (completed.length > 0) {
+        status = "attempted";
+      } else if (expiredIncomplete) {
+        status = "expiredIncomplete";
+      } else if (isWindowPast) {
+        status = "missed";
+      } else if (isWindowOpen) {
+        status = "fresh";
+      } else {
+        status = "waiting";
+      }
+
+      return {
+        id: bp.id,
+        batchId: bp.batchId,
+        batchName: bp.batch.name,
+        setId: bp.setId,
+        setName: bp.set.name,
+        subject: bp.set.subject,
+        exam: bp.set.exam,
+        kind: bp.set.kind,
+        timeLimit: bp.set.timeLimit,
+        questionCount: bp.set._count.questions,
+        attemptsAllowed,
+        attemptsUsed,
+        status,
+        bestScore,
+        lastScore,
+        lastSessionId,
+        inProgressSessionId,
+        scheduledStart: bp.scheduledStart.toISOString(),
+        scheduledEnd: bp.scheduledEnd.toISOString(),
+        joinDeadline: bp.scheduledEnd.toISOString(),
+        goTime: bp.goTime?.toISOString() ?? null,
+        bufferMinutes: bp.bufferMinutes,
+        canRetake: status === "attempted" || status === "fresh" || status === "expiredIncomplete" || status === "missed",
+        missedAt: status === "missed" ? windowEnd.toISOString() : null,
+      };
+    });
+
+    return res.json({ items });
+  } catch (e) {
+    log.err("GET /student/my-tests", e);
+    return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
+  }
+});
+
 // GET /student/daily-challenge
 // Returns today's batch daily challenges for the authenticated student
 studentRouter.get("/daily-challenge", async (req, res) => {

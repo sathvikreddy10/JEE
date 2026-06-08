@@ -407,8 +407,11 @@ function FilterChip({
   );
 }
 
+import MyTestsTimeline from "@/components/dashboard/MyTestsTimeline";
+
 export default function TestsCatalogPage() {
   const router = useRouter();
+  const [view, setView] = useState<"available" | "my-tests">("available");
   const [allSets, setAllSets] = useState<TestSet[]>([]);
   const [myBatches, setMyBatches] = useState<MyBatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -577,13 +580,47 @@ export default function TestsCatalogPage() {
             Tests
           </h1>
           <p className="mt-2" style={{ color: "var(--text-secondary)", fontSize: 15 }}>
-            All available papers — institute-built and practice. Pick one to start, resume, or review.
+            {view === "available"
+              ? "All available papers — institute-built and practice. Pick one to start, resume, or review."
+              : "Every test ever scheduled for you — attempted, missed, and upcoming."}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex gap-1 rounded p-1" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+            <button
+              onClick={() => setView("available")}
+              className="px-3 py-1.5 text-xs font-medium rounded transition-all"
+              style={{
+                fontFamily: "var(--font-mono)",
+                background: view === "available" ? "var(--bg-card)" : "transparent",
+                color: view === "available" ? "var(--cyan)" : "var(--text-secondary)",
+                boxShadow: view === "available" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+              }}
+            >
+              Available
+            </button>
+            <button
+              onClick={() => setView("my-tests")}
+              className="px-3 py-1.5 text-xs font-medium rounded transition-all"
+              style={{
+                fontFamily: "var(--font-mono)",
+                background: view === "my-tests" ? "var(--bg-card)" : "transparent",
+                color: view === "my-tests" ? "var(--cyan)" : "var(--text-secondary)",
+                boxShadow: view === "my-tests" ? "0 1px 2px rgba(0,0,0,0.05)" : "none",
+              }}
+            >
+              My Tests
+            </button>
+          </div>
           <Button variant="outline" size="sm" onClick={loadSets}>Refresh</Button>
         </div>
       </div>
+
+      {view === "my-tests" && (
+        <MyTestsTimeline />
+      )}
+
+      {view === "available" && (<>
 
       {/* In-progress banner */}
       {active.length > 0 && (
@@ -976,6 +1013,7 @@ export default function TestsCatalogPage() {
           <span>open</span>
         </div>
       )}
+      </>)}
     </div>
   );
 }

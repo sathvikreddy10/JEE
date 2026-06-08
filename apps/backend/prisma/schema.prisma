@@ -18,6 +18,7 @@ model User {
   batchMembers  BatchMember[]
   credential    UserCredential?
   notifications Notification[]
+  pinnedByAdmin AdminPinnedStudent[]
 }
 
 model UserCredential {
@@ -48,6 +49,7 @@ model Admin {
   sessions     AdminAuthSession[]
   batches      Batch[]
   credentials  UserCredential[]
+  pinnedStudents AdminPinnedStudent[]
 }
 
 model AdminAuthSession {
@@ -58,6 +60,19 @@ model AdminAuthSession {
   admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
+}
+
+model AdminPinnedStudent {
+  id        Int      @id @default(autoincrement())
+  adminId   Int
+  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note      String?  // optional label like "watch list", "struggling"
+  createdAt DateTime @default(now())
+
+  @@unique([adminId, userId])
+  @@index([adminId, createdAt])
 }
 
 model QuestionSet {

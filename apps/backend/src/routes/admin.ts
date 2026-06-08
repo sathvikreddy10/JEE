@@ -11,6 +11,7 @@ import {
 } from "../lib/auth";
 import { verifyAdminCredentials } from "../lib/adminAuth";
 import { buildSessionAnalytics } from "../lib/marking";
+import * as XLSX from "xlsx";
 
 export const adminRouter = Router();
 
@@ -1243,6 +1244,505 @@ adminRouter.get("/results", async (req, res) => {
     return res.json({ results: data });
   } catch (e) {
     log.err("GET /admin/results", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/results/exams
+// Returns all exams (papers) with aggregate KPIs for the admin chooser grid
+adminRouter.get("/results/exams", async (req, res) => {
+  log.api("GET", "/admin/results/exams");
+  try {
+    const sets = await prisma.questionSet.findMany({
+      select: {
+        id: true,
+        name: true,
+        subject: true,
+        exam: true,
+        kind: true,
+        timeLimit: true,
+        attemptsAllowed: true,
+        _count: { select: { questions: true, sessions: true } },
+        batchPapers: { select: { batch: { select: { id: true, name: true } }, scheduledStart: true, scheduledEnd: true } },
+      },
+    });
+
+    const setIds = sets.map((s) => s.id);
+    const sessions = await prisma.examSession.findMany({
+      where: { setId: { in: setIds }, completed: true },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    const sessionsBySet = new Map<number, typeof sessions>();
+    for (const s of sessions) {
+      const arr = sessionsBySet.get(s.setId) ?? [];
+      arr.push(s);
+      sessionsBySet.set(s.setId, arr);
+    }
+
+    const exams = sets.map((set) => {
+      const sess = sessionsBySet.get(set.id) ?? [];
+      const scores = sess.map((s) => s.score ?? 0);
+      const totals = sess.map((s) => s.total ?? 0);
+      const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const avgPercent = totals.length > 0
+        ? Math.round(sess.reduce((acc, s) => acc + ((s.score ?? 0) / Math.max(1, s.total ?? 1)) * 100, 0) / totals.length)
+        : 0;
+      const highest = scores.length > 0 ? Math.max(...scores) : 0;
+      const lowest = scores.length > 0 ? Math.min(...scores) : 0;
+      const flaggedCount = sess.filter((s) => s.flaggedAt).length;
+      const autoEndedCount = sess.filter((s) => s.autoEndedAt).length;
+      const uniqueStudents = new Set(sess.map((s) => s.userId)).size;
+
+      return {
+        id: set.id,
+        name: set.name,
+        subject: set.subject,
+        exam: set.exam,
+        kind: set.kind,
+        timeLimit: set.timeLimit,
+        questionCount: set._count.questions,
+        attempts: sess.length,
+        uniqueStudents,
+        avgScore,
+        avgPercent,
+        highest,
+        lowest,
+        flaggedCount,
+        autoEndedCount,
+        batches: set.batchPapers.map((bp) => ({ id: bp.batch.id, name: bp.batch.name, scheduledStart: bp.scheduledStart, scheduledEnd: bp.scheduledEnd })),
+      };
+    }).sort((a, b) => b.attempts - a.attempts);
+
+    return res.json({ exams });
+  } catch (e) {
+    log.err("GET /admin/results/exams", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/results/batches
+// Returns all batches with aggregate KPIs for the admin chooser grid
+adminRouter.get("/results/batches", async (req, res) => {
+  log.api("GET", "/admin/results/batches");
+  try {
+    const batches = await prisma.batch.findMany({
+      include: {
+        members: { select: { userId: true } },
+        papers: { select: { setId: true, scheduledStart: true, scheduledEnd: true } },
+        _count: { select: { members: true, papers: true } },
+      },
+    });
+
+    const batchIds = batches.map((b) => b.id);
+    const setIds = Array.from(new Set(batches.flatMap((b) => b.papers.map((p) => p.setId))));
+
+    const sessions = await prisma.examSession.findMany({
+      where: { setId: { in: setIds }, completed: true },
+      include: { user: { select: { id: true } }, set: { select: { id: true } } },
+    });
+
+    const batchData = batches.map((batch) => {
+      const batchSetIds = new Set(batch.papers.map((p) => p.setId));
+      const batchSessions = sessions.filter((s) => batchSetIds.has(s.setId) && batch.members.some((m) => m.userId === s.userId));
+      const scores = batchSessions.map((s) => s.score ?? 0);
+      const totals = batchSessions.map((s) => s.total ?? 0);
+      const avgScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 0;
+      const avgPercent = totals.length > 0
+        ? Math.round(batchSessions.reduce((acc, s) => acc + ((s.score ?? 0) / Math.max(1, s.total ?? 1)) * 100, 0) / totals.length)
+        : 0;
+      const activeStudents = new Set(batchSessions.map((s) => s.userId)).size;
+      const inactiveStudents = batch.members.length - activeStudents;
+      const flaggedCount = batchSessions.filter((s) => s.flaggedAt).length;
+      const autoEndedCount = batchSessions.filter((s) => s.autoEndedAt).length;
+
+      return {
+        id: batch.id,
+        name: batch.name,
+        description: batch.description,
+        isActive: batch.isActive,
+        memberCount: batch._count.members,
+        paperCount: batch._count.papers,
+        activeStudents,
+        inactiveStudents,
+        attempts: batchSessions.length,
+        avgScore,
+        avgPercent,
+        flaggedCount,
+        autoEndedCount,
+      };
+    }).sort((a, b) => b.attempts - a.attempts);
+
+    return res.json({ batches: batchData });
+  } catch (e) {
+    log.err("GET /admin/results/batches", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/results/exam/:id
+// Returns detailed results for a specific exam (paper)
+adminRouter.get("/results/exam/:id", async (req, res) => {
+  const setId = Number(req.params.id);
+  log.api("GET", `/admin/results/exam/${setId}`);
+  try {
+    const set = await prisma.questionSet.findUnique({
+      where: { id: setId },
+      select: {
+        id: true,
+        name: true,
+        subject: true,
+        exam: true,
+        kind: true,
+        timeLimit: true,
+        _count: { select: { questions: true } },
+      },
+    });
+    if (!set) return res.status(404).json({ error: "Exam not found" });
+
+    const sessions = await prisma.examSession.findMany({
+      where: { setId, completed: true },
+      include: { user: { select: { id: true, name: true, email: true } }, answers: { select: { selectedOption: true } } },
+      orderBy: { score: "desc" },
+    });
+
+    const students = sessions.map((s) => {
+      const percent = s.total && s.total > 0 ? Math.round(((s.score ?? 0) / s.total) * 100) : 0;
+      const timeTaken = s.endTime ? Math.floor((s.endTime.getTime() - s.startTime.getTime()) / 1000) : 0;
+      return {
+        sessionId: s.id,
+        userId: s.userId,
+        name: s.user?.name || s.studentName,
+        email: s.user?.email || "",
+        score: s.score ?? 0,
+        total: s.total ?? 0,
+        percent,
+        timeTaken,
+        tabSwitches: s.tabSwitches,
+        flaggedAt: s.flaggedAt?.toISOString() ?? null,
+        flagReason: s.flagReason,
+        autoEndedAt: s.autoEndedAt?.toISOString() ?? null,
+        startedAt: s.startTime.toISOString(),
+        completedAt: s.endTime?.toISOString() ?? null,
+        answeredCount: s.answers.filter((a) => a.selectedOption !== null && a.selectedOption !== "").length,
+      };
+    });
+
+    // Score distribution
+    const distribution: Record<number, number> = {};
+    for (const s of students) {
+      const bucket = Math.floor(s.percent / 10) * 10;
+      distribution[bucket] = (distribution[bucket] ?? 0) + 1;
+    }
+
+    return res.json({
+      exam: { ...set, questionCount: set._count.questions },
+      students,
+      distribution,
+      totalSessions: sessions.length,
+    });
+  } catch (e) {
+    log.err(`GET /admin/results/exam/${setId}`, e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/results/batch/:id
+// Returns detailed results for a specific batch
+adminRouter.get("/results/batch/:id", async (req, res) => {
+  const batchId = Number(req.params.id);
+  log.api("GET", `/admin/results/batch/${batchId}`);
+  try {
+    const batch = await prisma.batch.findUnique({
+      where: { id: batchId },
+      include: {
+        members: { include: { user: { select: { id: true, name: true, email: true } } } },
+        papers: { include: { set: { select: { id: true, name: true, subject: true, timeLimit: true } } } },
+      },
+    });
+    if (!batch) return res.status(404).json({ error: "Batch not found" });
+
+    const setIds = batch.papers.map((p) => p.setId);
+    const memberIds = batch.members.map((m) => m.userId);
+
+    const sessions = await prisma.examSession.findMany({
+      where: { userId: { in: memberIds }, setId: { in: setIds }, completed: true },
+      include: { user: { select: { id: true, name: true, email: true } } },
+    });
+
+    const students = batch.members.map((bm) => {
+      const userSessions = sessions.filter((s) => s.userId === bm.userId);
+      const totalScore = userSessions.reduce((acc, s) => acc + (s.score ?? 0), 0);
+      const totalMax = userSessions.reduce((acc, s) => acc + (s.total ?? 0), 0);
+      const avgPercent = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
+      const bestScore = userSessions.length > 0 ? Math.max(...userSessions.map((s) => s.score ?? 0)) : 0;
+      const flaggedCount = userSessions.filter((s) => s.flaggedAt).length;
+      const autoEndedCount = userSessions.filter((s) => s.autoEndedAt).length;
+      const lastActivity = userSessions.length > 0
+        ? userSessions.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0].startTime.toISOString()
+        : null;
+
+      return {
+        userId: bm.userId,
+        name: bm.user.name,
+        email: bm.user.email,
+        sessions: userSessions.length,
+        totalScore,
+        avgPercent,
+        bestScore,
+        flaggedCount,
+        autoEndedCount,
+        lastActivity,
+      };
+    }).sort((a, b) => b.avgPercent - a.avgPercent);
+
+    const papers = batch.papers.map((bp) => {
+      const paperSessions = sessions.filter((s) => s.setId === bp.setId);
+      const avgScore = paperSessions.length > 0 ? Math.round(paperSessions.reduce((acc, s) => acc + (s.score ?? 0), 0) / paperSessions.length) : 0;
+      const avgPercent = paperSessions.length > 0
+        ? Math.round(paperSessions.reduce((acc, s) => acc + ((s.score ?? 0) / Math.max(1, s.total ?? 1)) * 100, 0) / paperSessions.length)
+        : 0;
+      return {
+        setId: bp.setId,
+        setName: bp.set.name,
+        subject: bp.set.subject,
+        timeLimit: bp.set.timeLimit,
+        attempts: paperSessions.length,
+        avgScore,
+        avgPercent,
+        uniqueStudents: new Set(paperSessions.map((s) => s.userId)).size,
+      };
+    });
+
+    return res.json({
+      batch: {
+        id: batch.id,
+        name: batch.name,
+        description: batch.description,
+        memberCount: batch.members.length,
+        paperCount: batch.papers.length,
+      },
+      students,
+      papers,
+      totalSessions: sessions.length,
+    });
+  } catch (e) {
+    log.err(`GET /admin/results/batch/${batchId}`, e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// ─────────────────── Excel Upload ───────────────────
+
+// GET /admin/questions/template
+// Download an Excel template for bulk question upload
+adminRouter.get("/questions/template", async (_req, res) => {
+  log.api("GET", "/admin/questions/template");
+  try {
+    const headers = [
+      "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
+      "correctAnswer", "explanation", "topic", "order", "positiveMarks", "negativeMarks", "difficulty"
+    ];
+    const example = [
+      1, "mcq", "What is the value of $g$?", "9.8 m/s²", "10 m/s²", "9.81 m/s²", "8.9 m/s²",
+      "C", "Standard gravity is $9.81\\,\\text{m/s}^2$", "Mechanics", 1, 4, 1, "medium"
+    ];
+    const example2 = [
+      1, "mcq-multiple", "Which are vector quantities?", "Force", "Velocity", "Energy", "Mass",
+      JSON.stringify(["A", "B"]), "Force and velocity have direction", "Mechanics", 2, 4, 1, "medium"
+    ];
+    const example3 = [
+      1, "numeric", "Calculate $\\\\sqrt{16}$", "", "", "", "",
+      "4", "The square root of 16 is 4", "Algebra", 3, 4, 0, "easy"
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, example, example2, example3]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+    res.setHeader("Content-Disposition", "attachment; filename=question_template.xlsx");
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buf);
+  } catch (e) {
+    log.err("GET /admin/questions/template", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// POST /admin/questions/upload
+// Upload questions from Excel file
+adminRouter.post("/questions/upload", async (req, res) => {
+  log.api("POST", "/admin/questions/upload");
+  try {
+    if (!req.body || !req.body.file) {
+      return res.status(400).json({ error: "No file provided" });
+    }
+
+    // Handle base64 file data
+    const fileData = req.body.file;
+    const buffer = Buffer.from(fileData, "base64");
+    const workbook = XLSX.read(buffer, { type: "buffer" });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+
+    if (rows.length < 2) {
+      return res.status(400).json({ error: "Excel file is empty or missing header row" });
+    }
+
+    const headers = rows[0] as string[];
+    const dataRows = rows.slice(1);
+
+    // Map column indices
+    const colMap = new Map<string, number>();
+    headers.forEach((h, i) => {
+      if (h) colMap.set(String(h).trim().toLowerCase(), i);
+    });
+
+    const get = (row: any[], name: string): any => {
+      const idx = colMap.get(name.toLowerCase());
+      if (idx === undefined) return undefined;
+      return row[idx];
+    };
+
+    const results: {
+      row: number;
+      success: boolean;
+      question?: any;
+      error?: string;
+    }[] = [];
+
+    const allSets = await prisma.questionSet.findMany({
+      select: { id: true, name: true },
+    });
+    const setNameToId = new Map(allSets.map((s) => [s.name, s.id]));
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      const rowNum = i + 2; // Excel row number (1-based + header)
+
+      try {
+        let setId = get(row, "setId");
+        const setName = get(row, "setName");
+
+        if (!setId && setName) {
+          setId = setNameToId.get(String(setName));
+        }
+
+        if (!setId) {
+          results.push({ row: rowNum, success: false, error: "Missing setId or setName (not found)" });
+          continue;
+        }
+
+        const setIdNum = Number(setId);
+        if (!setNameToId.has(String(setName)) && !allSets.find((s) => s.id === setIdNum)) {
+          results.push({ row: rowNum, success: false, error: `Set ID ${setIdNum} not found` });
+          continue;
+        }
+
+        const type = String(get(row, "type") || "mcq").trim().toLowerCase();
+        if (!["mcq", "mcq-multiple", "numeric", "fill-in-the-blanks"].includes(type)) {
+          results.push({ row: rowNum, success: false, error: `Invalid type: ${type}` });
+          continue;
+        }
+
+        const text = String(get(row, "text") || "").trim();
+        if (!text) {
+          results.push({ row: rowNum, success: false, error: "Missing question text" });
+          continue;
+        }
+
+        const optionA = String(get(row, "optionA") || "").trim();
+        const optionB = String(get(row, "optionB") || "").trim();
+        const optionC = String(get(row, "optionC") || "").trim();
+        const optionD = String(get(row, "optionD") || "").trim();
+
+        let correctAnswer = String(get(row, "correctAnswer") || "").trim();
+        let options: string[] | null = null;
+
+        if (type === "mcq") {
+          options = [optionA, optionB, optionC, optionD].filter((o) => o);
+          if (options.length < 2) {
+            results.push({ row: rowNum, success: false, error: "MCQ requires at least 2 options" });
+            continue;
+          }
+          if (!["A", "B", "C", "D"].includes(correctAnswer)) {
+            results.push({ row: rowNum, success: false, error: "MCQ correctAnswer must be A, B, C, or D" });
+            continue;
+          }
+        } else if (type === "mcq-multiple") {
+          options = [optionA, optionB, optionC, optionD].filter((o) => o);
+          if (options.length < 2) {
+            results.push({ row: rowNum, success: false, error: "MCQ-multiple requires at least 2 options" });
+            continue;
+          }
+          // Try to parse as JSON array, otherwise split by comma
+          if (correctAnswer.startsWith("[")) {
+            try {
+              correctAnswer = JSON.stringify(JSON.parse(correctAnswer).sort());
+            } catch {
+              results.push({ row: rowNum, success: false, error: "Invalid JSON array for correctAnswer" });
+              continue;
+            }
+          } else {
+            const letters = correctAnswer.split(/[,\s]+/).filter((l) => ["A", "B", "C", "D"].includes(l));
+            if (letters.length === 0) {
+              results.push({ row: rowNum, success: false, error: "MCQ-multiple correctAnswer must contain A, B, C, or D" });
+              continue;
+            }
+            correctAnswer = JSON.stringify(letters.sort());
+          }
+        } else {
+          // numeric or fill-in-the-blanks
+          options = null;
+          if (!correctAnswer) {
+            results.push({ row: rowNum, success: false, error: "Missing correctAnswer" });
+            continue;
+          }
+        }
+
+        const explanation = String(get(row, "explanation") || "").trim();
+        const topic = String(get(row, "topic") || "").trim();
+        const order = Number(get(row, "order") || 0);
+        const positiveMarks = Number(get(row, "positiveMarks") || 4);
+        const negativeMarks = Number(get(row, "negativeMarks") || 1);
+        const difficulty = String(get(row, "difficulty") || "medium").trim();
+
+        const question = await prisma.question.create({
+          data: {
+            setId: setIdNum,
+            type,
+            text,
+            options: options ? JSON.stringify(options) : null,
+            correctAnswer,
+            explanation,
+            topic,
+            order,
+            positiveMarks,
+            negativeMarks,
+            difficulty,
+          },
+        });
+
+        results.push({ row: rowNum, success: true, question });
+      } catch (e) {
+        results.push({ row: rowNum, success: false, error: (e as Error).message });
+      }
+    }
+
+    const successCount = results.filter((r) => r.success).length;
+    const failCount = results.filter((r) => !r.success).length;
+
+    log.info(`Excel upload: ${successCount} created, ${failCount} failed out of ${dataRows.length} rows`);
+
+    return res.json({
+      total: dataRows.length,
+      success: successCount,
+      failed: failCount,
+      results,
+    });
+  } catch (e) {
+    log.err("POST /admin/questions/upload", e);
     return res.status(500).json({ error: "Internal error" });
   }
 });

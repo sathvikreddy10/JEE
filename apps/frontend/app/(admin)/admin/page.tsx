@@ -77,6 +77,9 @@ export default function AdminPage() {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [excelUploading, setExcelUploading] = useState(false);
+  const [excelResults, setExcelResults] = useState<any>(null);
+  const [showExcelModal, setShowExcelModal] = useState(false);
 
   const loadSets = useCallback(async () => {
     try {
@@ -213,6 +216,54 @@ export default function AdminPage() {
     setDraft({ ...draft, images: arr });
   };
 
+  const downloadTemplate = async () => {
+    try {
+      const res = await fetch("/api/admin/questions/template");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "question_template.xlsx";
+      a.click();
+      URL.revokeObjectURL(url);
+      cli.success("Template downloaded");
+    } catch (e) {
+      cli.err("download template", e);
+    }
+  };
+
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setExcelUploading(true);
+    setExcelResults(null);
+    try {
+      const reader = new FileReader();
+      reader.onload = async (event) => {
+        const base64 = (event.target?.result as string)?.split(",")[1];
+        if (!base64) {
+          setExcelUploading(false);
+          return;
+        }
+        const data = await fetchJSON<{ total: number; success: number; failed: number; results: any[] }>("/api/admin/questions/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ file: base64 }),
+        });
+        setExcelResults(data);
+        setShowExcelModal(true);
+        if (data.success > 0) {
+          loadQuestions(filterSetId);
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (e) {
+      cli.err("excel upload", e);
+    } finally {
+      setExcelUploading(false);
+    }
+  };
+
   return (
     <div className="flex" style={{ height: "calc(100vh - 56px)" }}>
       {/* Left: Question List */}
@@ -221,17 +272,32 @@ export default function AdminPage() {
         style={{ background: "var(--bg-card)", borderRight: "1px solid var(--border-subtle)" }}
       >
         <div className="px-7 pt-7 pb-6" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-          <div className="flex items-center justify-between mb-5">
-            <div>
-              <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-brand)" }}>
-                Questions
-              </h2>
-              <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2, fontFamily: "var(--font-mono)" }}>
-                {questions.length} total
-              </p>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text-primary)", fontFamily: "var(--font-brand)" }}>
+                  Questions
+                </h2>
+                <p style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2, fontFamily: "var(--font-mono)" }}>
+                  {questions.length} total
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={downloadTemplate}>📄 Template</Button>
+                <label className="cursor-pointer">
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: "none" }}
+                    onChange={handleExcelUpload}
+                    disabled={excelUploading}
+                  />
+                  <Button size="sm" variant="outline" disabled={excelUploading}>
+                    {excelUploading ? "Uploading…" : "📥 Excel Upload"}
+                  </Button>
+                </label>
+                <Button size="sm" onClick={startNew}>+ New</Button>
+              </div>
             </div>
-            <Button size="sm" onClick={startNew}>+ New</Button>
-          </div>
           <select
             value={filterSetId ?? ""}
             onChange={(e) => setFilterSetId(e.target.value ? Number(e.target.value) : null)}
@@ -670,6 +736,73 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* Excel Upload Results Modal */}
+      {showExcelModal && excelResults && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowExcelModal(false)}
+        >
+          <div
+            className="rounded-[12px] p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+                Upload Results
+              </h3>
+              <button
+                onClick={() => setShowExcelModal(false)}
+                className="text-sm px-2 py-1 rounded"
+                style={{ color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+              >
+                Close
+              </button>
+            </div>
+            <div className="flex gap-4 mb-4">
+              <div className="flex-1 p-3 rounded text-center" style={{ background: "rgba(94,243,140,0.10)", border: "1px solid var(--mint)" }}>
+                <div className="text-lg font-mono font-bold" style={{ color: "var(--mint)" }}>{excelResults.success}</div>
+                <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Created</div>
+              </div>
+              <div className="flex-1 p-3 rounded text-center" style={{ background: "rgba(220,38,38,0.10)", border: "1px solid var(--crimson)" }}>
+                <div className="text-lg font-mono font-bold" style={{ color: "var(--crimson)" }}>{excelResults.failed}</div>
+                <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Failed</div>
+              </div>
+              <div className="flex-1 p-3 rounded text-center" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+                <div className="text-lg font-mono font-bold" style={{ color: "var(--text-primary)" }}>{excelResults.total}</div>
+                <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Total</div>
+              </div>
+            </div>
+            <div className="flex flex-col" style={{ gap: 4 }}>
+              {excelResults.results.map((r: any) => (
+                <div
+                  key={r.row}
+                  className="flex items-center gap-3 px-3 py-2 rounded"
+                  style={{
+                    background: r.success ? "rgba(94,243,140,0.05)" : "rgba(220,38,38,0.05)",
+                    border: `1px solid ${r.success ? "var(--mint)" : "var(--crimson)"}`,
+                  }}
+                >
+                  <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)", minWidth: 40 }}>
+                    Row {r.row}
+                  </span>
+                  {r.success ? (
+                    <span className="text-xs" style={{ color: "var(--mint)" }}>
+                      ✅ Created: {r.question?.text?.slice(0, 60)}...
+                    </span>
+                  ) : (
+                    <span className="text-xs" style={{ color: "var(--crimson)" }}>
+                      ❌ {r.error}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
