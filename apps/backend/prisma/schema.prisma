@@ -87,6 +87,7 @@ model QuestionSet {
   tags            String        @default("[]")        // JSON array of free-form chips
   markingScheme   String?       // JSON: { positive, negative, partialCredit, partialUnit, skipPenalty }
   publishedAt     DateTime?     // null until admin clicks "Mark Ready to Schedule"
+  isReadyForDailyChallenge Boolean @default(false)
   questions       Question[]
   sessions        ExamSession[]
   batchPapers     BatchPaper[]
@@ -103,12 +104,13 @@ model Question {
   options       String?
   correctAnswer String
   explanation   String
+  subject       String?
   topic         String
   topicId       Int?
   imageUrl      String?
   images        String?
   order         Int
-  difficulty    String          @default("medium")
+  difficulty    Int             @default(5)
   positiveMarks Int             @default(4)
   negativeMarks Int             @default(1)
   set           QuestionSet     @relation(fields: [setId], references: [id])
@@ -117,6 +119,7 @@ model Question {
 
   @@index([topicId])
   @@index([topic])
+  @@index([subject])
 }
 
 model Topic {

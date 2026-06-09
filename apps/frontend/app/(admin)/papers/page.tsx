@@ -37,6 +37,7 @@ interface AdminSet {
   tags: string[];
   markingScheme: Record<string, number> | null;
   publishedAt: string | null;
+  isReadyForDailyChallenge: boolean;
   batchAssignments: {
     id: number;
     batchId: number;
@@ -57,19 +58,17 @@ interface BankQuestion {
   text: string;
   options: string[] | null;
   correctAnswer: string;
+  explanation: string;
+  subject: string | null;
   topic: string;
   imageUrl: string | null;
   images: { url: string; caption?: string }[] | null;
   order: number;
+  difficulty: number;
   positiveMarks: number;
   negativeMarks: number;
-}
-
-interface BankSet {
-  id: number;
-  name: string;
-  subject: string;
-  questions: BankQuestion[];
+  setId?: number;
+  setName?: string;
 }
 
 interface DraftQuestion {
@@ -78,7 +77,9 @@ interface DraftQuestion {
   options: string[];
   correctAnswer: string;
   explanation: string;
+  subject: string;
   topic: string;
+  difficulty: number;
   positiveMarks: number;
   negativeMarks: number;
 }
@@ -112,7 +113,9 @@ const blankDraft = (): DraftQuestion => ({
   options: ["", "", "", ""],
   correctAnswer: "A",
   explanation: "",
+  subject: "Physics",
   topic: "",
+  difficulty: 5,
   positiveMarks: 4,
   negativeMarks: 1,
 });
@@ -137,11 +140,26 @@ function nowPlus(hours: number): string {
 }
 
 export default function PapersPage() {
+  const [tab, setTab] = useState<"papers" | "bank">("papers");
   const [sets, setSets] = useState<AdminSet[]>([]);
-  const [bank, setBank] = useState<BankSet[]>([]);
+  const [allQuestions, setAllQuestions] = useState<BankQuestion[]>([]);
   const [batches, setBatches] = useState<BatchOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
+  const [viewingSetId, setViewingSetId] = useState<number | null>(null);
+  const [viewingQuestions, setViewingQuestions] = useState<BankQuestion[]>([]);
+  const [editingQuestion, setEditingQuestion] = useState<BankQuestion | null>(null);
+  const [editQuestionDraft, setEditQuestionDraft] = useState<Partial<BankQuestion>>({});
+  const [savingQuestion, setSavingQuestion] = useState(false);
+
+  // Question bank filters
+  const [bankSearch, setBankSearch] = useState("");
+  const [bankSubject, setBankSubject] = useState("All");
+  const [bankTopic, setBankTopic] = useState("All");
+  const [bankType, setBankType] = useState<"All" | QuestionType>("All");
+  const [bankMinDiff, setBankMinDiff] = useState(1);
+  const [bankMaxDiff, setBankMaxDiff] = useState(10);
+  const [bankPaper, setBankPaper] = useState("All");
 
   // Create-form state
   const [name, setName] = useState("");
@@ -157,6 +175,7 @@ export default function PapersPage() {
   const [timeSeconds, setTimeSeconds] = useState(0);
   const timeLimit = timeHours * 3600 + timeMinutes * 60 + timeSeconds;
   const [attemptsAllowed, setAttemptsAllowed] = useState(1);
+  const [isReadyForDailyChallenge, setIsReadyForDailyChallenge] = useState(false);
   const [drafts, setDrafts] = useState<DraftQuestion[]>([blankDraft()]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -195,14 +214,21 @@ export default function PapersPage() {
     try {
       const [s, b, bt] = await Promise.all([
         fetchJSON<AdminSet[]>("/api/admin/sets"),
-        fetchJSON<BankSet[]>("/api/admin/questions/all"),
+        fetchJSON<{ id: number; name: string; subject: string; questions: BankQuestion[] }[]>("/api/admin/questions/all"),
         fetchJSON<BatchOption[]>("/api/batches").catch(() => [] as BatchOption[]),
       ]);
-      setSets(s);
-      setBank(b);
+      setSets(s.reverse()); // newest first
+      const flat = b.flatMap((set) =>
+        set.questions.map((q) => ({
+          ...q,
+          setId: set.id,
+          setName: set.name,
+        }))
+      );
+      setAllQuestions(flat);
       setBatches(bt);
       cli.success(
-        `Loaded ${s.length} sets, ${b.reduce((acc, x) => acc + x.questions.length, 0)} bank questions, ${bt.length} batches`
+        `Loaded ${s.length} sets, ${flat.length} questions, ${bt.length} batches`
       );
     } catch (e) {
       cli.err("load papers", e);
@@ -210,6 +236,59 @@ export default function PapersPage() {
       setLoading(false);
     }
   }, []);
+
+  const viewPaper = async (setId: number) => {
+    setViewingSetId(setId);
+    try {
+      const data = await fetchJSON<{ id: number; name: string; subject: string; questions: BankQuestion[] }>(`/api/admin/sets/${setId}`);
+      setViewingQuestions(data.questions.map((q) => ({ ...q, setId, setName: data.name })));
+    } catch (e) {
+      cli.err("view paper", e);
+    }
+  };
+
+  const saveEditedQuestion = async () => {
+    if (!editingQuestion || !viewingSetId) return;
+    setSavingQuestion(true);
+    try {
+      await fetchJSON(`/api/admin/questions/${editingQuestion.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: editQuestionDraft.text,
+          subject: editQuestionDraft.subject,
+          topic: editQuestionDraft.topic,
+          difficulty: editQuestionDraft.difficulty,
+          correctAnswer: editQuestionDraft.correctAnswer,
+          explanation: editQuestionDraft.explanation,
+          positiveMarks: editQuestionDraft.positiveMarks,
+          negativeMarks: editQuestionDraft.negativeMarks,
+        }),
+      });
+      cli.success(`Updated question #${editingQuestion.id}`);
+      setEditingQuestion(null);
+      setEditQuestionDraft({});
+      await viewPaper(viewingSetId);
+      await loadAll();
+    } catch (e) {
+      cli.err("save question", e);
+      alert("Failed to save question");
+    } finally {
+      setSavingQuestion(false);
+    }
+  };
+
+  const deleteQuestion = async (questionId: number) => {
+    if (!confirm("Delete this question? Students who already took the exam will receive full marks for it.")) return;
+    try {
+      await fetchJSON(`/api/admin/questions/${questionId}`, { method: "DELETE" });
+      cli.success(`Deleted question #${questionId}`);
+      if (viewingSetId) await viewPaper(viewingSetId);
+      await loadAll();
+    } catch (e) {
+      cli.err("delete question", e);
+    }
+  };
 
   const markReady = async (setId: number) => {
     try {
@@ -219,6 +298,20 @@ export default function PapersPage() {
       await loadAll();
     } catch (e) {
       cli.err("mark ready", e);
+    }
+  };
+
+  const markReadyForDailyChallenge = async (setId: number) => {
+    try {
+      await fetchJSON(`/api/admin/sets/${setId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isReadyForDailyChallenge: true }),
+      });
+      cli.success("Paper set for Daily Challenge");
+      await loadAll();
+    } catch (e) {
+      cli.err("mark ready for daily", e);
     }
   };
 
@@ -277,6 +370,99 @@ export default function PapersPage() {
     }
   };
 
+  const downloadPapersExcel = () => {
+    const headers = ["ID", "Name", "Subject", "Questions", "Time (min)", "Kind", "Exam", "Status", "Sessions", "Tags"];
+    const rows = sets.map(s => [
+      s.id,
+      s.name,
+      s.subject,
+      s.questionCount,
+      Math.floor(s.timeLimit / 60),
+      s.kind,
+      s.exam,
+      s.publishedAt ? "Ready" : "Draft",
+      s.sessionCount,
+      s.tags.join(", ")
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `papers_export_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    cli.success(`Downloaded ${sets.length} papers as CSV`);
+  };
+
+  const downloadBankExcel = () => {
+    const filtered = allQuestions.filter((q) => {
+      if (bankSearch && !q.text.toLowerCase().includes(bankSearch.toLowerCase())) return false;
+      if (bankSubject !== "All" && bankSubject !== "All Subjects" && q.subject !== bankSubject) return false;
+      if (bankType !== "All" && q.type !== bankType) return false;
+      if (q.difficulty < bankMinDiff || q.difficulty > bankMaxDiff) return false;
+      return true;
+    });
+    const headers = ["ID", "Subject", "Topic", "Difficulty", "Type", "Question Text", "Correct Answer", "Explanation", "Options", "+Marks", "-Penalty", "Paper", "Paper ID"];
+    const rows = filtered.map(q => [
+      q.id,
+      q.subject || "",
+      q.topic,
+      q.difficulty,
+      q.type,
+      q.text,
+      q.correctAnswer,
+      "",
+      q.options ? q.options.join(" | ") : "",
+      q.positiveMarks,
+      q.negativeMarks,
+      q.setName || "",
+      q.setId || ""
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `question_bank_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    cli.success(`Downloaded ${filtered.length} questions as CSV`);
+  };
+
+  const downloadPaperExcel = () => {
+    const headers = ["#", "Subject", "Topic", "Difficulty", "Type", "Question Text", "Correct Answer", "Explanation", "Options", "+Marks", "-Penalty"];
+    const rows = viewingQuestions.map((q, i) => [
+      i + 1,
+      q.subject || "",
+      q.topic,
+      q.difficulty,
+      q.type,
+      q.text,
+      q.correctAnswer,
+      q.explanation || "",
+      q.options ? q.options.join(" | ") : "",
+      q.positiveMarks,
+      q.negativeMarks,
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const paperName = sets.find(s => s.id === viewingSetId)?.name || "paper";
+    a.download = `${paperName.replace(/[^a-zA-Z0-9]/g, "_")}_questions_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    cli.success(`Downloaded ${viewingQuestions.length} questions for ${paperName}`);
+  };
+
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -312,7 +498,9 @@ export default function PapersPage() {
       options: r.type === "mcq" || r.type === "mcq-multiple" ? r.options : ["", "", "", ""],
       correctAnswer: r.correctAnswer,
       explanation: r.explanation,
+      subject: r.subject || "Physics",
       topic: r.topic,
+      difficulty: Math.max(1, Math.min(10, Number(r.difficulty) || 5)),
       positiveMarks: r.positiveMarks,
       negativeMarks: r.negativeMarks,
     }));
@@ -322,8 +510,8 @@ export default function PapersPage() {
     cli.success(`Imported ${newDrafts.length} questions from Excel`);
   };
 
-  const importFromBank = (setId: number, questionId: number) => {
-    const src = bank.flatMap((b) => b.questions).find((q) => q.id === questionId);
+  const importFromBank = (questionId: number) => {
+    const src = allQuestions.find((q) => q.id === questionId);
     if (!src) return;
     const copy: DraftQuestion = {
       type: src.type,
@@ -331,12 +519,15 @@ export default function PapersPage() {
       options: src.options ? [...src.options] : ["", "", "", ""],
       correctAnswer: src.correctAnswer,
       explanation: "",
+      subject: src.subject || "Physics",
       topic: src.topic,
+      difficulty: src.difficulty,
       positiveMarks: src.positiveMarks,
       negativeMarks: src.negativeMarks,
     };
     setDrafts((p) => [...p, copy]);
-    cli.info(`Imported question #${questionId} from bank (note: set=${setId})`);
+    setShowCreate(true);
+    cli.info(`Imported question #${questionId} from bank`);
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -353,13 +544,16 @@ export default function PapersPage() {
         tags,
         timeLimit: Number(timeLimit),
         attemptsAllowed: Number(attemptsAllowed),
+        isReadyForDailyChallenge,
         questions: drafts.map((d, i) => ({
           type: d.type,
           text: d.text.trim(),
           options: d.type === "mcq" || d.type === "mcq-multiple" ? d.options.filter(Boolean) : undefined,
           correctAnswer: d.correctAnswer,
           explanation: d.explanation,
+          subject: d.subject.trim(),
           topic: d.topic.trim() || "General",
+          difficulty: Math.max(1, Math.min(10, Number(d.difficulty) || 5)),
           positiveMarks: Number(d.positiveMarks),
           negativeMarks: Number(d.negativeMarks),
           order: i + 1,
@@ -391,6 +585,7 @@ export default function PapersPage() {
       setTags([]);
       setTagInput("");
       setAssignments([]);
+      setIsReadyForDailyChallenge(false);
       setShowCreate(false);
       await loadAll();
     } catch (err) {
@@ -420,56 +615,23 @@ export default function PapersPage() {
         </div>
       </div>
 
-      {/* Question Bank — collapsible */}
-      <Card>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>Question Bank</h2>
-            <p className="text-xs font-mono mt-1" style={{ color: "var(--text-secondary)" }}>
-              All {bank.reduce((acc, x) => acc + x.questions.length, 0)} questions across {bank.length} papers — pick one to copy into your new paper
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-3 max-h-[300px] overflow-y-auto">
-          {bank.length === 0 && (
-            <p className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>No questions yet — create one in the form below.</p>
-          )}
-          {bank.map((b) => (
-            <div key={b.id} className="flex flex-col gap-2">
-              <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-                {b.name} · {b.questions.length} question{b.questions.length === 1 ? "" : "s"}
-              </div>
-              {b.questions.slice(0, 5).map((q) => (
-                <div
-                  key={q.id}
-                  className="flex items-center justify-between px-3 py-2 rounded"
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border-muted)" }}
-                >
-                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                    <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>#{q.id}</span>
-                    <span className="text-[10px] font-mono uppercase" style={{ color: "var(--cyan)" }}>{q.type}</span>
-                    <span className="text-xs truncate" style={{ color: "var(--text-primary)" }}>{q.text.slice(0, 80)}</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => importFromBank(b.id, q.id)}
-                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded"
-                    style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)" }}
-                    disabled={!showCreate}
-                  >
-                    Copy to new
-                  </button>
-                </div>
-              ))}
-              {b.questions.length > 5 && (
-                <p className="text-[10px] font-mono pl-3" style={{ color: "var(--text-tertiary)" }}>
-                  + {b.questions.length - 5} more
-                </p>
-              )}
-            </div>
-          ))}
-        </div>
-      </Card>
+      {/* Tabs */}
+      <div className="flex gap-2 mb-4">
+        {(["papers", "bank"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className="text-sm font-medium px-4 py-2 rounded transition-all"
+            style={{
+              background: tab === t ? "rgba(72,190,255,0.12)" : "var(--bg-input)",
+              color: tab === t ? "var(--cyan)" : "var(--text-secondary)",
+              border: `1px solid ${tab === t ? "var(--border-active)" : "var(--border-subtle)"}`,
+            }}
+          >
+            {t === "papers" ? `Papers (${sets.length})` : `Question Bank (${allQuestions.length})`}
+          </button>
+        ))}
+      </div>
 
       {/* Create form */}
       {showCreate && (
@@ -768,7 +930,7 @@ export default function PapersPage() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="grid grid-cols-5 gap-3 mb-3">
                       <div>
                         <label style={labelStyle}>Type</label>
                         <select
@@ -795,6 +957,16 @@ export default function PapersPage() {
                         </select>
                       </div>
                       <div>
+                        <label style={labelStyle}>Subject</label>
+                        <select
+                          value={d.subject}
+                          onChange={(e) => updateDraft(i, { subject: e.target.value })}
+                          style={inputStyle}
+                        >
+                          {SUBJECTS.map((s) => <option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      <div>
                         <label style={labelStyle}>Topic</label>
                         <input
                           value={d.topic}
@@ -802,6 +974,25 @@ export default function PapersPage() {
                           placeholder="e.g. Kinematics"
                           style={inputStyle}
                         />
+                      </div>
+                      <div>
+                        <label style={labelStyle}>Difficulty</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min={1}
+                            max={10}
+                            value={d.difficulty}
+                            onChange={(e) => updateDraft(i, { difficulty: Number(e.target.value) })}
+                            style={{ flex: 1, accentColor: "var(--cyan)" }}
+                          />
+                          <span className="text-xs font-mono" style={{ color: "var(--cyan)", minWidth: 20, textAlign: "center" }}>
+                            {d.difficulty}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-mono mt-1" style={{ color: "var(--text-tertiary)" }}>
+                          1=easy · 10=hardest
+                        </p>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
@@ -917,6 +1108,30 @@ export default function PapersPage() {
               </p>
             )}
 
+            {/* Daily Challenge Toggle */}
+            <div className="flex items-start gap-3 p-4 rounded-lg" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+              <div className="flex items-center gap-3">
+                <div
+                  onClick={() => setIsReadyForDailyChallenge(!isReadyForDailyChallenge)}
+                  className="relative w-12 h-6 rounded-full cursor-pointer transition-colors"
+                  style={{ background: isReadyForDailyChallenge ? "var(--cyan)" : "var(--border-subtle)" }}
+                >
+                  <div
+                    className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-transform"
+                    style={{ transform: isReadyForDailyChallenge ? "translateX(24px)" : "translateX(2px)" }}
+                  />
+                </div>
+                <div>
+                  <div className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
+                    Available for Daily Challenge
+                  </div>
+                  <div className="text-[11px] font-mono" style={{ color: "var(--text-secondary)" }}>
+                    When checked, this paper will appear in the Daily Challenge dropdown. You can still edit questions later.
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-3">
               <Button type="submit" disabled={creating || !name.trim()}>
                 {creating ? "Creating…" : `Create Paper (${drafts.length} question${drafts.length === 1 ? "" : "s"})`}
@@ -927,183 +1142,439 @@ export default function PapersPage() {
         </Card>
       )}
 
-      {/* My Papers list */}
-      <div>
-        <h2 className="text-base font-semibold mb-4" style={{ color: "var(--text-primary)" }}>
-          All Papers ({sets.length})
-        </h2>
-        {loading ? (
-          <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</p>
-        ) : sets.length === 0 ? (
-          <Card>
-            <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No papers yet. Click "+ New Paper" above to create one.</p>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-2 gap-4">
-            {sets.map((s) => (
-              <Card key={s.id}>
-                <div className="flex flex-col gap-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-base" style={{ color: "var(--text-primary)" }}>{s.name}</div>
-                      <div className="text-xs font-mono mt-1" style={{ color: "var(--text-secondary)" }}>
-                        {s.subject} · {s.pattern} · {s.questionCount} Q · {Math.floor(s.timeLimit / 60)} min
-                      </div>
-                    </div>
-                    <div className="flex flex-col items-end gap-1.5">
-                      <span
-                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded"
-                        style={{
-                          background: s.kind === "INSTITUTE" ? "rgba(72,190,255,0.12)" : "rgba(94,243,140,0.12)",
-                          color: s.kind === "INSTITUTE" ? "var(--cyan)" : "var(--mint)",
-                        }}
-                      >
-                        {s.kind}
-                      </span>
-                      <span
-                        className="text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded"
-                        style={{ background: "rgba(210,153,34,0.12)", color: "var(--amber)" }}
-                      >
-                        {s.exam.replace("_", " ")}
-                      </span>
-                    </div>
-                  </div>
-                  {s.tags.length > 0 && (
-                    <div className="flex gap-1.5 flex-wrap">
-                      {s.tags.map((t) => (
-                        <span
-                          key={t}
-                          className="text-[10px] font-mono px-2 py-0.5 rounded"
-                          style={{
-                            background: "var(--bg-input)",
-                            color: "var(--text-secondary)",
-                            border: "1px solid var(--border-muted)",
-                          }}
-                        >
-                          {t}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  {s.kind === "INSTITUTE" && (
-                    <div
-                      className="p-2 rounded flex flex-col gap-2"
-                      style={{ background: "var(--bg-input)", border: "1px solid var(--border-muted)" }}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
-                          Batch assignments ({s.batchAssignments?.length ?? 0})
-                        </div>
-                        {s.kind === "INSTITUTE" && !s.publishedAt && (s.batchAssignments?.length ?? 0) > 0 && (
-                          <button
-                            onClick={() => markReady(s.id)}
-                            className="text-[10px] font-mono uppercase px-2 py-1 rounded"
-                            style={{
-                              background: "rgba(72,190,255,0.12)",
-                              color: "var(--cyan)",
-                              border: "1px solid var(--cyan)",
-                            }}
-                          >
-                            Mark Ready
-                          </button>
-                        )}
-                        {s.publishedAt && (
-                          <span
-                            className="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded"
-                            style={{
-                              background: "rgba(72,190,255,0.18)",
-                              color: "var(--cyan)",
-                            }}
-                          >
-                            Ready
-                          </span>
-                        )}
-                      </div>
-                      {(s.batchAssignments?.length ?? 0) === 0 ? (
-                        <p className="text-[10px] font-mono" style={{ color: "var(--crimson)" }}>
-                          ⚠ No batches — invisible to students
-                        </p>
-                      ) : (
-                        <div className="flex flex-col gap-1.5">
-                          {s.batchAssignments!.map((a) => {
-                            const statusColor =
-                              a.effectiveStatus === "LIVE" ? { bg: "rgba(94,243,140,0.15)", fg: "var(--mint)" } :
-                              a.effectiveStatus === "CLOSED" ? { bg: "var(--bg-input)", fg: "var(--text-tertiary)" } :
-                              a.effectiveStatus === "NOTIFIED" ? { bg: "rgba(72,190,255,0.12)", fg: "var(--cyan)" } :
-                              { bg: "rgba(210,153,34,0.12)", fg: "var(--amber)" };
-                            return (
-                              <div key={a.id} className="flex flex-col gap-1 text-[10px] font-mono">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span style={{ color: "var(--text-primary)" }}>{a.batchName}</span>
-                                  <span style={{ color: "var(--text-tertiary)" }}>
-                                    {new Date(a.scheduledStart).toLocaleString()} · +{a.bufferMinutes ?? 10}m buffer
-                                  </span>
-                                  <span
-                                    className="px-1.5 py-0.5 rounded uppercase"
-                                    style={{ background: statusColor.bg, color: statusColor.fg, fontSize: 9 }}
-                                  >
-                                    {a.effectiveStatus}
-                                  </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {a.effectiveStatus === "DRAFT" && s.publishedAt && (
-                                    <button
-                                      onClick={() => notifyBatch(a.id, a.batchName)}
-                                      className="text-[10px] font-mono uppercase px-2 py-1 rounded"
-                                      style={{
-                                        background: "rgba(72,190,255,0.10)",
-                                        color: "var(--cyan)",
-                                        border: "1px solid var(--border-active)",
-                                      }}
-                                    >
-                                      Send to Students
-                                    </button>
-                                  )}
-                                  {a.effectiveStatus === "NOTIFIED" && (
-                                    <button
-                                      onClick={() => goBatch(a.id, a.batchName, a.bufferMinutes ?? 10)}
-                                      className="text-[10px] font-mono uppercase px-2 py-1 rounded"
-                                      style={{
-                                        background: "var(--mint)",
-                                        color: "#0a0a0a",
-                                        border: "1px solid var(--mint)",
-                                        fontWeight: 700,
-                                      }}
-                                    >
-                                      ▶ GO
-                                    </button>
-                                  )}
-                                  {a.effectiveStatus === "LIVE" && a.joinDeadline && (
-                                    <span style={{ color: "var(--text-tertiary)" }}>
-                                      Closes {new Date(a.joinDeadline).toLocaleTimeString()}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between text-[11px] font-mono" style={{ color: "var(--text-tertiary)" }}>
-                    <span>
-                      id #{s.id} · {s.sessionCount} session{s.sessionCount === 1 ? "" : "s"} attempted
-                      {" · "}{s.attemptsAllowed} attempt{s.attemptsAllowed === 1 ? "" : "s"} allowed
-                    </span>
-                    <a
-                      href={`/admin?setId=${s.id}`}
-                      style={{ color: "var(--cyan)" }}
-                    >
-                      Edit questions →
-                    </a>
-                  </div>
-                </div>
-              </Card>
-            ))}
+      {/* Tab Content */}
+      {tab === "papers" && (
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+              All Papers ({sets.length})
+            </h2>
+            <Button variant="outline" size="sm" onClick={downloadPapersExcel}>📊 Download Excel</Button>
           </div>
-        )}
-      </div>
+          {loading ? (
+            <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</p>
+          ) : sets.length === 0 ? (
+            <Card>
+              <p className="text-sm" style={{ color: "var(--text-secondary)" }}>No papers yet. Click "+ New Paper" above to create one.</p>
+            </Card>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="w-full" style={{ borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--border-subtle)" }}>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>#</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>Name</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 100 }}>Subject</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>Q's</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 56 }}>Time</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 72 }}>Kind</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 72 }}>Exam</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 56 }}>Status</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 72 }}>Sessions</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 80 }}>Batches</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sets.map((s) => (
+                    <tr key={s.id} style={{ borderBottom: "1px solid var(--border-muted)", transition: "background 0.1s" }}
+                      onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = "var(--bg-input)"}
+                      onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = ""}>
+                      <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-tertiary)" }}>{s.id}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        <div 
+                          style={{ fontWeight: 600, color: "var(--text-primary)", cursor: "pointer" }}
+                          onClick={() => viewPaper(s.id)}
+                        >
+                          {s.name}
+                        </div>
+                        <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-tertiary)", marginTop: 2 }}>
+                          {s.tags.length > 0 ? s.tags.join(", ") : ""}
+                          {s.tags.length > 0 ? " · " : ""}
+                          <button 
+                            onClick={() => viewPaper(s.id)}
+                            style={{ color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontFamily: "var(--font-mono)", padding: 0 }}
+                          >
+                            view
+                          </button>
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{s.subject}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-primary)" }}>{s.questionCount}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{Math.floor(s.timeLimit / 60)}m</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: s.kind === "INSTITUTE" ? "rgba(72,190,255,0.12)" : "rgba(94,243,140,0.12)", color: s.kind === "INSTITUTE" ? "var(--cyan)" : "var(--mint)" }}>{s.kind}</span>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: "rgba(210,153,34,0.12)", color: "var(--amber)" }}>{s.exam.replace("_", " ")}</span>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        <div className="flex flex-col gap-1">
+                          {s.publishedAt ? (
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: "rgba(72,190,255,0.18)", color: "var(--cyan)" }}>Ready</span>
+                          ) : (
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: "var(--bg-input)", color: "var(--text-tertiary)" }}>Draft</span>
+                          )}
+                          {s.isReadyForDailyChallenge && (
+                            <span style={{ fontSize: 9, fontFamily: "var(--font-mono)", padding: "1px 5px", borderRadius: 3, background: "rgba(94,243,140,0.15)", color: "var(--mint)" }}>Daily Challenge</span>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{s.sessionCount}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                        {s.kind === "INSTITUTE" && s.batchAssignments?.length ? (
+                          <div className="flex flex-col gap-1 items-center">
+                            {s.batchAssignments.map(a => (
+                              <div key={a.id} className="flex items-center gap-1.5 text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                                <span>{a.batchName}</span>
+                                <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 8, background: a.effectiveStatus === "LIVE" ? "rgba(94,243,140,0.15)" : a.effectiveStatus === "CLOSED" ? "var(--bg-input)" : a.effectiveStatus === "NOTIFIED" ? "rgba(72,190,255,0.12)" : "rgba(210,153,34,0.12)", color: a.effectiveStatus === "LIVE" ? "var(--mint)" : a.effectiveStatus === "CLOSED" ? "var(--text-tertiary)" : a.effectiveStatus === "NOTIFIED" ? "var(--cyan)" : "var(--amber)" }}>{a.effectiveStatus}</span>
+                                {a.effectiveStatus === "DRAFT" && s.publishedAt && (
+                                  <button onClick={() => notifyBatch(a.id, a.batchName)}
+                                    style={{ color: "var(--cyan)", background: "none", border: "none", cursor: "pointer", fontSize: 8, fontFamily: "var(--font-mono)", textTransform: "uppercase" }}>
+                                    Notify
+                                  </button>
+                                )}
+                                {a.effectiveStatus === "NOTIFIED" && (
+                                  <button onClick={() => goBatch(a.id, a.batchName, a.bufferMinutes ?? 10)}
+                                    style={{ color: "#0a0a0a", background: "var(--mint)", border: "none", cursor: "pointer", fontSize: 8, fontFamily: "var(--font-mono)", fontWeight: 700, padding: "1px 4px", borderRadius: 2 }}>
+                                    GO
+                                  </button>
+                                )}
+                                {a.effectiveStatus === "LIVE" && a.joinDeadline && (
+                                  <span style={{ fontSize: 8, color: "var(--text-tertiary)" }}>
+                                    closes {new Date(a.joinDeadline).toLocaleTimeString()}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {!s.publishedAt && (
+                              <button onClick={() => markReady(s.id)}
+                                style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--cyan)", background: "none", border: "1px solid var(--cyan)", cursor: "pointer", padding: "1px 6px", borderRadius: 3, textTransform: "uppercase" }}>
+                                Mark Ready
+                              </button>
+                            )}
+                            {!s.isReadyForDailyChallenge && (
+                              <button onClick={() => markReadyForDailyChallenge(s.id)}
+                                style={{ fontSize: 9, fontFamily: "var(--font-mono)", color: "var(--mint)", background: "none", border: "1px solid var(--mint)", cursor: "pointer", padding: "1px 6px", borderRadius: 3, textTransform: "uppercase" }}>
+                                Set for Daily
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-tertiary)" }}>—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Question Bank Tab */}
+      {tab === "bank" && (
+        <div>
+          <div className="flex flex-col gap-4 mb-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold" style={{ color: "var(--text-primary)" }}>
+                Question Bank ({allQuestions.length} total)
+              </h2>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={loadAll}>Refresh</Button>
+                <Button variant="outline" size="sm" onClick={downloadBankExcel}>📊 Download Excel</Button>
+                <Button size="sm" onClick={() => { setShowCreate(true); setTab("papers"); }}>+ New Paper</Button>
+              </div>
+            </div>
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <input
+                value={bankSearch}
+                onChange={(e) => setBankSearch(e.target.value)}
+                placeholder="Search question text..."
+                style={{ ...inputStyle, flex: "1 1 240px", fontSize: 13 }}
+              />
+              <select value={bankSubject} onChange={(e) => setBankSubject(e.target.value)} style={{ ...inputStyle, flex: "0 0 140px", fontSize: 13 }}>
+                <option>All Subjects</option>
+                {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <select value={bankType} onChange={(e) => setBankType(e.target.value as any)} style={{ ...inputStyle, flex: "0 0 140px", fontSize: 13 }}>
+                <option>All Types</option>
+                <option value="mcq">MCQ</option>
+                <option value="mcq-multiple">MCQ Multi</option>
+                <option value="numeric">Numeric</option>
+                <option value="fill-in-the-blanks">Fill Blanks</option>
+              </select>
+              <div className="flex items-center gap-2" style={{ flex: "0 0 200px" }}>
+                <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>Diff:</span>
+                <input type="range" min={1} max={10} value={bankMinDiff} onChange={(e) => setBankMinDiff(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--cyan)" }} />
+                <span className="text-xs font-mono" style={{ color: "var(--cyan)", minWidth: 12 }}>{bankMinDiff}</span>
+                <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>-</span>
+                <input type="range" min={1} max={10} value={bankMaxDiff} onChange={(e) => setBankMaxDiff(Number(e.target.value))} style={{ flex: 1, accentColor: "var(--cyan)" }} />
+                <span className="text-xs font-mono" style={{ color: "var(--cyan)", minWidth: 12 }}>{bankMaxDiff}</span>
+              </div>
+              <button
+                onClick={() => { setBankSearch(""); setBankSubject("All"); setBankTopic("All"); setBankType("All"); setBankMinDiff(1); setBankMaxDiff(10); setBankPaper("All"); }}
+                className="text-xs font-mono px-3 py-2 rounded"
+                style={{ background: "var(--bg-input)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+
+          {loading ? (
+            <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</p>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table className="w-full" style={{ borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--border-subtle)" }}>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>#</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 90 }}>Subject</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 100 }}>Topic</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>Diff</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 56 }}>Type</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)" }}>Question</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>+M</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 48 }}>−P</th>
+                    <th style={{ padding: "10px 12px", textAlign: "left", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 120 }}>Paper</th>
+                    <th style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-tertiary)", width: 80 }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allQuestions
+                    .filter((q) => {
+                      if (bankSearch && !q.text.toLowerCase().includes(bankSearch.toLowerCase())) return false;
+                      if (bankSubject !== "All" && bankSubject !== "All Subjects" && q.subject !== bankSubject) return false;
+                      if (bankType !== "All" && q.type !== bankType) return false;
+                      if (q.difficulty < bankMinDiff || q.difficulty > bankMaxDiff) return false;
+                      return true;
+                    })
+                    .map((q) => (
+                      <tr key={q.id} style={{ borderBottom: "1px solid var(--border-muted)", transition: "background 0.1s" }}
+                        onMouseEnter={(e) => (e.currentTarget as HTMLElement).style.background = "var(--bg-input)"}
+                        onMouseLeave={(e) => (e.currentTarget as HTMLElement).style.background = ""}>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-tertiary)" }}>{q.id}</td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{q.subject || "—"}</td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{q.topic}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: q.difficulty <= 3 ? "rgba(94,243,140,0.12)" : q.difficulty >= 8 ? "rgba(220,38,38,0.12)" : "rgba(210,153,34,0.12)", color: q.difficulty <= 3 ? "var(--mint)" : q.difficulty >= 8 ? "var(--crimson)" : "var(--amber)" }}>
+                            {q.difficulty}
+                          </span>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--cyan)", textTransform: "uppercase" }}>{q.type}</td>
+                        <td style={{ padding: "10px 12px" }}>
+                          <div style={{ fontSize: 13, color: "var(--text-primary)", maxWidth: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.text}</div>
+                        </td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{q.positiveMarks}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center", fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-secondary)" }}>{q.negativeMarks}</td>
+                        <td style={{ padding: "10px 12px", fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-tertiary)" }}>{q.setName}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "center" }}>
+                          <button
+                            onClick={() => importFromBank(q.id)}
+                            className="text-[10px] font-mono uppercase px-2 py-1 rounded"
+                            style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)", border: "1px solid var(--border-active)", cursor: "pointer" }}
+                          >
+                            Copy
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+              {allQuestions.length === 0 && (
+                <p className="text-sm font-mono mt-4" style={{ color: "var(--text-secondary)" }}>No questions yet. Create a paper to add questions.</p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Paper Detail View */}
+      {viewingSetId && (
+        <div
+          className="fixed inset-0 flex items-center justify-center z-50"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => { setViewingSetId(null); setViewingQuestions([]); setEditingQuestion(null); }}
+        >
+          <div
+            className="rounded-[12px] p-6 max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto"
+            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 style={{ fontSize: 18, fontWeight: 700, fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+                  {sets.find(s => s.id === viewingSetId)?.name}
+                </h3>
+                <p className="text-xs font-mono mt-1" style={{ color: "var(--text-secondary)" }}>
+                  {sets.find(s => s.id === viewingSetId)?.subject} · {sets.find(s => s.id === viewingSetId)?.questionCount} questions · {Math.floor((sets.find(s => s.id === viewingSetId)?.timeLimit || 0) / 60)} min
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={downloadPaperExcel}>Download Excel</Button>
+                <Button variant="outline" size="sm" onClick={() => { setViewingSetId(null); setViewingQuestions([]); setEditingQuestion(null); }}>Close</Button>
+                <Button size="sm" onClick={() => { setShowCreate(true); setViewingSetId(null); }}>+ Add Question</Button>
+              </div>
+            </div>
+
+            {viewingQuestions.length === 0 ? (
+              <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading questions…</p>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {viewingQuestions.map((q, idx) => (
+                  <div key={q.id} className="p-4 rounded" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+                    {editingQuestion?.id === q.id ? (
+                      <div className="flex flex-col gap-3">
+                        <div className="grid grid-cols-4 gap-3">
+                          <div>
+                            <label style={labelStyle}>Subject</label>
+                            <select
+                              value={editQuestionDraft.subject || q.subject || "Physics"}
+                              onChange={(e) => setEditQuestionDraft(p => ({ ...p, subject: e.target.value }))}
+                              style={inputStyle}
+                            >
+                              {SUBJECTS.map(s => <option key={s}>{s}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Topic</label>
+                            <input
+                              value={editQuestionDraft.topic ?? q.topic}
+                              onChange={(e) => setEditQuestionDraft(p => ({ ...p, topic: e.target.value }))}
+                              style={inputStyle}
+                            />
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Difficulty</label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                min={1}
+                                max={10}
+                                value={editQuestionDraft.difficulty ?? q.difficulty}
+                                onChange={(e) => setEditQuestionDraft(p => ({ ...p, difficulty: Number(e.target.value) }))}
+                                style={{ flex: 1, accentColor: "var(--cyan)" }}
+                              />
+                              <span className="text-xs font-mono" style={{ color: "var(--cyan)", minWidth: 20 }}>
+                                {editQuestionDraft.difficulty ?? q.difficulty}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label style={labelStyle}>+ Marks</label>
+                              <input
+                                type="number"
+                                value={editQuestionDraft.positiveMarks ?? q.positiveMarks}
+                                onChange={(e) => setEditQuestionDraft(p => ({ ...p, positiveMarks: Number(e.target.value) }))}
+                                style={inputStyle}
+                              />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>− Penalty</label>
+                              <input
+                                type="number"
+                                value={editQuestionDraft.negativeMarks ?? q.negativeMarks}
+                                onChange={(e) => setEditQuestionDraft(p => ({ ...p, negativeMarks: Number(e.target.value) }))}
+                                style={inputStyle}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Question Text</label>
+                          <textarea
+                            value={editQuestionDraft.text ?? q.text}
+                            onChange={(e) => setEditQuestionDraft(p => ({ ...p, text: e.target.value }))}
+                            rows={3}
+                            style={{ ...inputStyle, fontFamily: "var(--font-mono)", resize: "vertical" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Correct Answer</label>
+                          <input
+                            value={editQuestionDraft.correctAnswer ?? q.correctAnswer}
+                            onChange={(e) => setEditQuestionDraft(p => ({ ...p, correctAnswer: e.target.value }))}
+                            style={{ ...inputStyle, fontFamily: "var(--font-mono)" }}
+                          />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Explanation</label>
+                          <textarea
+                            value={editQuestionDraft.explanation ?? ""}
+                            onChange={(e) => setEditQuestionDraft(p => ({ ...p, explanation: e.target.value }))}
+                            rows={2}
+                            style={{ ...inputStyle, fontFamily: "var(--font-mono)", resize: "vertical" }}
+                            placeholder="Explanation (optional)"
+                          />
+                        </div>
+                        <div className="flex gap-2">
+                          <Button size="sm" onClick={saveEditedQuestion} disabled={savingQuestion}>
+                            {savingQuestion ? "Saving…" : "Save Changes"}
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => { setEditingQuestion(null); setEditQuestionDraft({}); }}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>Q{idx + 1}</span>
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: q.difficulty <= 3 ? "rgba(94,243,140,0.12)" : q.difficulty >= 8 ? "rgba(220,38,38,0.12)" : "rgba(210,153,34,0.12)", color: q.difficulty <= 3 ? "var(--mint)" : q.difficulty >= 8 ? "var(--crimson)" : "var(--amber)" }}>
+                              Diff: {q.difficulty}
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: "rgba(72,190,255,0.12)", color: "var(--cyan)" }}>
+                              {q.subject || "—"}
+                            </span>
+                            <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", padding: "2px 8px", borderRadius: 4, background: "var(--bg-input)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}>
+                              {q.topic}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => { setEditingQuestion(q); setEditQuestionDraft({ ...q }); }}
+                              className="text-[10px] font-mono uppercase px-2 py-1 rounded"
+                              style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)", border: "1px solid var(--border-active)", cursor: "pointer" }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => deleteQuestion(q.id)}
+                              className="text-[10px] font-mono uppercase px-2 py-1 rounded"
+                              style={{ background: "rgba(220,38,38,0.12)", color: "var(--crimson)", border: "1px solid var(--crimson)", cursor: "pointer" }}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        <div className="text-sm mb-2" style={{ color: "var(--text-primary)" }}>{q.text}</div>
+                        {q.options && q.options.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mb-2">
+                            {q.options.map((opt, i) => (
+                              <span key={i} className="text-xs font-mono px-2 py-1 rounded" style={{ background: "var(--bg-card)", color: "var(--text-secondary)", border: "1px solid var(--border-muted)" }}>
+                                {String.fromCharCode(65 + i)}. {opt}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="flex items-center gap-3 text-[11px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                          <span>Answer: <span style={{ color: "var(--mint)" }}>{q.correctAnswer}</span></span>
+                          <span>+{q.positiveMarks} / −{q.negativeMarks}</span>
+                          <span style={{ textTransform: "uppercase" }}>{q.type}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Excel Import Confirmation Modal */}
       {showExcelConfirm && excelPreview && (

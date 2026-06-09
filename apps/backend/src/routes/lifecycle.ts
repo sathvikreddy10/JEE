@@ -36,7 +36,7 @@ lifecycleRouter.post("/sets/:id/ready", requireAdmin, async (req: Request, res: 
     }
     const updated = await prisma.questionSet.update({
       where: { id: setId },
-      data: { publishedAt: new Date() },
+      data: { publishedAt: new Date(), isReadyForDailyChallenge: true },
     });
     await prisma.notification.create({
       data: {

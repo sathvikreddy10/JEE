@@ -1,0 +1,67 @@
+====================================
+  TESTIFY - RUN COMMANDS
+====================================
+
+--- FIRST TIME SETUP ---
+
+cd C:\Users\sathv\Desktop\testify
+npm install
+cd apps\backend
+npx prisma generate
+npx prisma db push --accept-data-loss
+cd ..\..
+
+
+--- START BACKEND (Terminal 1) ---
+
+cd C:\Users\sathv\Desktop\testify\apps\backend
+npx tsx src/server.ts
+
+
+--- START FRONTEND (Terminal 2) ---
+
+cd C:\Users\sathv\Desktop\testify\apps\frontend
+npm run dev
+
+
+--- BOTH RUNNING AT ---
+
+Backend:  http://localhost:4000
+Frontend: http://localhost:3000
+
+
+--- STOP ALL SERVERS ---
+
+taskkill /F /IM node.exe /T
+
+
+--- USEFUL COMMANDS ---
+
+# Kill server before prisma generate (avoids EPERM error)
+taskkill /F /IM node.exe /T
+
+# Regenerate Prisma client (after schema changes)
+cd C:\Users\sathv\Desktop\testify\apps\backend
+npx prisma generate
+
+# Push schema changes to DB
+npx prisma db push --accept-data-loss
+
+# Check backend health
+node -e "require('http').get('http://localhost:4000/health', r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>console.log(d)) })"
+
+# Check frontend health
+node -e "require('http').get('http://localhost:3000/api/health', r => { let d=''; r.on('data',c=>d+=c); r.on('end',()=>console.log(d)) })"
+
+
+--- TEST LOGINS ---
+
+Admin:  seed@testify.app
+Student: teststudent@student.com
+Password: password123
+
+
+--- QUICK START (PowerShell) ---
+
+# Start both in one command:
+powershell -File C:\Users\sathv\Desktop\testify\start_servers.ps1

@@ -220,6 +220,7 @@ adminRouter.get("/sets", async (_req, res) => {
         markingScheme: s.markingScheme ? JSON.parse(s.markingScheme) : null,
         questionCount: s._count.questions,
         sessionCount: s._count.sessions,
+        isReadyForDailyChallenge: s.isReadyForDailyChallenge,
         batchAssignments: s.batchPapers.map((bp) => {
           const goTime = bp.goTime;
           const bufferMs = (bp.bufferMinutes ?? 10) * 60 * 1000;
@@ -271,6 +272,7 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
       exam,
       tags,
       markingScheme,
+      isReadyForDailyChallenge,
       questions,
       batchAssignments,
     } = req.body ?? {};
@@ -296,6 +298,17 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
     if (!EXAMS.includes(examValue as (typeof EXAMS)[number])) {
       return res.status(400).json({ error: `exam must be one of ${EXAMS.join(", ")}` });
     }
+    const cleanName = String(name).trim();
+
+    // Check for duplicate name up front for a clearer error
+    const existingByName = await prisma.questionSet.findUnique({ where: { name: cleanName } });
+    if (existingByName) {
+      return res.status(409).json({
+        error: "A paper with that name already exists",
+        existingId: existingByName.id,
+      });
+    }
+
     const parsedTags = parseTagsInput(tags);
     if (tags !== undefined && parsedTags === null) {
       return res.status(400).json({ error: "tags must be a string array" });
@@ -394,6 +407,7 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
               ? markingScheme
               : JSON.stringify(markingScheme)
             : null,
+          isReadyForDailyChallenge: isReadyForDailyChallenge === true,
         },
       });
       log.db("CREATE", "QuestionSet", {
@@ -417,6 +431,10 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
               create: { name: cleanTopicName, subject: q.subject ?? null },
             })
           : null;
+        let diff = q.difficulty;
+        if (diff === undefined || diff === null) diff = 5;
+        else diff = Math.max(1, Math.min(10, Number(diff)));
+
         const c = await tx.question.create({
           data: {
             setId: set.id,
@@ -425,11 +443,13 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
             options: q.options ? JSON.stringify(q.options) : null,
             correctAnswer: String(q.correctAnswer),
             explanation: q.explanation ?? "",
+            subject: q.subject?.trim() || null,
             topic: cleanTopicName,
             topicId: topicRow?.id,
             imageUrl: q.imageUrl ?? null,
             images: q.images ? JSON.stringify(q.images) : null,
             order,
+            difficulty: diff,
             positiveMarks: q.positiveMarks ?? 4,
             negativeMarks: q.negativeMarks ?? 1,
           },
@@ -473,6 +493,7 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
         markingScheme: created.set.markingScheme ? JSON.parse(created.set.markingScheme) : null,
         questionCount: created.questions.length,
         publishedAt: created.set.publishedAt ? created.set.publishedAt.toISOString() : null,
+        isReadyForDailyChallenge: created.set.isReadyForDailyChallenge,
       },
       batchAssignments: created.assignments.map((a) => ({
         id: a.id,
@@ -509,10 +530,18 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   log.api("PUT", `/admin/sets/${id}`);
   try {
-    const { name, subject, pattern, timeLimit, attemptsAllowed, kind, exam, tags, markingScheme, batchAssignments } =
+    const { name, subject, pattern, timeLimit, attemptsAllowed, kind, exam, tags, markingScheme, isReadyForDailyChallenge, batchAssignments } =
       req.body ?? {};
     const data: Record<string, unknown> = {};
-    if (name !== undefined) data.name = String(name).trim();
+    if (name !== undefined) {
+      const cleanName = String(name).trim();
+      // Check duplicate name, exclude own id
+      const dup = await prisma.questionSet.findFirst({ where: { name: cleanName, id: { not: id } } });
+      if (dup) {
+        return res.status(409).json({ error: "A paper with that name already exists", existingId: dup.id });
+      }
+      data.name = cleanName;
+    }
     if (subject !== undefined) data.subject = String(subject).trim();
     if (pattern !== undefined) data.pattern = String(pattern).trim();
     if (timeLimit !== undefined) {
@@ -550,6 +579,9 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
     }
     if (markingScheme !== undefined) {
       data.markingScheme = typeof markingScheme === "string" ? markingScheme : JSON.stringify(markingScheme);
+    }
+    if (isReadyForDailyChallenge !== undefined) {
+      data.isReadyForDailyChallenge = isReadyForDailyChallenge === true;
     }
 
     // Validate batchAssignments (if provided) — full replace of assignments
@@ -644,6 +676,7 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
         exam: updated.exam,
         tags: updated.tags ? JSON.parse(updated.tags) : [],
         markingScheme: updated.markingScheme ? JSON.parse(updated.markingScheme) : null,
+        isReadyForDailyChallenge: updated.isReadyForDailyChallenge,
       },
       batchAssignments: updatedAssignments.map((a) => {
         const goTime = a.goTime;
@@ -714,6 +747,7 @@ adminRouter.get("/sets/:id", async (req, res) => {
       questionCount: set._count.questions,
       sessionCount: set._count.sessions,
       publishedAt: set.publishedAt ? set.publishedAt.toISOString() : null,
+      isReadyForDailyChallenge: set.isReadyForDailyChallenge,
       batchAssignments: set.batchPapers.map((bp) => {
         const goTime = bp.goTime;
         const bufferMs = (bp.bufferMinutes ?? 10) * 60 * 1000;
@@ -773,10 +807,12 @@ adminRouter.get("/questions/all", async (_req, res) => {
             text: true,
             options: true,
             correctAnswer: true,
+            subject: true,
             topic: true,
             imageUrl: true,
             images: true,
             order: true,
+            difficulty: true,
             positiveMarks: true,
             negativeMarks: true,
           },
@@ -794,10 +830,12 @@ adminRouter.get("/questions/all", async (_req, res) => {
           text: q.text,
           options: q.options ? JSON.parse(q.options) : null,
           correctAnswer: q.correctAnswer,
+          subject: q.subject,
           topic: q.topic,
           imageUrl: q.imageUrl,
           images: q.images ? JSON.parse(q.images) : null,
           order: q.order,
+          difficulty: q.difficulty,
           positiveMarks: q.positiveMarks,
           negativeMarks: q.negativeMarks,
         })),
@@ -926,6 +964,11 @@ adminRouter.put("/questions/:id", requireAdmin, async (req, res) => {
     if (body.options !== undefined) data.options = body.options ? JSON.stringify(body.options) : null;
     if (body.correctAnswer !== undefined) data.correctAnswer = String(body.correctAnswer);
     if (body.explanation !== undefined) data.explanation = body.explanation;
+    if (body.subject !== undefined) data.subject = String(body.subject).trim() || null;
+    if (body.difficulty !== undefined) {
+      const diff = Math.max(1, Math.min(10, Number(body.difficulty) || 5));
+      data.difficulty = diff;
+    }
     if (body.topic !== undefined) {
       const cleanTopicName = String(body.topic).trim();
       const topicRow = await prisma.topic.upsert({
@@ -1541,19 +1584,19 @@ adminRouter.get("/questions/template", async (_req, res) => {
   try {
     const headers = [
       "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
-      "correctAnswer", "explanation", "topic", "order", "positiveMarks", "negativeMarks", "difficulty"
+      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks"
     ];
     const example = [
       1, "mcq", "What is the value of $g$?", "9.8 m/s²", "10 m/s²", "9.81 m/s²", "8.9 m/s²",
-      "C", "Standard gravity is $9.81\\,\\text{m/s}^2$", "Mechanics", 1, 4, 1, "medium"
+      "C", "Standard gravity is $9.81\\,\\text{m/s}^2$", "Physics", "Mechanics", 1, 5, 4, 1
     ];
     const example2 = [
       1, "mcq-multiple", "Which are vector quantities?", "Force", "Velocity", "Energy", "Mass",
-      JSON.stringify(["A", "B"]), "Force and velocity have direction", "Mechanics", 2, 4, 1, "medium"
+      JSON.stringify(["A", "B"]), "Force and velocity have direction", "Physics", "Mechanics", 2, 7, 4, 1
     ];
     const example3 = [
       1, "numeric", "Calculate $\\\\sqrt{16}$", "", "", "", "",
-      "4", "The square root of 16 is 4", "Algebra", 3, 4, 0, "easy"
+      "4", "The square root of 16 is 4", "Mathematics", "Algebra", 3, 3, 4, 0
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, example, example2, example3]);
@@ -1702,11 +1745,14 @@ adminRouter.post("/questions/upload", async (req, res) => {
         }
 
         const explanation = String(get(row, "explanation") || "").trim();
+        const subject = String(get(row, "subject") || "").trim() || null;
         const topic = String(get(row, "topic") || "").trim();
         const order = Number(get(row, "order") || 0);
+        let difficulty = Number(get(row, "difficulty"));
+        if (Number.isNaN(difficulty)) difficulty = 5;
+        else difficulty = Math.max(1, Math.min(10, Math.round(difficulty)));
         const positiveMarks = Number(get(row, "positiveMarks") || 4);
         const negativeMarks = Number(get(row, "negativeMarks") || 1);
-        const difficulty = String(get(row, "difficulty") || "medium").trim();
 
         const question = await prisma.question.create({
           data: {
@@ -1716,11 +1762,12 @@ adminRouter.post("/questions/upload", async (req, res) => {
             options: options ? JSON.stringify(options) : null,
             correctAnswer,
             explanation,
+            subject,
             topic,
             order,
+            difficulty,
             positiveMarks,
             negativeMarks,
-            difficulty,
           },
         });
 
@@ -1758,18 +1805,25 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const dataRows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-    const rows = dataRows.map((r, idx) => ({
-      row: idx + 2, // +1 for header, +1 for 0-index
-      type: (r.type || "mcq").trim().toLowerCase(),
-      text: (r.text || "").trim(),
-      options: [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""],
-      correctAnswer: (r.correctAnswer || "A").trim(),
-      explanation: (r.explanation || "").trim(),
-      topic: (r.topic || "General").trim(),
-      positiveMarks: Number(r.positiveMarks) || 4,
-      negativeMarks: Number(r.negativeMarks) || 1,
-      order: Number(r.order) || idx + 1,
-    }));
+    const rows = dataRows.map((r, idx) => {
+      let diff = Number(r.difficulty);
+      if (Number.isNaN(diff)) diff = 5;
+      else diff = Math.max(1, Math.min(10, Math.round(diff)));
+      return {
+        row: idx + 2,
+        type: (r.type || "mcq").trim().toLowerCase(),
+        text: (r.text || "").trim(),
+        options: [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""],
+        correctAnswer: (r.correctAnswer || "A").trim(),
+        explanation: (r.explanation || "").trim(),
+        subject: (r.subject || "").trim() || null,
+        topic: (r.topic || "General").trim(),
+        difficulty: diff,
+        positiveMarks: Number(r.positiveMarks) || 4,
+        negativeMarks: Number(r.negativeMarks) || 1,
+        order: Number(r.order) || idx + 1,
+      };
+    });
 
     return res.json({ total: rows.length, rows });
   } catch (e) {

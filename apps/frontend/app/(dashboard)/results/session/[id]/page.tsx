@@ -140,6 +140,35 @@ export default function SessionResultPage() {
   };
   const band = bandColors[data.performanceBand];
 
+  const downloadReviewExcel = () => {
+    const headers = ["#", "Status", "Type", "Topic", "Question Text", "Your Answer", "Correct Answer", "Marks", "Time Spent (s)", "Explanation"];
+    const rows = data!.questions.map((q, i) => {
+      const status = q.isSkipped ? "Skipped" : q.isCorrect ? "Correct" : "Wrong";
+      return [
+        i + 1,
+        status,
+        q.type,
+        q.topic,
+        q.text,
+        q.yourAnswer || "—",
+        q.correctAnswer,
+        typeof q.marks === "number" ? q.marks : "",
+        q.timeSpent,
+        q.explanation || "",
+      ];
+    });
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `session_${data!.sessionId}_results_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
   return (
     <div className="flex flex-col" style={{ gap: 56 }}>
       {/* Red Flag Banner */}
@@ -184,12 +213,17 @@ export default function SessionResultPage() {
             {data.performanceBand.replace("-", " ")}
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-[11px] uppercase tracking-wider font-mono mb-1" style={{ color: "var(--text-secondary)" }}>
-            Session #{data.sessionId} · Completed
-          </div>
-          <div className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>
-            {data.completedAt ? new Date(data.completedAt).toLocaleString() : "—"}
+        <div className="flex items-center gap-4">
+          <Button variant="outline" onClick={downloadReviewExcel}>
+            Download Excel
+          </Button>
+          <div className="text-right">
+            <div className="text-[11px] uppercase tracking-wider font-mono mb-1" style={{ color: "var(--text-secondary)" }}>
+              Session #{data.sessionId} · Completed
+            </div>
+            <div className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>
+              {data.completedAt ? new Date(data.completedAt).toLocaleString() : "—"}
+            </div>
           </div>
         </div>
       </div>

@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   "/topics",
   "/analytics",
   "/credentials",
+  "/daily-challenge",
   "/api/auth/login",
   "/api/auth/register",
   "/api/auth/logout",

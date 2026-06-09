@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { renderMath } from "@/components/exam/MathRenderer";
@@ -21,6 +22,10 @@ interface QuestionResult {
   yourAnswer: string | null;
   isCorrect: boolean;
   isSkipped: boolean;
+  markedForReview?: boolean;
+  marks?: number;
+  positiveMarks?: number;
+  negativeMarks?: number;
   timeSpent: number;
 }
 
@@ -82,6 +87,35 @@ export default function ReviewListPage() {
     skipped: data.questions.filter((q) => q.isSkipped).length,
   };
 
+  const downloadReviewExcel = () => {
+    const headers = ["#", "Status", "Type", "Topic", "Question Text", "Your Answer", "Correct Answer", "Marks", "Time Spent (s)", "Explanation"];
+    const rows = filtered.map((q, i) => {
+      const status = q.isSkipped ? "Skipped" : q.isCorrect ? "Correct" : "Wrong";
+      return [
+        i + 1,
+        status,
+        q.type,
+        q.topic,
+        q.text,
+        q.yourAnswer || "—",
+        q.correctAnswer,
+        typeof q.marks === "number" ? q.marks : "",
+        q.timeSpent,
+        q.explanation || "",
+      ];
+    });
+    const csv = [headers, ...rows].map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `session_${sessionId}_review_${new Date().toISOString().split("T")[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+
   return (
     <div className="flex flex-col" style={{ gap: 40 }}>
       {/* Header */}
@@ -101,6 +135,9 @@ export default function ReviewListPage() {
             Session #{sessionId} · {data.questions.length} questions · Click any to view full solution
           </p>
         </div>
+        <Button variant="outline" onClick={downloadReviewExcel}>
+          Download Excel
+        </Button>
       </div>
 
       {/* Filter bar */}

@@ -14,9 +14,9 @@ interface AdminMe {
 }
 
 const NAV = [
-  { label: "Questions", path: "/admin" },
   { label: "Papers", path: "/papers" },
   { label: "Batches", path: "/batches" },
+  { label: "Daily Challenge", path: "/daily-challenge" },
   { label: "Topics", path: "/topics" },
   { label: "Analytics", path: "/analytics" },
   { label: "Live", path: "/admin/live" },
