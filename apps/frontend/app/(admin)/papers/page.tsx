@@ -65,7 +65,7 @@ interface DraftQuestion { type: QuestionType; text: string; options: string[]; c
   explanation: string; subject: string; topic: string; difficulty: number; positiveMarks: number; negativeMarks: number }
 
 /* ─── Constants ─── */
-const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Physics & Chemistry", "Mixed"];
+const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "Zoology", "English", "General Knowledge", "Quantitative Aptitude", "Logical Reasoning", "Computer Science", "General Science", "History", "Geography", "Political Science", "Economics", "Optional Language"];
 const PATTERNS = ["JEE Main", "JEE Advanced", "NEET", "Custom"];
 const EXAMS: { value: SetExam; label: string }[] = [
   { value: "JEE_MAIN", label: "JEE Main" }, { value: "JEE_ADVANCED", label: "JEE Advanced" },
@@ -124,6 +124,10 @@ export default function PapersPage() {
   const [drafts, setDrafts] = useState<DraftQuestion[]>([blankDraft()]);
   const [createError, setCreateError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+
+  const resetCreateForm = useCallback(() => {
+    setName(""); setSubject("Physics"); setPattern("JEE Main"); setKind("INSTITUTE"); setExam("JEE_MAIN"); setTags([]); setTagInput(""); setTimeHours(0); setTimeMinutes(30); setTimeSeconds(0); setAttemptsAllowed(1); setDrafts([blankDraft()]); setAssignments([]); setIsReadyForDailyChallenge(false); setCreateError(null);
+  }, []);
   const [excelImporting, setExcelImporting] = useState(false);
   const [excelPreview, setExcelPreview] = useState<any[] | null>(null);
   const [showExcelConfirm, setShowExcelConfirm] = useState(false);
@@ -299,7 +303,7 @@ export default function PapersPage() {
         batchAssignments: kind === "INSTITUTE" ? assignments.map(a => ({ batchId: a.batchId, scheduledStart: new Date(a.scheduledStart).toISOString(), scheduledEnd: new Date(a.scheduledEnd).toISOString(), bufferMinutes: a.bufferMinutes })) : [],
       };
       await fetchJSON("/api/admin/sets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      setName(""); setDrafts([blankDraft()]); setKind("INSTITUTE"); setExam("JEE_MAIN"); setTags([]); setTagInput(""); setAssignments([]); setIsReadyForDailyChallenge(false); setShowCreate(false);
+      resetCreateForm(); setShowCreate(false);
       await loadAll();
     } catch (err) { setCreateError((err as Error).message) }
     finally { setCreating(false) }
@@ -513,7 +517,7 @@ export default function PapersPage() {
 
       {/* ─── CREATE FORM ─── */}
       {showCreate && (
-        <Dialog open onOpenChange={(o) => { if (!o) setShowCreate(false) }}>
+        <Dialog open onOpenChange={(o) => { if (!o) { resetCreateForm(); setShowCreate(false) } }}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader className="pb-4 border-b">
               <DialogTitle className="text-2xl">Create New Paper</DialogTitle>
@@ -695,8 +699,8 @@ export default function PapersPage() {
               {/* Daily Challenge Toggle */}
               <div className="flex items-center gap-4 p-5 rounded-xl border-2 border-border bg-muted/20">
                 <button type="button" onClick={() => setIsReadyForDailyChallenge(!isReadyForDailyChallenge)}
-                  className={cn("relative h-7 w-12 rounded-full transition-colors shrink-0", isReadyForDailyChallenge ? "bg-primary" : "bg-slate-300")}>
-                  <span className={cn("absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-transform", isReadyForDailyChallenge ? "translate-x-6" : "translate-x-1")} />
+                  className={cn("flex items-center h-7 w-12 rounded-full p-0.5 transition-colors shrink-0", isReadyForDailyChallenge ? "bg-primary" : "bg-slate-300")}>
+                  <span className={cn("h-5 w-5 rounded-full bg-white shadow transition-transform", isReadyForDailyChallenge ? "translate-x-6" : "translate-x-0")} />
                 </button>
                 <div>
                   <p className="text-sm font-bold text-foreground">Available for Daily Challenge</p>
@@ -708,7 +712,7 @@ export default function PapersPage() {
 
               <div className="flex gap-3 pt-2">
                 <Button type="submit" size="lg" disabled={creating || !name.trim()}>{creating ? "Creating…" : `Create Paper (${drafts.length} Qs)`}</Button>
-                <Button type="button" variant="outline" size="lg" onClick={() => setShowCreate(false)}>Cancel</Button>
+                <Button type="button" variant="outline" size="lg" onClick={() => { resetCreateForm(); setShowCreate(false) }}>Cancel</Button>
               </div>
             </form>
           </DialogContent>

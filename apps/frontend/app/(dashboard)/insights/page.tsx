@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -74,55 +74,105 @@ function fmtDuration(sec: number) {
 
 /* ────────── SVG Chart Components ────────── */
 
-function LineChart({ data, height = 200 }: { data: ScorePoint[]; height?: number }) {
+function LineChart({ data, height = 220 }: { data: ScorePoint[]; height?: number }) {
   if (data.length === 0) return <div className="text-center text-sm text-muted-foreground py-12">No data yet</div>;
-  const width = 100;
-  const padding = 8;
-  const innerW = width - padding * 2;
-  const innerH = 100 - padding * 2;
-  const points = data.map((d, i) => {
-    const x = padding + (i / Math.max(1, data.length - 1)) * innerW;
-    const y = padding + (1 - d.percent / 100) * innerH;
-    return { x, y, d };
-  });
-  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
-  const areaD = `${pathD} L ${padding + innerW} ${padding + innerH} L ${padding} ${padding + innerH} Z`;
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const color = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#2563eb";
+  const muted = getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#6b7280";
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const pad = { top: 24, right: 16, bottom: 28, left: 36 };
+    const innerW = w - pad.left - pad.right;
+    const innerH = h - pad.top - pad.bottom;
+
+    // Clear
+    ctx.clearRect(0, 0, w, h);
+
+    // Grid lines
+    ctx.strokeStyle = muted;
+    ctx.lineWidth = 0.5;
+    ctx.globalAlpha = 0.15;
+    [0, 25, 50, 75, 100].forEach((v) => {
+      const y = pad.top + (1 - v / 100) * innerH;
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(pad.left + innerW, y);
+      ctx.stroke();
+    });
+    ctx.globalAlpha = 1;
+
+    // Points
+    const points = data.map((d, i) => ({
+      x: pad.left + (i / Math.max(1, data.length - 1)) * innerW,
+      y: pad.top + (1 - d.percent / 100) * innerH,
+      percent: d.percent,
+    }));
+
+    // Area fill
+    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + innerH);
+    grad.addColorStop(0, color);
+    grad.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grad;
+    ctx.globalAlpha = 0.12;
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, pad.top + innerH);
+    points.forEach((p) => ctx.lineTo(p.x, p.y));
+    ctx.lineTo(points[points.length - 1].x, pad.top + innerH);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    // Line
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.stroke();
+
+    // Points
+    points.forEach((p) => {
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.stroke();
+    });
+
+    // Y axis labels
+    ctx.fillStyle = muted;
+    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    [0, 50, 100].forEach((v) => {
+      const y = pad.top + (1 - v / 100) * innerH;
+      ctx.fillText(`${v}%`, pad.left - 8, y);
+    });
+  }, [data, color, muted]);
+
   return (
     <div className="w-full">
-      <svg viewBox={`0 0 ${width} 100`} preserveAspectRatio="none" className="w-full" style={{ height }}>
-        <defs>
-          <linearGradient id="lineGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {/* Grid lines */}
-        {[0, 25, 50, 75, 100].map((v) => (
-          <line
-            key={v}
-            x1={padding}
-            y1={padding + (1 - v / 100) * innerH}
-            x2={padding + innerW}
-            y2={padding + (1 - v / 100) * innerH}
-            stroke="currentColor"
-            strokeOpacity="0.08"
-            strokeWidth="0.2"
-          />
-        ))}
-        {/* Area + line */}
-        <path d={areaD} fill="url(#lineGrad)" className="text-primary" />
-        <path d={pathD} fill="none" stroke="currentColor" strokeWidth="0.4" strokeLinejoin="round" className="text-primary" />
-        {/* Points */}
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r="0.8" fill="currentColor" className="text-primary" />
-        ))}
-        {/* Y axis labels */}
-        {[0, 50, 100].map((v) => (
-          <text key={v} x={padding - 1} y={padding + (1 - v / 100) * innerH + 1} fontSize="2.5" fill="currentColor" className="text-muted-foreground" textAnchor="end">
-            {v}%
-          </text>
-        ))}
-      </svg>
+      <canvas ref={canvasRef} className="w-full" style={{ height }} />
       <div className="flex justify-between mt-2 text-[10px] font-mono text-muted-foreground">
         <span>{new Date(data[0].date).toLocaleDateString()}</span>
         <span>{new Date(data[data.length - 1].date).toLocaleDateString()}</span>

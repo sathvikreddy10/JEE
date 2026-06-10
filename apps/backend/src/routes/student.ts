@@ -525,9 +525,10 @@ studentRouter.get("/insights", async (req, res) => {
       } catch { /* skip */ }
     }
 
-    const questions = questionIds.size > 0
+    const validIds = Array.from(questionIds).filter((id): id is number => id != null && typeof id === "number");
+    const questions = validIds.length > 0
       ? await prisma.question.findMany({
-          where: { id: { in: Array.from(questionIds) } },
+          where: { id: { in: validIds } },
           select: { id: true, difficulty: true },
         })
       : [];

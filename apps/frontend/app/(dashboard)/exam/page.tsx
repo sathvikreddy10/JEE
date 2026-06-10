@@ -289,6 +289,28 @@ function ExamPageInner() {
       } catch (e: any) {
         cli.err("init exam", e);
         if (!cancelled) {
+          // If we got 409 in-progress (StrictMode double-mount), resume the session instead of error
+          if (e.status === 409 && e.data?.inProgressSessionId) {
+            const sid = e.data.inProgressSessionId;
+            cli.info(`Got 409 inProgress — auto-resuming session ${sid}`);
+            try {
+              const resumeData = await apiCall<{
+                questions: (QuestionData & { selectedAnswer?: string })[];
+                timeLimit: number;
+                timeTaken?: number;
+                completed?: boolean;
+              }>("GET", `/api/exam/${sid}`);
+              if (cancelled) return;
+              if (resumeData.completed && !isPractice) {
+                router.replace(`/results/session/${sid}`);
+                return;
+              }
+              applyExamState(resumeData, sid);
+              return;
+            } catch (innerErr: any) {
+              cli.err("Auto-resume failed", innerErr);
+            }
+          }
           // Map backend status codes to human-friendly messages
           const status = e.status || e.statusCode || 500;
           const code = e.code || "";
@@ -318,7 +340,7 @@ function ExamPageInner() {
     };
 
     init();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; isCreatingRef.current = false; };
   }, [sessionIdParam, setIdParam, router]);
 
   // Tab switch detection: every visibility change = 1 tab switch

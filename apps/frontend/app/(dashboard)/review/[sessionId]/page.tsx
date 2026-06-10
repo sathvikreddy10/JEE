@@ -57,8 +57,8 @@ export default function ReviewListPage() {
     fetchJSON<ExamAnalytics>(`/api/exam/${sessionId}`)
       .then((d) => {
         if (cancelled) return;
-        if (d.error || !d.questions) {
-          setError(d.error || "No data");
+        if (!d.questions) {
+          setError("No data");
         } else {
           setData(d);
         }

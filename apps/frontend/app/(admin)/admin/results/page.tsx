@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
@@ -147,7 +147,7 @@ function DynamicBar({ width, height, className, ...props }: React.HTMLAttributes
 type View = "chooser" | "detail";
 type ChooserMode = "exam" | "batch";
 
-export default function AdminResultsPage() {
+function AdminResultsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [view, setView] = useState<View>("chooser");
@@ -885,5 +885,13 @@ function StudentDetail({
         </div>
       )}
     </div>
+  );
+}
+
+export default function AdminResultsPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading…</div>}>
+      <AdminResultsPageInner />
+    </Suspense>
   );
 }

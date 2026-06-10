@@ -87,7 +87,7 @@ export default function TeacherPage() {
                   <td className="p-4 font-mono text-xs">{s.batch}</td>
                   <td className="p-4 font-mono text-xs text-right">{s.tests}</td>
                   <td className="p-4 font-mono text-xs text-right" style={{ color: getAvgColor(s.avg) }}>{s.avg}%</td>
-                  <td className="p-4"><Badge variant={s.status === "active" ? "mint" : s.status === "at-risk" ? "amber" : "crimson"}>{s.status}</Badge></td>
+                  <td className="p-4"><Badge variant={s.status === "active" ? "success" : s.status === "at-risk" ? "warning" : "destructive"}>{s.status}</Badge></td>
                 </tr>
               ))}
             </tbody>

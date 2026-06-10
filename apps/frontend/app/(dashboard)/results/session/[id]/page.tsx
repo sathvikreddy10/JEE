@@ -88,8 +88,8 @@ export default function SessionResultPage() {
     fetchJSON<ExamAnalytics>(`/api/exam/${sessionId}`)
       .then((d) => {
         if (cancelled) return;
-        if (d.error || !d.questions) {
-          setError(d.error || "No questions");
+        if (!d.questions) {
+          setError("No questions");
         } else {
           setData(d);
         }
@@ -242,7 +242,7 @@ export default function SessionResultPage() {
           <div className="text-lg mb-6 text-muted-foreground">
             out of {maxPossible}
           </div>
-          <Badge variant={scorePercent >= 70 ? "forest" : scorePercent >= 40 ? "amber" : "crimson"}>
+          <Badge variant={scorePercent >= 70 ? "success" : scorePercent >= 40 ? "warning" : "destructive"}>
             {scorePercent}% accuracy
           </Badge>
         </Card>
@@ -325,7 +325,7 @@ export default function SessionResultPage() {
                         <h3 className="text-[17px] font-bold text-foreground">
                           {topic.name}
                         </h3>
-                        <Badge variant={topic.accuracy >= 70 ? "forest" : topic.accuracy >= 40 ? "amber" : "crimson"}>
+                        <Badge variant={topic.accuracy >= 70 ? "success" : topic.accuracy >= 40 ? "warning" : "destructive"}>
                           {topic.accuracy}% accuracy
                         </Badge>
                         <span className="text-xs font-mono text-muted-foreground">
