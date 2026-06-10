@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils";
 import { fetchJSON } from "@/lib/api";
 import { log as cli } from "@/lib/logger";
 
@@ -113,6 +116,30 @@ interface BatchPaper {
   avgScore: number;
   avgPercent: number;
   uniqueStudents: number;
+}
+
+/* ─────────────── Helpers ─────────────── */
+
+function percentTextClass(pct: number): string {
+  if (pct >= 70) return "text-success";
+  if (pct >= 40) return "text-warning";
+  return "text-destructive";
+}
+
+function percentBgClass(pct: number): string {
+  if (pct >= 70) return "bg-[var(--mint)]";
+  if (pct >= 40) return "bg-[var(--amber)]";
+  return "bg-[var(--crimson)]";
+}
+
+function DynamicBar({ width, height, className, ...props }: React.HTMLAttributes<HTMLDivElement> & { width?: string; height?: string }) {
+  const callbackRef = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      if (width) node.style.width = width;
+      if (height) node.style.height = height;
+    }
+  }, [width, height]);
+  return <div ref={callbackRef} className={className} {...props} />;
 }
 
 /* ─────────────── Page ─────────────── */
@@ -243,37 +270,29 @@ export default function AdminResultsPage() {
   /* ─────────────── Chooser View ─────────────── */
   if (view === "chooser") {
     return (
-      <div className="flex flex-col" style={{ gap: 24, padding: "32px 40px" }}>
-        <div className="flex justify-between items-start flex-wrap gap-4">
-          <div>
-            <h1 style={{ fontSize: 28, fontWeight: 700, fontFamily: "var(--font-brand)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-              Results
-            </h1>
-            <p className="mt-1" style={{ color: "var(--text-secondary)", fontSize: 14 }}>
-              Select an exam or batch to view detailed student analytics.
-            </p>
+      <div className="p-10 space-y-8 max-w-[1600px] mx-auto">
+        <div className="flex items-end justify-between gap-4 pb-2 flex-wrap">
+          <div className="space-y-1.5">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Results</h1>
+            <p className="text-sm text-muted-foreground">Select an exam or batch to view detailed student analytics.</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex gap-1 rounded p-1" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+            <div className="flex gap-1 rounded p-1 bg-input border border-border">
               <button
                 onClick={() => setChooserMode("exam")}
-                className="px-3 py-1.5 text-xs font-medium rounded transition-all"
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  background: chooserMode === "exam" ? "var(--bg-card)" : "transparent",
-                  color: chooserMode === "exam" ? "var(--cyan)" : "var(--text-secondary)",
-                }}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-all font-mono",
+                  chooserMode === "exam" ? "bg-card text-primary" : "bg-transparent text-muted-foreground"
+                )}
               >
                 By Exam
               </button>
               <button
                 onClick={() => setChooserMode("batch")}
-                className="px-3 py-1.5 text-xs font-medium rounded transition-all"
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  background: chooserMode === "batch" ? "var(--bg-card)" : "transparent",
-                  color: chooserMode === "batch" ? "var(--cyan)" : "var(--text-secondary)",
-                }}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-medium rounded transition-all font-mono",
+                  chooserMode === "batch" ? "bg-card text-primary" : "bg-transparent text-muted-foreground"
+                )}
               >
                 By Batch
               </button>
@@ -284,15 +303,14 @@ export default function AdminResultsPage() {
 
         {/* Filters */}
         <div className="flex gap-3 items-center flex-wrap">
-          <input
+          <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={`Search ${chooserMode}...`}
-            className="px-3 py-2 rounded text-sm"
-            style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)", minWidth: 240 }}
+            className="min-w-[240px]"
           />
-          <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+          <span className="text-xs font-mono text-muted-foreground/70">
             {chooserMode === "exam" ? filteredExams.length : filteredBatches.length} results
           </span>
         </div>
@@ -301,10 +319,10 @@ export default function AdminResultsPage() {
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="rounded-[10px] p-6 animate-pulse" style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}>
-                <div className="h-5 w-3/4 rounded mb-3" style={{ background: "var(--bg-input)" }} />
-                <div className="h-3 w-1/2 rounded mb-2" style={{ background: "var(--bg-input)" }} />
-                <div className="h-3 w-2/3 rounded" style={{ background: "var(--bg-input)" }} />
+              <div key={i} className="rounded-[10px] p-6 bg-card border border-border">
+                <Skeleton className="h-5 w-3/4 rounded mb-3" />
+                <Skeleton className="h-3 w-1/2 rounded mb-2" />
+                <Skeleton className="h-3 w-2/3 rounded" />
               </div>
             ))}
           </div>
@@ -332,22 +350,21 @@ export default function AdminResultsPage() {
   const papers = isExam ? [] : (batchDetail?.papers ?? []);
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 56px)", overflow: "hidden" }}>
+    <div className="flex flex-col h-[calc(100vh-64px)] overflow-hidden">
       {/* Detail Header */}
-      <div className="flex items-center justify-between px-8 py-4" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
+      <div className="flex items-center justify-between px-8 py-4 border-b border-border">
         <div className="flex items-center gap-3">
           <button
             onClick={handleBack}
-            className="px-3 py-1.5 text-xs font-medium rounded"
-            style={{ fontFamily: "var(--font-mono)", background: "var(--bg-input)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
+            className="px-3 py-1.5 text-xs font-medium rounded font-mono bg-input text-muted-foreground border border-border"
           >
             ← Back
           </button>
           <div>
-            <h2 style={{ fontSize: 20, fontWeight: 700, fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+            <h2 className="text-xl font-bold font-brand text-foreground">
               {selectedName}
             </h2>
-            <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-xs font-mono text-muted-foreground">
               {isExam
                 ? `${examDetail?.totalSessions ?? 0} sessions · ${examDetail?.exam?.questionCount ?? 0} questions`
                 : `${batchDetail?.totalSessions ?? 0} sessions · ${batchDetail?.batch?.memberCount ?? 0} members · ${batchDetail?.batch?.paperCount ?? 0} papers`}
@@ -368,24 +385,23 @@ export default function AdminResultsPage() {
       {/* 2-Pane Layout */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left: Student List */}
-        <div className="w-[380px] flex flex-col overflow-hidden shrink-0" style={{ borderRight: "1px solid var(--border-subtle)" }}>
-          <div className="px-4 py-3" style={{ borderBottom: "1px solid var(--border-subtle)" }}>
-            <input
+        <div className="w-[380px] flex flex-col overflow-hidden shrink-0 border-r border-border">
+          <div className="px-4 py-3 border-b border-border">
+            <Input
               type="search"
               placeholder="Search students..."
-              className="w-full px-3 py-2 rounded text-sm"
-              style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
+              className="w-full"
             />
           </div>
           <div className="flex-1 overflow-y-auto">
             {detailLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-12 rounded animate-pulse" style={{ background: "var(--bg-input)" }} />
+                  <Skeleton key={i} className="h-12 rounded" />
                 ))}
               </div>
             ) : students.length === 0 ? (
-              <div className="p-8 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+              <div className="p-8 text-center text-sm text-muted-foreground">
                 No sessions yet
               </div>
             ) : (
@@ -409,7 +425,7 @@ export default function AdminResultsPage() {
           {selectedStudent ? (
             <StudentDetail student={selectedStudent} isExam={isExam} examDetail={examDetail} batchDetail={batchDetail} />
           ) : (
-            <div className="text-center py-12 text-sm" style={{ color: "var(--text-secondary)" }}>
+            <div className="text-center py-12 text-sm text-muted-foreground">
               Select a student to view details
             </div>
           )}
@@ -447,17 +463,16 @@ export default function AdminResultsPage() {
 /* ─────────────── Sub-components ─────────────── */
 
 function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void }) {
-  const percentColor = exam.avgPercent >= 70 ? "var(--mint)" : exam.avgPercent >= 40 ? "var(--amber)" : "var(--crimson)";
+  const barPct = Math.max(5, Math.min(100, (exam.avgScore / Math.max(1, exam.questionCount * 4)) * 100));
   return (
     <Card
       onClick={onClick}
-      style={{ cursor: "pointer", padding: 0 }}
-      className="transition-all hover:opacity-90"
+      className="p-0 transition-all hover:opacity-90"
     >
       <div className="p-6">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-base mb-1" style={{ color: "var(--text-primary)" }}>
+            <h3 className="font-semibold text-base mb-1 text-foreground">
               {exam.name}
             </h3>
             <div className="flex gap-2 flex-wrap">
@@ -466,44 +481,41 @@ function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void })
               <Badge variant="forest">{exam.subject}</Badge>
             </div>
           </div>
-          <span className="text-xs font-mono" style={{ color: "var(--cyan)" }}>View →</span>
+          <span className="text-xs font-mono text-primary">View →</span>
         </div>
 
         {/* KPIs */}
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className="text-lg font-mono font-semibold text-foreground">
               {exam.attempts}
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Attempts</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Attempts</div>
           </div>
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: percentColor }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className={cn("text-lg font-mono font-semibold", percentTextClass(exam.avgPercent))}>
               {exam.avgPercent}%
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Avg</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Avg</div>
           </div>
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className="text-lg font-mono font-semibold text-foreground">
               {exam.uniqueStudents}
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Students</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Students</div>
           </div>
         </div>
 
         {/* Score bar */}
         <div className="mb-3">
-          <div className="flex justify-between text-[10px] font-mono mb-1" style={{ color: "var(--text-secondary)" }}>
+          <div className="flex justify-between text-[10px] font-mono mb-1 text-muted-foreground">
             <span>Lowest: {exam.lowest}</span>
             <span>Highest: {exam.highest}</span>
           </div>
-          <div className="h-2 rounded overflow-hidden" style={{ background: "var(--border-subtle)" }}>
-            <div
-              className="h-full rounded"
-              style={{
-                width: `${Math.max(5, Math.min(100, (exam.avgScore / Math.max(1, exam.questionCount * 4)) * 100))}%`,
-                background: percentColor,
-              }}
+          <div className="h-2 rounded overflow-hidden bg-border">
+            <DynamicBar
+              width={`${barPct}%`}
+              className={cn("h-full rounded", percentBgClass(exam.avgPercent))}
             />
           </div>
         </div>
@@ -516,8 +528,8 @@ function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void })
           {exam.autoEndedCount > 0 && (
             <Badge variant="amber">⚠ {exam.autoEndedCount} auto-ended</Badge>
           )}
-          {exam.batches.map((b) => (
-            <Badge key={b.id} variant="cyan">{b.name}</Badge>
+          {(exam.batches || []).map((b) => (
+            <Badge key={b.id} variant="info">{b.name || "—"}</Badge>
           ))}
         </div>
       </div>
@@ -526,40 +538,39 @@ function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void })
 }
 
 function BatchCard({ batch, onClick }: { batch: BatchSummary; onClick: () => void }) {
-  const percentColor = batch.avgPercent >= 70 ? "var(--mint)" : batch.avgPercent >= 40 ? "var(--amber)" : "var(--crimson)";
   return (
-    <Card onClick={onClick} style={{ cursor: "pointer", padding: 0 }} className="transition-all hover:opacity-90">
+    <Card onClick={onClick} className="p-0 transition-all hover:opacity-90">
       <div className="p-6">
         <div className="flex items-start justify-between mb-3">
           <div>
-            <h3 className="font-semibold text-base mb-1" style={{ color: "var(--text-primary)" }}>
+            <h3 className="font-semibold text-base mb-1 text-foreground">
               {batch.name}
             </h3>
-            <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-xs font-mono text-muted-foreground">
               {batch.description || `${batch.memberCount} members · ${batch.paperCount} papers`}
             </p>
           </div>
-          <span className="text-xs font-mono" style={{ color: "var(--cyan)" }}>View →</span>
+          <span className="text-xs font-mono text-primary">View →</span>
         </div>
 
         <div className="grid grid-cols-3 gap-3 mb-4">
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className="text-lg font-mono font-semibold text-foreground">
               {batch.attempts}
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Attempts</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Attempts</div>
           </div>
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: percentColor }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className={cn("text-lg font-mono font-semibold", percentTextClass(batch.avgPercent))}>
               {batch.avgPercent}%
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Avg</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Avg</div>
           </div>
-          <div className="text-center p-2 rounded" style={{ background: "var(--bg-input)" }}>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+          <div className="text-center p-2 rounded bg-input">
+            <div className="text-lg font-mono font-semibold text-foreground">
               {batch.activeStudents}/{batch.memberCount}
             </div>
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Active</div>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Active</div>
           </div>
         </div>
 
@@ -593,35 +604,32 @@ function StudentRow({
 }) {
   if (isExam) {
     const s = student as ExamStudent;
-    const percentColor = s.percent >= 70 ? "var(--mint)" : s.percent >= 40 ? "var(--amber)" : "var(--crimson)";
     return (
       <div
         onClick={onClick}
-        className="px-4 py-3 cursor-pointer transition-colors"
-        style={{
-          borderBottom: "1px solid var(--border-subtle)",
-          background: isSelected ? "rgba(72,190,255,0.08)" : "transparent",
-          borderLeft: isSelected ? "3px solid var(--cyan)" : "3px solid transparent",
-        }}
+        className={cn(
+          "px-4 py-3 cursor-pointer transition-colors border-b border-border border-l-[3px]",
+          isSelected ? "bg-primary/8 border-l-primary" : "border-l-transparent"
+        )}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
+            <span className="font-medium text-sm text-foreground">
               {s.name}
             </span>
             {s.flaggedAt && <Badge variant="crimson">Flagged</Badge>}
             {s.autoEndedAt && <Badge variant="amber">Auto-ended</Badge>}
           </div>
           <div className="text-right">
-            <div className="font-mono text-sm font-semibold" style={{ color: percentColor }}>
+            <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.percent))}>
               {s.score}/{s.total}
             </div>
-            <div className="text-[10px] font-mono" style={{ color: percentColor }}>
+            <div className={cn("text-[10px] font-mono", percentTextClass(s.percent))}>
               {s.percent}%
             </div>
           </div>
         </div>
-        <div className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+        <div className="text-[10px] font-mono text-muted-foreground/70">
           {s.email}
         </div>
       </div>
@@ -629,34 +637,31 @@ function StudentRow({
   }
 
   const s = student as BatchStudent;
-  const percentColor = s.avgPercent >= 70 ? "var(--mint)" : s.avgPercent >= 40 ? "var(--amber)" : "var(--crimson)";
   return (
     <div
       onClick={onClick}
-      className="px-4 py-3 cursor-pointer transition-colors"
-      style={{
-        borderBottom: "1px solid var(--border-subtle)",
-        background: isSelected ? "rgba(72,190,255,0.08)" : "transparent",
-        borderLeft: isSelected ? "3px solid var(--cyan)" : "3px solid transparent",
-      }}
+      className={cn(
+        "px-4 py-3 cursor-pointer transition-colors border-b border-border border-l-[3px]",
+        isSelected ? "bg-primary/8 border-l-primary" : "border-l-transparent"
+      )}
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
+          <span className="font-medium text-sm text-foreground">
             {s.name}
           </span>
           {s.flaggedCount > 0 && <Badge variant="crimson">{s.flaggedCount} flagged</Badge>}
         </div>
         <div className="text-right">
-          <div className="font-mono text-sm font-semibold" style={{ color: percentColor }}>
+          <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.avgPercent))}>
             {s.avgPercent}%
           </div>
-          <div className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+          <div className="text-[10px] font-mono text-muted-foreground/70">
             {s.sessions} sessions
           </div>
         </div>
       </div>
-      <div className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+      <div className="text-[10px] font-mono text-muted-foreground/70">
         {s.email}
       </div>
     </div>
@@ -676,25 +681,24 @@ function StudentDetail({
 }) {
   if (isExam) {
     const s = student as ExamStudent;
-    const percentColor = s.percent >= 70 ? "var(--mint)" : s.percent >= 40 ? "var(--amber)" : "var(--crimson)";
 
     return (
-      <div className="flex flex-col" style={{ gap: 24 }}>
+      <div className="flex flex-col gap-6">
         {/* Student Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+            <h2 className="text-xl font-bold font-brand text-foreground">
               {s.name}
             </h2>
-            <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-xs font-mono text-muted-foreground">
               {s.email}
             </p>
           </div>
           <div className="text-right">
-            <div className="text-2xl font-mono font-bold" style={{ color: percentColor }}>
+            <div className={cn("text-2xl font-mono font-bold", percentTextClass(s.percent))}>
               {s.percent}%
             </div>
-            <div className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>
+            <div className="text-sm font-mono text-muted-foreground">
               {s.score}/{s.total}
             </div>
           </div>
@@ -704,26 +708,26 @@ function StudentDetail({
         <Card>
           <div className="grid grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Score</div>
-              <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-[10px] font-mono uppercase text-muted-foreground">Score</div>
+              <div className="text-lg font-mono font-semibold text-foreground">
                 {s.score}/{s.total}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Time</div>
-              <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-[10px] font-mono uppercase text-muted-foreground">Time</div>
+              <div className="text-lg font-mono font-semibold text-foreground">
                 {Math.floor(s.timeTaken / 60)}m {s.timeTaken % 60}s
               </div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Answered</div>
-              <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+              <div className="text-[10px] font-mono uppercase text-muted-foreground">Answered</div>
+              <div className="text-lg font-mono font-semibold text-foreground">
                 {s.answeredCount}/{examDetail?.exam?.questionCount ?? "—"}
               </div>
             </div>
             <div className="text-center">
-              <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Tab Switches</div>
-              <div className="text-lg font-mono font-semibold" style={{ color: s.tabSwitches >= 4 ? "var(--crimson)" : "var(--text-primary)" }}>
+              <div className="text-[10px] font-mono uppercase text-muted-foreground">Tab Switches</div>
+              <div className={cn("text-lg font-mono font-semibold", s.tabSwitches >= 4 ? "text-destructive" : "text-foreground")}>
                 {s.tabSwitches}
               </div>
             </div>
@@ -743,7 +747,7 @@ function StudentDetail({
         {/* Score Distribution */}
         {examDetail?.distribution && Object.keys(examDetail.distribution).length > 0 && (
           <div>
-            <h3 className="text-sm font-semibold mb-3" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+            <h3 className="text-sm font-semibold mb-3 font-brand text-foreground">
               Score Distribution
             </h3>
             <div className="flex items-end gap-1 h-24">
@@ -754,14 +758,11 @@ function StudentDetail({
                 const isThisStudent = Math.floor(s.percent / 10) * 10 === bucket;
                 return (
                   <div key={bucket} className="flex-1 flex flex-col items-center gap-1">
-                    <div
-                      className="w-full rounded-t"
-                      style={{
-                        height: `${Math.max(4, height)}%`,
-                        background: isThisStudent ? "var(--cyan)" : "var(--border-subtle)",
-                      }}
+                    <DynamicBar
+                      height={`${Math.max(4, height)}%`}
+                      className={cn("w-full rounded-t", isThisStudent ? "bg-primary" : "bg-border")}
                     />
-                    <span className="text-[9px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                    <span className="text-[9px] font-mono text-muted-foreground/70">
                       {bucket}%
                     </span>
                   </div>
@@ -772,7 +773,7 @@ function StudentDetail({
         )}
 
         {/* Session Info */}
-        <div className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+        <div className="text-xs font-mono text-muted-foreground/70">
           Started: {new Date(s.startedAt).toLocaleString()}
           {s.completedAt && (
             <span> · Completed: {new Date(s.completedAt).toLocaleString()}</span>
@@ -783,24 +784,23 @@ function StudentDetail({
   }
 
   const s = student as BatchStudent;
-  const percentColor = s.avgPercent >= 70 ? "var(--mint)" : s.avgPercent >= 40 ? "var(--amber)" : "var(--crimson)";
 
   return (
-    <div className="flex flex-col" style={{ gap: 24 }}>
+    <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+          <h2 className="text-xl font-bold font-brand text-foreground">
             {s.name}
           </h2>
-          <p className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-xs font-mono text-muted-foreground">
             {s.email}
           </p>
         </div>
         <div className="text-right">
-          <div className="text-2xl font-mono font-bold" style={{ color: percentColor }}>
+          <div className={cn("text-2xl font-mono font-bold", percentTextClass(s.avgPercent))}>
             {s.avgPercent}%
           </div>
-          <div className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>
+          <div className="text-sm font-mono text-muted-foreground">
             {s.sessions} sessions
           </div>
         </div>
@@ -809,26 +809,26 @@ function StudentDetail({
       <Card>
         <div className="grid grid-cols-4 gap-4">
           <div className="text-center">
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Total Score</div>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--text-primary)" }}>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Total Score</div>
+            <div className="text-lg font-mono font-semibold text-foreground">
               {s.totalScore}
             </div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Avg %</div>
-            <div className="text-lg font-mono font-semibold" style={{ color: percentColor }}>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Avg %</div>
+            <div className={cn("text-lg font-mono font-semibold", percentTextClass(s.avgPercent))}>
               {s.avgPercent}%
             </div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Best Score</div>
-            <div className="text-lg font-mono font-semibold" style={{ color: "var(--mint)" }}>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Best Score</div>
+            <div className="text-lg font-mono font-semibold text-success">
               {s.bestScore}
             </div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-mono uppercase" style={{ color: "var(--text-secondary)" }}>Flags</div>
-            <div className="text-lg font-mono font-semibold" style={{ color: s.flaggedCount > 0 ? "var(--crimson)" : "var(--text-primary)" }}>
+            <div className="text-[10px] font-mono uppercase text-muted-foreground">Flags</div>
+            <div className={cn("text-lg font-mono font-semibold", s.flaggedCount > 0 ? "text-destructive" : "text-foreground")}>
               {s.flaggedCount}
             </div>
           </div>
@@ -837,19 +837,18 @@ function StudentDetail({
 
       {/* Papers taken */}
       <div>
-        <h3 className="text-sm font-semibold mb-3" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+        <h3 className="text-sm font-semibold mb-3 font-brand text-foreground">
           Papers Taken
         </h3>
-        <div className="flex flex-col" style={{ gap: 8 }}>
+        <div className="flex flex-col gap-2">
           {batchDetail?.papers?.map((paper) => {
-            const studentAttempted = false; // Would need per-student paper data
             return (
-              <div key={paper.setId} className="flex items-center justify-between p-3 rounded" style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>
+              <div key={paper.setId} className="flex items-center justify-between p-3 rounded bg-input border border-border">
                 <div>
-                  <div className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
+                  <div className="font-medium text-sm text-foreground">
                     {paper.setName}
                   </div>
-                  <div className="text-[10px] font-mono" style={{ color: "var(--text-secondary)" }}>
+                  <div className="text-[10px] font-mono text-muted-foreground">
                     {paper.subject} · {paper.attempts} attempts · avg {paper.avgPercent}%
                   </div>
                 </div>
@@ -863,7 +862,7 @@ function StudentDetail({
       </div>
 
       {s.lastActivity && (
-        <div className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+        <div className="text-xs font-mono text-muted-foreground/70">
           Last activity: {new Date(s.lastActivity).toLocaleString()}
         </div>
       )}

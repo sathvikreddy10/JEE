@@ -151,6 +151,7 @@ export function setSessionCookie(res: Response, token: string, expiresAt: Date) 
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
+    secure: true,
     expires: expiresAt,
     path: "/",
     domain: cookieDomain(),
@@ -282,7 +283,8 @@ export function adminOr401(req: Request): CurrentAdmin {
 export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(ADMIN_COOKIE, token, {
     httpOnly: true,
-    sameSite: "lax",
+    sameSite: "strict",
+    secure: true,
     expires: expiresAt,
     path: "/",
     domain: cookieDomain(),

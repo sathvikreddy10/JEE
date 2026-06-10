@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/utils";
+
 interface QuestionPaletteProps {
   total: number;
   answers: Record<number, string>;
@@ -24,52 +26,55 @@ function getStatus(id: number, answers: Record<number, string>, visited: Set<num
   return "not-visited";
 }
 
-const STATUS_STYLES: Record<string, { bg: string; border: string; color: string }> = {
-  "answered": { bg: "#22C55E", border: "#22C55E", color: "#FFFFFF" },
-  "visited": { bg: "#F59E0B", border: "#F59E0B", color: "#FFFFFF" },
-  "not-visited": { bg: "#FFFFFF", border: "#CBD5E1", color: "#64748B" },
-  "review": { bg: "#F97316", border: "#F97316", color: "#FFFFFF" },
-  "answered-review": { bg: "#0EA5E9", border: "#0EA5E9", color: "#FFFFFF" },
-  "not-answered": { bg: "#EF4444", border: "#EF4444", color: "#FFFFFF" },
+const STATUS_CLASSES: Record<string, string> = {
+  "answered": "bg-success text-white border-success",
+  "visited": "bg-amber text-white border-amber",
+  "not-visited": "bg-background text-muted-foreground border-border",
+  "review": "bg-warning text-white border-warning",
+  "answered-review": "bg-info text-white border-info",
+  "not-answered": "bg-destructive text-white border-destructive",
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  "answered": "answered",
+  "visited": "visited, not answered",
+  "not-visited": "not visited",
+  "review": "marked for review",
+  "answered-review": "answered and marked for review",
+  "not-answered": "not answered",
 };
 
 const LEGEND = [
-  { label: "Answered", color: "#22C55E" },
-  { label: "Visited", color: "#F59E0B" },
-  { label: "Not Visited", color: "#CBD5E1" },
-  { label: "Mark for Review", color: "#F97316" },
-  { label: "Save + Review", color: "#0EA5E9" },
-  { label: "Not Answered", color: "#EF4444" },
+  { label: "Answered", className: "bg-success" },
+  { label: "Visited", className: "bg-amber" },
+  { label: "Not Visited", className: "bg-border" },
+  { label: "Mark for Review", className: "bg-warning" },
+  { label: "Save + Review", className: "bg-info" },
+  { label: "Not Answered", className: "bg-destructive" },
 ];
 
 export function QuestionPalette({ total, answers, visited, review, skipped, activeIndex, onQuestionClick }: QuestionPaletteProps) {
   return (
-    <div
-      className="w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto"
-      style={{ background: "var(--bg-elevated)", borderLeft: "1px solid var(--border-subtle)" }}
-    >
-      <div className="text-[11px] uppercase tracking-wider font-mono" style={{ color: "var(--text-secondary)" }}>
-        Question Palette
-      </div>
+    <div className="w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto bg-elevated border-l border-border">
+      <div className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground">Question Palette</div>
 
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-5 gap-2" role="group" aria-label="Question navigation">
         {Array.from({ length: total }, (_, i) => {
           const qNum = i + 1;
           const status = getStatus(qNum, answers, visited, review, skipped);
-          const style = STATUS_STYLES[status];
           const isActive = activeIndex === i;
 
           return (
             <button
               key={qNum}
               onClick={() => onQuestionClick(i)}
-              className="aspect-square rounded-full flex items-center justify-center text-[11px] font-mono transition-all hover:scale-105"
-              style={{
-                background: style.bg,
-                border: isActive ? "2px solid var(--text-primary)" : `1px solid ${style.border}`,
-                color: style.color,
-                boxShadow: isActive ? "0 0 0 2px var(--bg-base), 0 0 0 4px var(--text-primary)" : "none",
-              }}
+              aria-label={`Question ${qNum}, ${STATUS_LABELS[status]}${isActive ? ", current" : ""}`}
+              aria-current={isActive ? "true" : undefined}
+              className={cn(
+                "aspect-square rounded-full flex items-center justify-center text-[11px] font-mono transition-all hover:scale-105 border",
+                STATUS_CLASSES[status],
+                isActive && "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+              )}
             >
               {qNum}
             </button>
@@ -77,17 +82,11 @@ export function QuestionPalette({ total, answers, visited, review, skipped, acti
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex flex-col gap-1.5 mt-2">
+      <div className="flex flex-col gap-1.5 mt-2" role="list" aria-label="Question status legend">
         {LEGEND.map((item) => (
-          <div key={item.label} className="flex items-center gap-2">
-            <div
-              className="w-3 h-3 rounded-full"
-              style={{ background: item.color }}
-            />
-            <span className="text-[10px] font-mono" style={{ color: "var(--text-secondary)" }}>
-              {item.label}
-            </span>
+          <div key={item.label} className="flex items-center gap-2" role="listitem">
+            <div className={cn("w-3 h-3 rounded-full", item.className)} />
+            <span className="text-[10px] font-mono text-muted-foreground">{item.label}</span>
           </div>
         ))}
       </div>

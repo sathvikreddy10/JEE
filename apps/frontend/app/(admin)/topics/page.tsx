@@ -215,16 +215,16 @@ export default function TopicsPage() {
   const totalQuestions = rows.reduce((s, r) => s + r.questionCount, 0);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-900">Topics</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Canonical topic taxonomy. Merge orphan strings to clean up analytics. {selected.size > 0 && <span className="font-semibold text-cyan-700">{selected.size} selected</span>}
+    <div className="p-10 space-y-8 max-w-[1600px] mx-auto">
+      <div className="flex items-end justify-between gap-4 pb-2">
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-bold text-foreground">Topics</h1>
+          <p className="text-sm text-muted-foreground">
+            Canonical topic taxonomy. Merge orphan strings to clean up analytics. {selected.size > 0 && <span className="font-semibold text-primary ml-2">{selected.size} selected</span>}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={reload} disabled={loading}>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={reload} disabled={loading}>
             Refresh
           </Button>
           {selected.size >= 2 && (
@@ -240,16 +240,16 @@ export default function TopicsPage() {
 
       <div className="grid grid-cols-3 gap-3">
         <Card className="!p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">Canonical</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Canonical</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1">{canonicalCount}</div>
         </Card>
         <Card className="!p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">Orphans</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Orphans</div>
           <div className="text-2xl font-bold text-amber-700 mt-1">{orphanCount}</div>
         </Card>
         <Card className="!p-4">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">Tagged questions</div>
-          <div className="text-2xl font-bold text-cyan-700 mt-1">{totalQuestions}</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">Tagged questions</div>
+          <div className="text-2xl font-bold text-primary mt-1">{totalQuestions}</div>
         </Card>
       </div>
 
@@ -269,13 +269,13 @@ export default function TopicsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search topics…"
-            className="flex-1 rounded border border-zinc-200 px-3 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+            className="flex-1 rounded border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
           />
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs uppercase tracking-wide text-zinc-500 border-b border-zinc-200">
+              <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground border-b border-border">
                 <th className="py-2 pr-2 w-8">
                   <input type="checkbox" checked={allChecked} onChange={toggleAll} />
                 </th>
@@ -290,26 +290,23 @@ export default function TopicsPage() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-zinc-400">Loading…</td>
+                  <td colSpan={7} className="py-6 text-center text-muted-foreground/70">Loading…</td>
                 </tr>
               )}
               {!loading && loadError && (
                 <tr>
                   <td colSpan={7} className="py-0">
-                    <div
-                      className="m-3 p-4 rounded"
-                      style={{ background: "rgba(220,38,38,0.08)", border: "1px solid rgba(220,38,38,0.3)" }}
-                    >
+                    <div className="m-3 p-4 rounded bg-destructive/10 border border-destructive/30">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1">
-                          <div className="text-sm font-semibold" style={{ color: "var(--crimson)" }}>
+                          <div className="text-sm font-semibold text-destructive">
                             Couldn't load topics
                           </div>
-                          <div className="text-xs font-mono mt-1" style={{ color: "var(--text-secondary)" }}>
+                          <div className="text-xs font-mono mt-1 text-muted-foreground">
                             {loadError}
                           </div>
                           {loadError.includes("404") || loadError.toLowerCase().includes("not found") ? (
-                            <div className="text-xs font-mono mt-2" style={{ color: "var(--text-tertiary)" }}>
+                            <div className="text-xs font-mono mt-2 text-muted-foreground/60">
                               Tip: the backend may need a restart. Stop the dev server (Ctrl+C) and run <code>npm run dev</code> again.
                             </div>
                           ) : null}
@@ -322,18 +319,18 @@ export default function TopicsPage() {
               )}
               {!loading && !loadError && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-zinc-400">No topics match.</td>
+                  <td colSpan={7} className="py-6 text-center text-muted-foreground/70">No topics match.</td>
                 </tr>
               )}
               {filtered.map((r) => {
                 const k = `${r.status}:${r.name}`;
                 const isEditing = editingName === k;
                 return (
-                  <tr key={k} className="border-b border-zinc-100 hover:bg-zinc-50">
+                  <tr key={k} className="border-b border-border/50 hover:bg-muted/30">
                     <td className="py-2 pr-2">
                       <input type="checkbox" checked={selected.has(k)} onChange={() => toggleOne(r)} />
                     </td>
-                    <td className="py-2 pr-2 font-medium text-zinc-900">
+                    <td className="py-2 pr-2 font-medium text-foreground">
                       {isEditing ? (
                         <input
                           value={editingValue}
@@ -349,7 +346,7 @@ export default function TopicsPage() {
                         r.name
                       )}
                     </td>
-                    <td className="py-2 pr-2 text-zinc-600">{r.subject ?? <span className="text-zinc-300">—</span>}</td>
+                    <td className="py-2 pr-2 text-muted-foreground">{r.subject ?? <span className="text-muted-foreground/50">—</span>}</td>
                     <td className="py-2 pr-2 text-right tabular-nums">{r.questionCount}</td>
                     <td className="py-2 pr-2 text-right tabular-nums">{r.sessionCount}</td>
                     <td className="py-2 pr-2">
@@ -363,11 +360,11 @@ export default function TopicsPage() {
                       {isEditing ? (
                         <div className="flex gap-1">
                           <button onClick={() => saveRename(r)} disabled={busy} className="text-xs text-emerald-700 hover:underline">Save</button>
-                          <button onClick={cancelRename} className="text-xs text-zinc-500 hover:underline">Cancel</button>
+                          <button onClick={cancelRename} className="text-xs text-muted-foreground hover:underline">Cancel</button>
                         </div>
                       ) : (
                         <div className="flex gap-2">
-                          <button onClick={() => startRename(r)} className="text-xs text-cyan-700 hover:underline">Rename</button>
+                          <button onClick={() => startRename(r)} className="text-xs text-primary hover:underline">Rename</button>
                           {r.status === "orphan" && (
                             <button onClick={() => promoteOrphan(r)} disabled={busy} className="text-xs text-emerald-700 hover:underline">Promote</button>
                           )}
@@ -389,21 +386,21 @@ export default function TopicsPage() {
         <Modal title="New canonical topic" onClose={() => setShowCreate(false)}>
           <div className="space-y-3">
             <label className="block">
-              <span className="text-xs uppercase tracking-wide text-zinc-500">Name</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Name</span>
               <input
                 value={newTopic.name}
                 onChange={(e) => setNewTopic((s) => ({ ...s, name: e.target.value }))}
-                className="mt-1 w-full rounded border border-zinc-200 px-3 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                className="mt-1 w-full rounded border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
                 placeholder="e.g. Calculus"
                 autoFocus
               />
             </label>
             <label className="block">
-              <span className="text-xs uppercase tracking-wide text-zinc-500">Subject (optional)</span>
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">Subject (optional)</span>
               <input
                 value={newTopic.subject}
                 onChange={(e) => setNewTopic((s) => ({ ...s, subject: e.target.value }))}
-                className="mt-1 w-full rounded border border-zinc-200 px-3 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+                className="mt-1 w-full rounded border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
                 placeholder="e.g. Mathematics"
               />
             </label>
@@ -436,7 +433,7 @@ function Th({ label, k, sort, setSortKey, align }: { label: string; k: SortKey; 
     <th className={`py-2 pr-2 ${align === "right" ? "text-right" : ""}`}>
       <button
         onClick={() => setSortKey(k)}
-        className={`text-xs uppercase tracking-wide ${active ? "text-cyan-700" : "text-zinc-500"} hover:text-cyan-700`}
+        className={`text-xs uppercase tracking-wide ${active ? "text-primary" : "text-muted-foreground"} hover:text-primary`}
       >
         {label} {active && (sort.dir === "asc" ? "↑" : "↓")}
       </button>
@@ -447,10 +444,10 @@ function Th({ label, k, sort, setSortKey, align }: { label: string; k: SortKey; 
 function Modal({ title, children, onClose }: { title: string; children: React.ReactNode; onClose: () => void }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl border border-zinc-200 w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-card rounded-2xl shadow-xl border border-border w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-zinc-900">{title}</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600">×</button>
+          <h2 className="text-lg font-bold text-foreground">{title}</h2>
+          <button onClick={onClose} className="text-muted-foreground/70 hover:text-muted-foreground">×</button>
         </div>
         {children}
       </div>
@@ -463,11 +460,11 @@ function MergeModal({ sources, onClose, onConfirm, busy }: { sources: { name: st
   return (
     <Modal title={`Merge ${sources.length} topics`} onClose={onClose}>
       <div className="space-y-3">
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-muted-foreground">
           All questions tagged with the source names will be moved to the target topic, then every affected session is recomputed.
         </p>
         <div>
-          <div className="text-xs uppercase tracking-wide text-zinc-500 mb-1">Sources</div>
+          <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Sources</div>
           <div className="flex flex-wrap gap-1">
             {sources.map((s) => (
               <Badge key={s.name} variant={s.status === "canonical" ? "forest" : "amber"}>
@@ -477,14 +474,14 @@ function MergeModal({ sources, onClose, onConfirm, busy }: { sources: { name: st
           </div>
         </div>
         <label className="block">
-          <span className="text-xs uppercase tracking-wide text-zinc-500">Target name</span>
+          <span className="text-xs uppercase tracking-wide text-muted-foreground">Target name</span>
           <input
             value={target}
             onChange={(e) => setTarget(e.target.value)}
-            className="mt-1 w-full rounded border border-zinc-200 px-3 py-1.5 text-sm focus:border-cyan-500 focus:outline-none"
+            className="mt-1 w-full rounded border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
             autoFocus
           />
-          <span className="text-xs text-zinc-500 mt-1 block">
+          <span className="text-xs text-muted-foreground mt-1 block">
             Will create a new canonical topic with this name if it doesn't exist.
           </span>
         </label>

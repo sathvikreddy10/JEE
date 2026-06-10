@@ -10,6 +10,7 @@ import { renderMath } from "@/components/exam/MathRenderer";
 import { log as cli } from "@/lib/logger";
 import { formatTime } from "@/lib/utils";
 import { fetchJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface QuestionImage {
   url: string;
@@ -53,10 +54,11 @@ function ExamPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionIdParam = searchParams.get("sessionId");
+  const setIdParam = searchParams.get("setId");
   const isPractice = searchParams.get("practice") === "true";
 
   const [questions, setQuestions] = useState<QuestionData[]>([]);
-  const [, setTimeLimit] = useState(600);
+  const [, setTimeLimit] = useState(60);
   const [activeIndex, setActiveIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<number, string>>({});
@@ -86,6 +88,9 @@ function ExamPageInner() {
   // Practice mode: local-only results
   const [showPracticeResults, setShowPracticeResults] = useState(false);
   const [practiceScore, setPracticeScore] = useState<{ score: number; total: number; percent: number } | null>(null);
+  // Mobile palette toggle
+  const [showPalette, setShowPalette] = useState(false);
+  const confirmModalRef = useRef<HTMLDivElement>(null);
 
   // Audio beep for tab switch (Web Audio API)
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -125,6 +130,15 @@ function ExamPageInner() {
     endExamRef.current = endExam;
   });
 
+  // Initialize palette visibility based on screen size
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    setShowPalette(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setShowPalette(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   // Retry queue: try to flush every 3 seconds
   useEffect(() => {
     if (!sessionIdParam || sessionIdParam === "0") return;
@@ -156,6 +170,7 @@ function ExamPageInner() {
   }, [pendingQueue, sessionIdParam]);
 
   // Initial load: always create or resume a session
+  const isCreatingRef = useRef(false);
   useEffect(() => {
     cli.info(`Exam page mounted, sessionId=${sessionIdParam || "NONE"}`);
     let cancelled = false;
@@ -163,20 +178,40 @@ function ExamPageInner() {
     const init = async () => {
       try {
         if (!sessionIdParam || sessionIdParam === "0") {
-          // No session: create one with the first available set
-          cli.info("No sessionId — creating new session");
-          const sets = await apiCall<{ id: number; name: string }[]>("GET", "/api/sets");
-          if (cancelled) return;
-          if (sets.length === 0) throw new Error("No test sets available");
+          // Prevent duplicate session creation on double-mount or rapid refresh
+          if (isCreatingRef.current) {
+            cli.info("Session creation already in progress, skipping duplicate");
+            return;
+          }
+          isCreatingRef.current = true;
+
+          // No session: create one with the specified setId or the first available
+          const targetSetId = setIdParam ? Number(setIdParam) : null;
+          if (!targetSetId) {
+            cli.info("No sessionId or setId — fetching available sets");
+            const sets = await apiCall<{ id: number; name: string }[]>("GET", "/api/sets");
+            if (cancelled) return;
+            if (sets.length === 0) throw new Error("No test sets available");
+            const startData = await apiCall<{ sessionId: number; timeLimit: number; questions: QuestionData[] }>(
+              "POST",
+              "/api/exam/start",
+              { setId: sets[0].id }
+            );
+            if (cancelled) return;
+            cli.success(`Session created: ${startData.sessionId}, redirecting`);
+            router.replace(`/exam?sessionId=${startData.sessionId}`);
+            return;
+          }
+          cli.info(`No sessionId — creating new session for setId=${targetSetId}`);
           const startData = await apiCall<{ sessionId: number; timeLimit: number; questions: QuestionData[] }>(
             "POST",
             "/api/exam/start",
-            { setId: sets[0].id }
+            { setId: targetSetId }
           );
           if (cancelled) return;
           cli.success(`Session created: ${startData.sessionId}, redirecting`);
-          router.replace(`/exam?sessionId=${startData.sessionId}`);
-          return;
+            router.replace(`/exam?sessionId=${startData.sessionId}`);
+            return;
         }
 
         // Resume existing session
@@ -226,10 +261,32 @@ function ExamPageInner() {
         questionStartTime.current = Date.now();
         setLoading(false);
         cli.success(`Loaded exam: ${data.questions.length} questions, ${Object.keys(restoredAns).length} restored answers, ${restoredReview.size} marked for review, starting at Q${idx + 1}`);
-      } catch (e) {
+      } catch (e: any) {
         cli.err("init exam", e);
         if (!cancelled) {
-          setError((e as Error).message);
+          // Map backend status codes to human-friendly messages
+          const status = e.status || e.statusCode || 500;
+          const code = e.code || "";
+          const message = e.message || "";
+          let friendly = message;
+          if (status === 410 || code === "WINDOW_CLOSED" || message.includes("time has expired")) {
+            friendly = "This exam has ended. You can no longer take it.";
+          } else if (status === 409 && message.includes("in-progress")) {
+            friendly = "You already have an active exam in another tab. Please close this tab and resume from your Tests page.";
+          } else if (status === 409 && message.includes("Attempt limit")) {
+            friendly = "You have used all your attempts for this exam.";
+          } else if (status === 403 && code === "NOT_PUBLISHED") {
+            friendly = "This exam is not yet available. Check back later.";
+          } else if (status === 423 || code === "WAITING_FOR_ADMIN") {
+            friendly = "This exam hasn't started yet. Please wait for the admin to begin.";
+          } else if (status === 403 && code === "NO_BATCH_ACCESS") {
+            friendly = "You are not assigned to this exam.";
+          } else if (status === 404) {
+            friendly = "Exam not found.";
+          } else if (status === 401) {
+            friendly = "Please log in to take this exam.";
+          }
+          setError(friendly);
           setLoading(false);
         }
       }
@@ -237,7 +294,7 @@ function ExamPageInner() {
 
     init();
     return () => { cancelled = true; };
-  }, [sessionIdParam, router]);
+  }, [sessionIdParam, setIdParam, router]);
 
   // Tab switch detection: every visibility change = 1 tab switch
   useEffect(() => {
@@ -472,8 +529,8 @@ function ExamPageInner() {
       cli.info(`Mark-for-review: q=${questionId} → ${marked}`);
     } catch {
       cli.warn(`Failed to persist mark-for-review for q=${questionId}`);
-  }
-}, [sessionIdParam, answers]);
+    }
+  }, [sessionIdParam, answers]);
 
   const goToQuestion = useCallback((index: number) => {
     // Record time spent on the current question before moving
@@ -628,50 +685,85 @@ function ExamPageInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [loading, showConfirmModal, questions.length, activeIndex, goToQuestion]);
 
-  if (loading) return <div className="flex items-center justify-center h-screen" style={{ color: "var(--text-secondary)" }}>Loading exam...</div>;
-  if (error) return <div className="flex items-center justify-center h-screen" style={{ color: "var(--crimson)" }}>{error}</div>;
+  // Focus trap for confirm modal + Escape key to dismiss
+  useEffect(() => {
+    if (!showConfirmModal) return;
+    const modal = confirmModalRef.current;
+    const previouslyFocused = document.activeElement as HTMLElement;
+    // Focus the first focusable element inside the modal
+    const focusFirst = () => {
+      const el = modal?.querySelector<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+      el?.focus();
+    };
+    focusFirst();
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setShowConfirmModal(false);
+        return;
+      }
+      if (e.key !== "Tab" || !modal) return;
+      const focusable = modal.querySelectorAll<HTMLElement>("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])");
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+      } else {
+        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [showConfirmModal]);
+
+  if (loading) return <div className="flex items-center justify-center h-screen text-muted-foreground">Loading exam...</div>;
+  if (error) return <div className="flex items-center justify-center h-screen text-destructive" role="alert">{error}</div>;
   if (!currentQuestion) return null;
 
   const totalQuestions = questions.length;
   const isLastQuestion = activeIndex === totalQuestions - 1;
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
+    <div className="flex flex-col h-[calc(100vh-64px)]">
       {/* Practice Mode Banner */}
       {isPractice && (
-        <div className="w-full py-2 px-6 text-center" style={{ background: "rgba(72,190,255,0.12)", borderBottom: "1px solid var(--cyan)" }}>
-          <div className="font-bold text-xs" style={{ color: "var(--cyan)" }}>
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-primary/10 border-b border-primary" role="alert">
+          <div className="font-bold text-xs text-primary">
             PRACTICE MODE — This session is not recorded. No backend updates, no proctoring.
           </div>
         </div>
       )}
       {/* Tab Switch Warning / Red Flag Banner */}
       {isTerminated && (
-        <div className="w-full py-3 px-6 text-center" style={{ background: "var(--crimson)", color: "#fff" }}>
+        <div className="w-full py-3 px-4 sm:px-6 text-center bg-destructive text-white" role="alert">
           <div className="font-bold text-sm">EXAM TERMINATED</div>
           <div className="text-xs mt-1">Your exam was terminated due to excessive tab switching. You have been red-flagged.</div>
         </div>
       )}
       {!isTerminated && isRedFlagged && (
-        <div className="w-full py-2 px-6 text-center" style={{ background: "rgba(248,81,73,0.12)", borderBottom: "1px solid var(--crimson)" }}>
-          <div className="font-bold text-xs" style={{ color: "var(--crimson)" }}>
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-destructive/10 border-b border-destructive" role="alert">
+          <div className="font-bold text-xs text-destructive">
             RED FLAGGED — You have been flagged for suspicious activity
           </div>
         </div>
       )}
       {!isTerminated && !isRedFlagged && tabWarning && (
-        <div className="w-full py-2 px-6 text-center" style={{ background: "rgba(255,170,0,0.08)", borderBottom: "1px solid var(--amber)" }}>
-          <div className="font-bold text-xs" style={{ color: "var(--amber)" }}>{tabWarning}</div>
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-warning/10 border-b border-warning" role="alert">
+          <div className="font-bold text-xs text-warning">{tabWarning}</div>
         </div>
       )}
       {/* Top Belt */}
       <div
-        className="h-[56px] flex items-center justify-between px-6"
-        style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-subtle)" }}
+        className="h-[56px] flex items-center justify-between px-4 sm:px-6 bg-card border-b border-border"
       >
         <div className="flex items-center gap-6">
-          <span className="font-semibold text-sm" style={{ color: "var(--text-primary)" }}>Practice Session</span>
-          <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+          <span className="font-semibold text-sm text-foreground">Practice Session</span>
+          <span className="text-xs font-mono text-muted-foreground">
             {questions[0]?.topic || "Mixed"} • {totalQuestions} Questions
           </span>
         </div>
@@ -696,23 +788,20 @@ function ExamPageInner() {
             {currentQuestion.type === "numeric" ? "NUM" : "MCQ"}
           </Badge>
           <span
-            className="text-[10px] font-mono hidden lg:inline-flex items-center gap-1.5"
-            style={{ color: "var(--text-tertiary)" }}
+            className="text-[10px] font-mono hidden lg:inline-flex items-center gap-1.5 text-muted-foreground/70"
             title="Keyboard shortcuts: Tab / → / ↓ / Enter for next · Shift+Tab / ← / ↑ for previous · Home / End to jump"
           >
-            <kbd style={{ padding: "1px 5px", borderRadius: 3, background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>Tab</kbd>
-            <kbd style={{ padding: "1px 5px", borderRadius: 3, background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>←</kbd>
-            <kbd style={{ padding: "1px 5px", borderRadius: 3, background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>→</kbd>
-            <kbd style={{ padding: "1px 5px", borderRadius: 3, background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}>↵</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-input border border-border text-[10px] font-mono">Tab</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-input border border-border text-[10px] font-mono">←</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-input border border-border text-[10px] font-mono">→</kbd>
+            <kbd className="px-1.5 py-0.5 rounded bg-input border border-border text-[10px] font-mono">↵</kbd>
           </span>
           {timeLeft !== null && (
             <span
-              className="text-2xl font-normal"
-              style={{
-                fontFamily: "var(--font-mono)",
-                color: timeLeft < 60 ? "var(--crimson)" : timeLeft < 300 ? "var(--amber)" : "var(--text-primary)",
-                letterSpacing: "0.02em",
-              }}
+              className={cn(
+                "text-2xl font-normal font-mono tracking-[0.02em]",
+                timeLeft < 60 ? "text-destructive" : timeLeft < 300 ? "text-warning" : "text-foreground"
+              )}
             >
               {formatTime(timeLeft)}
             </span>
@@ -724,13 +813,12 @@ function ExamPageInner() {
       <div className="flex flex-1 overflow-hidden">
         {/* Question Canvas */}
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-[720px] mx-auto p-8 flex flex-col gap-6">
+          <div className="max-w-[720px] mx-auto p-4 sm:p-8 flex flex-col gap-6">
             {/* Question Card */}
             <div
-              className="bg-[var(--bg-card)] border rounded-[10px] p-8"
-              style={{ borderColor: "var(--border-subtle)" }}
+              className="bg-card border border-border rounded-[10px] p-8"
             >
-              <div className="text-[11px] uppercase tracking-wider mb-5 font-mono" style={{ color: "var(--text-secondary)" }}>
+              <div className="text-[11px] uppercase tracking-wider mb-5 font-mono text-muted-foreground">
                 Question {activeIndex + 1} of {totalQuestions} — {currentQuestion.topic}
               </div>
 
@@ -742,36 +830,37 @@ function ExamPageInner() {
 
               {/* Single-correct MCQ */}
               {currentQuestion.type === "mcq" && currentQuestion.options && (
-                <div className="flex flex-col gap-3 mt-6">
+                <div className="flex flex-col gap-3 mt-6" role="radiogroup" aria-label={`Question ${activeIndex + 1} options`}>
                   {currentQuestion.options.map((opt, i) => {
                     const letter = String.fromCharCode(65 + i);
                     const isSelected = (selectedOption || answers[currentQuestion.id]) === letter;
                     return (
-                      <div
+                      <button
                         key={i}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSelected}
+                        tabIndex={0}
                         onClick={() => handleOptionSelect(letter)}
-                        className="flex items-center gap-4 p-4 rounded border cursor-pointer transition-all"
-                        style={{
-                          background: isSelected ? "rgba(72,190,255,0.1)" : "transparent",
-                          borderColor: isSelected ? "var(--cyan)" : "var(--border-subtle)",
-                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOptionSelect(letter); } }}
+                        className={cn(
+                          "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
+                          isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
+                        )}
                       >
                         <div
-                          className="w-8 h-8 rounded-full border flex items-center justify-center text-xs font-mono"
-                          style={{
-                            background: isSelected ? "var(--cyan)" : "transparent",
-                            borderColor: isSelected ? "var(--cyan)" : "var(--border-subtle)",
-                            color: isSelected ? "var(--text-inverse)" : "var(--text-secondary)",
-                          }}
+                          className={cn(
+                            "w-8 h-8 rounded-full border flex items-center justify-center text-xs font-mono shrink-0",
+                            isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-transparent border-border text-muted-foreground"
+                          )}
                         >
                           {letter}
                         </div>
                         <span
-                          className="text-sm"
-                          style={{ color: "var(--text-primary)" }}
+                          className="text-sm text-foreground"
                           dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
                         />
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -779,7 +868,7 @@ function ExamPageInner() {
 
               {/* Multiple-correct MCQ */}
               {currentQuestion.type === "mcq-multiple" && currentQuestion.options && (
-                <div className="flex flex-col gap-3 mt-6">
+                <div className="flex flex-col gap-3 mt-6" role="group" aria-label={`Question ${activeIndex + 1} options (select multiple)`}>
                   {currentQuestion.options.map((opt, i) => {
                     const letter = String.fromCharCode(65 + i);
                     const selectedArr: string[] = (() => {
@@ -797,31 +886,32 @@ function ExamPageInner() {
                       await saveAnswer(currentQuestion.id, json, t);
                     };
                     return (
-                      <div
+                      <button
                         key={i}
+                        type="button"
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        tabIndex={0}
                         onClick={toggle}
-                        className="flex items-center gap-4 p-4 rounded border cursor-pointer transition-all"
-                        style={{
-                          background: isSelected ? "rgba(72,190,255,0.1)" : "transparent",
-                          borderColor: isSelected ? "var(--cyan)" : "var(--border-subtle)",
-                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+                        className={cn(
+                          "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
+                          isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
+                        )}
                       >
                         <div
-                          className="w-8 h-8 rounded border flex items-center justify-center text-xs font-mono"
-                          style={{
-                            background: isSelected ? "var(--cyan)" : "transparent",
-                            borderColor: isSelected ? "var(--cyan)" : "var(--border-subtle)",
-                            color: isSelected ? "var(--text-inverse)" : "var(--text-secondary)",
-                          }}
+                          className={cn(
+                            "w-8 h-8 rounded border flex items-center justify-center text-xs font-mono shrink-0",
+                            isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-transparent border-border text-muted-foreground"
+                          )}
                         >
                           {isSelected ? "✓" : letter}
                         </div>
                         <span
-                          className="text-sm"
-                          style={{ color: "var(--text-primary)" }}
+                          className="text-sm text-foreground"
                           dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
                         />
-                      </div>
+                      </button>
                     );
                   })}
                 </div>
@@ -831,10 +921,9 @@ function ExamPageInner() {
               {currentQuestion.type === "numeric" && (
                 <div className="mt-6">
                   <div
-                    className="p-5 rounded border text-center text-2xl font-mono mb-5"
-                    style={{ background: "var(--bg-input)", borderColor: "var(--border-subtle)", minHeight: 64 }}
+                    className="p-5 rounded border border-border bg-input text-center text-2xl font-mono mb-5 min-h-16"
                   >
-                    <span style={{ color: "var(--text-secondary)" }}>
+                    <span className="text-muted-foreground">
                       {answers[currentQuestion.id] || "Enter numerical answer"}
                     </span>
                   </div>
@@ -842,6 +931,14 @@ function ExamPageInner() {
                     {["7","8","9","⌫","4","5","6","−","1","2","3","CLR","0",".","↵"].map((k) => (
                       <button
                         key={k}
+                        type="button"
+                        aria-label={
+                          k === "⌫" ? "Backspace" :
+                          k === "−" ? "Minus" :
+                          k === "CLR" ? "Clear" :
+                          k === "↵" ? "Submit answer" :
+                          k
+                        }
                         onClick={async () => {
                           const t = getCurrentTimeSpent();
                           if (k === "CLR") {
@@ -864,12 +961,14 @@ function ExamPageInner() {
                             await saveAnswer(currentQuestion.id, val, t);
                           }
                         }}
-                        className="py-4 rounded text-base font-mono transition-all"
-                        style={{
-                          background: k === "↵" ? "var(--cyan)" : "var(--bg-input)",
-                          border: k === "↵" ? "none" : "1px solid var(--border-subtle)",
-                          color: k === "↵" ? "var(--text-inverse)" : k === "CLR" ? "var(--crimson)" : "var(--text-primary)",
-                        }}
+                        className={cn(
+                          "py-4 rounded text-base font-mono transition-all",
+                          k === "↵"
+                            ? "bg-primary text-primary-foreground border-none"
+                            : k === "CLR"
+                            ? "bg-input border border-border text-destructive"
+                            : "bg-input border border-border text-foreground"
+                        )}
                       >
                         {k}
                       </button>
@@ -891,8 +990,8 @@ function ExamPageInner() {
                       await saveAnswer(currentQuestion.id, val, t);
                     }}
                     placeholder="Type your answer..."
-                    className="w-full p-4 rounded border text-base"
-                    style={{ background: "var(--bg-input)", borderColor: "var(--border-subtle)", color: "var(--text-primary)", outline: "none" }}
+                    aria-label="Your answer"
+                    className="w-full p-4 rounded border border-border bg-input text-base text-foreground outline-none focus:ring-2 focus:ring-ring"
                   />
                 </div>
               )}
@@ -918,24 +1017,48 @@ function ExamPageInner() {
           </div>
         </div>
 
+        {/* Mobile Palette Toggle */}
+        <button
+          type="button"
+          className="md:hidden fixed bottom-20 right-4 z-40 bg-primary text-primary-foreground w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-lg"
+          onClick={() => setShowPalette((p) => !p)}
+          aria-label={showPalette ? "Hide question palette" : "Show question palette"}
+        >
+          {showPalette ? "✕" : "☰"}
+        </button>
+
         {/* Question Palette */}
-        <QuestionPalette
-          total={totalQuestions}
-          answers={answers}
-          visited={visited}
-          review={review}
-          skipped={skipped}
-          activeIndex={activeIndex}
-          onQuestionClick={goToQuestion}
-        />
+        {showPalette && (
+          <div className={cn(
+            "fixed md:static inset-y-0 right-0 z-30 md:z-auto",
+            "w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto bg-elevated border-l border-border"
+          )}>
+            <button
+              type="button"
+              className="md:hidden self-end text-muted-foreground hover:text-foreground p-1"
+              onClick={() => setShowPalette(false)}
+              aria-label="Close palette"
+            >
+              ✕
+            </button>
+            <QuestionPalette
+              total={totalQuestions}
+              answers={answers}
+              visited={visited}
+              review={review}
+              skipped={skipped}
+              activeIndex={activeIndex}
+              onQuestionClick={(i) => { goToQuestion(i); if (window.innerWidth < 768) setShowPalette(false); }}
+            />
+          </div>
+        )}
       </div>
 
       {/* End Test Bar */}
       <div
-        className="h-[56px] flex items-center justify-between px-6"
-        style={{ background: "var(--bg-card)", borderTop: "1px solid var(--border-subtle)" }}
+        className="min-h-[56px] flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 bg-card border-t border-border"
       >
-        <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+        <span className="text-xs font-mono text-muted-foreground">
           {Object.keys(answers).filter(k => answers[Number(k)]).length} of {totalQuestions} answered
         </span>
         <Button variant="solid" onClick={() => { setConfirmType("end"); setShowConfirmModal(true); }} disabled={ending}>
@@ -946,19 +1069,21 @@ function ExamPageInner() {
       {/* Confirm Modal (Submit or End Test) */}
       {showConfirmModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50"
-          style={{ background: "var(--bg-overlay)" }}
+          className="fixed inset-0 flex items-center justify-center z-50 bg-overlay"
           onClick={(e) => e.target === e.currentTarget && setShowConfirmModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={confirmType === "submit" ? "Confirm exam submission" : "Confirm end test"}
         >
           <div
-            className="w-full max-w-[420px] rounded-[14px] p-8 flex flex-col gap-6"
-            style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+            ref={confirmModalRef}
+            className="w-full max-w-[420px] rounded-[14px] p-8 flex flex-col gap-6 bg-card border border-border"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-center" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
+            <h2 className="text-xl font-bold text-center font-[family-name:var(--font-brand)] text-foreground">
               {confirmType === "submit" ? "Submit Exam?" : "End Test Early?"}
             </h2>
-            <p className="text-sm text-center" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-sm text-center text-muted-foreground">
               {confirmType === "submit"
                 ? "You are on the last question. Would you like to submit the exam now?"
                 : "You have not reached the last question yet. Are you sure you want to end the test?"}
@@ -978,20 +1103,18 @@ function ExamPageInner() {
       {/* Fullscreen Tab Switch Warning Modal (1st switch only) */}
       {showTabSwitchModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-[60]"
-          style={{ background: "rgba(0,0,0,0.85)" }}
+          className="fixed inset-0 flex items-center justify-center z-[60] bg-black/85"
         >
           <div
-            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6"
-            style={{ background: "var(--bg-card)", border: "2px solid var(--amber)" }}
+            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6 bg-card border-2 border-warning"
           >
             <div className="text-center">
               <div className="text-5xl mb-4">⚠️</div>
-              <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--amber)" }}>
+              <h2 className="text-xl font-bold font-[family-name:var(--font-brand)] text-warning">
                 Do not switch tabs
               </h2>
             </div>
-            <p className="text-sm text-center" style={{ color: "var(--text-secondary)" }}>
+            <p className="text-sm text-center text-muted-foreground">
               Each tab switch is logged and monitored. Switching tabs repeatedly will result in a red flag and possible exam termination.
             </p>
             <div className="flex justify-center">
@@ -1006,38 +1129,36 @@ function ExamPageInner() {
       {/* Practice Results Overlay */}
       {showPracticeResults && practiceScore && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-[70]"
-          style={{ background: "rgba(0,0,0,0.85)" }}
+          className="fixed inset-0 flex items-center justify-center z-[70] bg-black/85"
         >
           <div
-            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6"
-            style={{ background: "var(--bg-card)", border: "2px solid var(--cyan)" }}
+            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6 bg-card border-2 border-primary"
           >
             <div className="text-center">
               <div className="text-5xl mb-4">📋</div>
-              <h2 className="text-xl font-bold" style={{ fontFamily: "var(--font-brand)", color: "var(--cyan)" }}>
+              <h2 className="text-xl font-bold font-[family-name:var(--font-brand)] text-primary">
                 Practice Session Complete
               </h2>
-              <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+              <p className="text-sm mt-2 text-muted-foreground">
                 This was a practice run. Your score is not recorded on the server.
               </p>
             </div>
             <div className="flex flex-col gap-3">
-              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
-                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Score</span>
-                <span className="text-2xl font-mono font-bold" style={{ color: "var(--mint)" }}>
+              <div className="flex items-center justify-between p-4 rounded bg-input">
+                <span className="text-sm font-mono text-muted-foreground">Score</span>
+                <span className="text-2xl font-mono font-bold text-mint">
                   {practiceScore.score} / {practiceScore.total}
                 </span>
               </div>
-              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
-                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Percentage</span>
-                <span className="text-2xl font-mono font-bold" style={{ color: "var(--cyan)" }}>
+              <div className="flex items-center justify-between p-4 rounded bg-input">
+                <span className="text-sm font-mono text-muted-foreground">Percentage</span>
+                <span className="text-2xl font-mono font-bold text-primary">
                   {practiceScore.percent}%
                 </span>
               </div>
-              <div className="flex items-center justify-between p-4 rounded" style={{ background: "var(--bg-input)" }}>
-                <span className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Questions Answered</span>
-                <span className="text-lg font-mono font-bold" style={{ color: "var(--text-primary)" }}>
+              <div className="flex items-center justify-between p-4 rounded bg-input">
+                <span className="text-sm font-mono text-muted-foreground">Questions Answered</span>
+                <span className="text-lg font-mono font-bold text-foreground">
                   {Object.keys(answers).filter(k => answers[Number(k)]).length} / {questions.length}
                 </span>
               </div>
@@ -1059,17 +1180,13 @@ function ExamPageInner() {
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="px-4 py-2 rounded text-xs font-mono font-bold pointer-events-auto"
-            style={{
-              background:
-                t.severity === "crimson"
-                  ? "var(--crimson)"
-                  : t.severity === "amber"
-                  ? "rgba(255,170,0,0.9)"
-                  : "rgba(100,116,139,0.9)",
-              color: t.severity === "crimson" ? "#fff" : "var(--text-primary)",
-              border: "1px solid var(--border-subtle)",
-            }}
+            role="alert"
+            className={cn(
+              "px-4 py-2 rounded text-xs font-mono font-bold pointer-events-auto border border-border",
+              t.severity === "crimson" ? "bg-destructive text-white" :
+              t.severity === "amber" ? "bg-warning/90 text-foreground" :
+              "bg-muted/90 text-foreground"
+            )}
           >
             {t.message}
           </div>
@@ -1081,7 +1198,7 @@ function ExamPageInner() {
 
 export default function ExamPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center" style={{ color: "var(--text-secondary)" }}>Loading exam...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-muted-foreground">Loading exam...</div>}>
       <ExamPageInner />
     </Suspense>
   );

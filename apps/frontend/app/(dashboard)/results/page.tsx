@@ -5,11 +5,13 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/Tabs";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StreakCard } from "@/components/dashboard/StreakCard";
 import { DailyChallenge } from "@/components/dashboard/DailyChallenge";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { log as cli } from "@/lib/logger";
-import { formatTime } from "@/lib/utils";
+import { cn, formatTime } from "@/lib/utils";
 import { fetchJSON } from "@/lib/api";
 
 type Tab = "recent" | "history" | "analytics";
@@ -74,10 +76,10 @@ function subjectIcon(subject: string): string {
   return subject.slice(0, 2).toUpperCase();
 }
 
-function scoreColor(percent: number): string {
-  if (percent >= 70) return "var(--forest)";
-  if (percent >= 40) return "var(--amber)";
-  return "var(--crimson)";
+function scoreColorClass(percent: number): string {
+  if (percent >= 70) return "text-success";
+  if (percent >= 40) return "text-warning";
+  return "text-destructive";
 }
 
 function band(percent: number): "excellent" | "good" | "average" | "needs-work" {
@@ -98,41 +100,12 @@ function bandLabel(b: ReturnType<typeof band>): string {
   return b.replace("-", " ");
 }
 
-function TabButton({ active, onClick, count, label }: { active: boolean; onClick: () => void; count?: number; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className="px-5 py-2.5 rounded font-medium text-sm transition-all"
-      style={{
-        background: active ? "rgba(72,190,255,0.12)" : "transparent",
-        color: active ? "var(--cyan)" : "var(--text-secondary)",
-        border: active ? "1px solid var(--border-active)" : "1px solid var(--border-subtle)",
-        fontFamily: "var(--font-mono)",
-      }}
-    >
-      {label}
-      {typeof count === "number" && (
-        <span
-          className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full"
-          style={{
-            background: active ? "rgba(72,190,255,0.20)" : "var(--bg-input)",
-            color: active ? "var(--cyan)" : "var(--text-tertiary)",
-          }}
-        >
-          {count}
-        </span>
-      )}
-    </button>
-  );
-}
-
 function ResultsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "recent";
   const legacySessionId = searchParams.get("sessionId");
 
-  // Legacy URL support: /results?sessionId=N → /results/session/N
   useEffect(() => {
     if (legacySessionId) {
       router.replace(`/results/session/${legacySessionId}`);
@@ -175,41 +148,53 @@ function ResultsPageInner() {
 
   if (legacySessionId) {
     return (
-      <div className="flex items-center justify-center h-[60vh]" style={{ color: "var(--text-secondary)" }}>
-        Opening session…
+      <div className="flex items-center justify-center h-[60vh] gap-4">
+        <Skeleton className="h-5 w-48" />
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col" style={{ gap: 32 }}>
+    <div className="flex flex-col gap-8">
       {/* Header */}
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1
-            style={{
-              fontSize: 32, fontWeight: 700, fontFamily: "var(--font-brand)",
-              letterSpacing: "-0.02em", color: "var(--text-primary)",
-            }}
-          >
+          <h1 className="text-3xl font-bold font-brand tracking-tight text-foreground">
             Results
           </h1>
-          <p className="mt-2" style={{ color: "var(--text-secondary)", fontSize: 15 }}>
+          <p className="mt-2 text-muted-foreground text-[15px]">
             Your recent attempts, full history, and performance analytics.
           </p>
         </div>
-        <div className="flex gap-2" role="tablist" aria-label="Result tabs">
-          <TabButton active={tab === "recent"} onClick={() => setTab("recent")} count={recent.length} label="Recent" />
-          <TabButton active={tab === "history"} onClick={() => setTab("history")} count={sessions.length} label="All History" />
-          <TabButton active={tab === "analytics"} onClick={() => setTab("analytics")} label="Analytics" />
-        </div>
+        <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+          <TabsList>
+            <TabsTrigger value="recent">
+              Recent
+              {typeof recent.length === "number" && (
+                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">
+                  {recent.length}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="history">
+              All History
+              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                {sessions.length}
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value="analytics">
+              Analytics
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* Loading state */}
       {loading && (
         <Card>
-          <div className="text-center py-12">
-            <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</span>
+          <div className="flex flex-col gap-3 py-12">
+            <Skeleton className="h-4 w-32 mx-auto" />
+            <Skeleton className="h-3 w-48 mx-auto" />
           </div>
         </Card>
       )}
@@ -218,22 +203,22 @@ function ResultsPageInner() {
       {error && (
         <Card>
           <div className="text-center py-12">
-            <span style={{ color: "var(--crimson)" }}>Error: {error}</span>
+            <span className="text-destructive">Error: {error}</span>
           </div>
         </Card>
       )}
 
       {/* Recent tab */}
       {!loading && !error && tab === "recent" && (
-        <div className="flex flex-col" style={{ gap: 16 }}>
+        <div className="flex flex-col gap-4">
           {recent.length === 0 ? (
             <Card>
               <div className="text-center py-16">
                 <span className="text-4xl mb-4 block">📋</span>
-                <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
+                <h3 className="text-lg font-semibold mb-2 text-foreground">
                   No tests attempted yet
                 </h3>
-                <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-sm mb-6 text-muted-foreground">
                   Take a test or daily challenge to see your results here.
                 </p>
                 <Button onClick={() => router.push("/tests")}>Browse Tests →</Button>
@@ -278,15 +263,15 @@ function ResultsPageInner() {
 
       {/* History tab */}
       {!loading && !error && tab === "history" && (
-        <div className="flex flex-col" style={{ gap: 12 }}>
+        <div className="flex flex-col gap-3">
           {sessions.length === 0 ? (
             <Card>
               <div className="text-center py-16">
                 <span className="text-4xl mb-4 block">📋</span>
-                <h3 className="text-lg font-semibold mb-2" style={{ color: "var(--text-primary)" }}>
+                <h3 className="text-lg font-semibold mb-2 text-foreground">
                   No sessions yet
                 </h3>
-                <p className="text-sm mb-6" style={{ color: "var(--text-secondary)" }}>
+                <p className="text-sm mb-6 text-muted-foreground">
                   Take a test or daily challenge to see your history here.
                 </p>
                 <Button onClick={() => router.push("/tests")}>Browse Tests →</Button>
@@ -322,21 +307,14 @@ function ResultsPageInner() {
 
       {/* Analytics tab */}
       {!loading && !error && tab === "analytics" && (
-        <div className="flex flex-col" style={{ gap: 24 }}>
+        <div className="flex flex-col gap-6">
           <StreakCard streak={stats?.streak ?? 0} bestStreak={stats?.bestStreak ?? 0} />
           <Card>
             <DailyChallenge />
           </Card>
           <div>
             <div className="flex justify-between items-center mb-6">
-              <h2
-                className="text-xl font-bold"
-                style={{
-                  fontFamily: "var(--font-brand)",
-                  letterSpacing: "-0.015em",
-                  color: "var(--text-primary)",
-                }}
-              >
+              <h2 className="text-xl font-bold font-brand tracking-tight text-foreground">
                 Performance History
               </h2>
               <Badge variant="mint">Last 7 days</Badge>
@@ -362,17 +340,14 @@ function SessionCard({
   onClick: () => void;
 }) {
   return (
-    <Card onClick={onClick} style={{ padding: 0, cursor: "pointer" }}>
+    <Card onClick={onClick} className="p-0 cursor-pointer">
       <div className="flex items-center gap-6 p-6">
-        <div
-          className="w-12 h-12 rounded-lg flex items-center justify-center text-sm font-mono font-bold shrink-0"
-          style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)" }}
-        >
+        <div className="w-12 h-12 rounded-lg flex items-center justify-center text-sm font-mono font-bold shrink-0 bg-primary/10 text-primary">
           {subjectIcon(s.subject)}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-base truncate" style={{ color: "var(--text-primary)" }}>
+            <h3 className="font-semibold text-base truncate text-foreground">
               {s.setName}
             </h3>
             {s.kind === "daily-challenge" ? (
@@ -382,7 +357,7 @@ function SessionCard({
             )}
             {b && <Badge variant={bandVariant(b)}>{bandLabel(b)}</Badge>}
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+          <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span>{s.subject}</span>
             <span>•</span>
             <span>{timeAgo(s.startTime)}</span>
@@ -397,10 +372,10 @@ function SessionCard({
         <div className="flex items-center gap-8 shrink-0">
           {s.completed && percent != null && s.score != null && s.total != null ? (
             <div className="text-right">
-              <div className="font-mono font-semibold text-lg leading-none" style={{ color: scoreColor(percent) }}>
-                {s.score}<span className="text-xs" style={{ color: "var(--text-secondary)" }}>/{s.total}</span>
+              <div className={cn("font-mono font-semibold text-lg leading-none", scoreColorClass(percent))}>
+                {s.score}<span className="text-xs text-muted-foreground">/{s.total}</span>
               </div>
-              <div className="text-xs font-mono mt-1" style={{ color: scoreColor(percent) }}>
+              <div className={cn("text-xs font-mono mt-1", scoreColorClass(percent))}>
                 {percent}%
               </div>
             </div>
@@ -408,14 +383,14 @@ function SessionCard({
             <Badge variant="amber">Incomplete</Badge>
           )}
           <div className="text-right min-w-[60px]">
-            <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
               Time
             </div>
-            <div className="text-sm font-mono" style={{ color: "var(--text-primary)" }}>
+            <div className="text-sm font-mono text-foreground">
               {timeTaken != null ? formatTime(timeTaken) : "—"}
             </div>
           </div>
-          <span className="text-sm font-medium" style={{ color: "var(--cyan)", minWidth: 70, textAlign: "right" }}>
+          <span className="text-sm font-medium text-primary min-w-[70px] text-right">
             {s.completed ? "View →" : "Resume →"}
           </span>
         </div>
@@ -428,8 +403,11 @@ export default function ResultsPage() {
   return (
     <Suspense
       fallback={
-        <div className="p-8 text-center" style={{ color: "var(--text-secondary)" }}>
-          Loading…
+        <div className="p-8 flex flex-col gap-4">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-4 w-64" />
+          <Skeleton className="h-24 w-full" />
+          <Skeleton className="h-24 w-full" />
         </div>
       }
     >

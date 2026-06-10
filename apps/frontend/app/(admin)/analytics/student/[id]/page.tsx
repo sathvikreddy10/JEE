@@ -53,12 +53,12 @@ export default function StudentAnalyticsPage() {
           <h1 className="text-2xl font-bold text-zinc-900">{user.name}</h1>
           <div className="text-sm text-zinc-500">{user.email}</div>
           <div className="flex flex-wrap gap-1 mt-2">
-            {user.batches.map((b) => (
+            {(user.batches || []).map((b) => (
               <Link key={b.id} href={`/analytics/batch/${b.id}`}>
-                <Badge variant="cyan">{b.name}</Badge>
+                <Badge variant="info">{b.name || "—"}</Badge>
               </Link>
             ))}
-            {user.batches.length === 0 && <span className="text-xs text-zinc-400">No batches</span>}
+            {(user.batches || []).length === 0 && <span className="text-xs text-zinc-400">No batches</span>}
           </div>
         </div>
         <Link href="/analytics" className="text-sm text-cyan-700 hover:underline">← Back to all</Link>

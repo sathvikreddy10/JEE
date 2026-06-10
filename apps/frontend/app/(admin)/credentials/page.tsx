@@ -1,53 +1,20 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Card } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/utils";
+import { Search, Download, Copy, Check, RefreshCw } from "lucide-react";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 
 interface CredentialRow {
-  id: number;
-  userId: number;
-  name: string;
-  email: string;
-  joinedAt: string;
-  plainPassword: string;
-  setByAdminEmail: string | null;
-  setAt: string;
-  batchNames: string[];
+  id: number; userId: number; name: string; email: string; joinedAt: string;
+  plainPassword: string; setByAdminEmail: string | null; setAt: string; batchNames: string[];
 }
-
-const inputStyle: React.CSSProperties = {
-  background: "var(--bg-input)",
-  border: "1px solid var(--border-subtle)",
-  color: "var(--text-primary)",
-  borderRadius: 6,
-  padding: "6px 10px",
-  fontSize: 12,
-  fontFamily: "var(--font-mono)",
-  outline: "none",
-  width: "100%",
-};
-
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 12px",
-  fontSize: 10,
-  fontFamily: "var(--font-mono)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  color: "var(--text-secondary)",
-  fontWeight: 600,
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  fontSize: 12,
-  fontFamily: "var(--font-mono)",
-  verticalAlign: "middle",
-};
 
 export default function CredentialsPage() {
   const [rows, setRows] = useState<CredentialRow[]>([]);
@@ -62,243 +29,132 @@ export default function CredentialsPage() {
     try {
       const data = await fetchJSON<{ credentials: CredentialRow[] }>("/api/admin/credentials");
       setRows(data.credentials);
-      cli.success(`Loaded ${data.credentials.length} student credentials`);
-    } catch (e) {
-      cli.err("load credentials", e);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { cli.err("load credentials", e); }
+    finally { setLoading(false); }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = rows.filter((r) => {
     if (!search.trim()) return true;
     const q = search.toLowerCase();
-    return (
-      r.name.toLowerCase().includes(q) ||
-      r.email.toLowerCase().includes(q) ||
-      r.plainPassword.toLowerCase().includes(q) ||
-      r.batchNames.some((b) => b.toLowerCase().includes(q))
-    );
+    return (r.name || "").toLowerCase().includes(q) ||
+           (r.email || "").toLowerCase().includes(q) ||
+           (r.plainPassword || "").toLowerCase().includes(q) ||
+           (r.batchNames || []).some((b) => b.toLowerCase().includes(q));
   });
 
-  const startEdit = (r: CredentialRow) => {
-    setEditingId(r.userId);
-    setEditValue(r.plainPassword);
-  };
+  const startEdit = (r: CredentialRow) => { setEditingId(r.userId); setEditValue(r.plainPassword); };
 
   const saveEdit = async (userId: number) => {
     if (!editValue.trim()) return;
     try {
-      await fetchJSON(`/api/admin/credentials/${userId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plainPassword: editValue.trim() }),
-      });
-      cli.success(`Password updated for user=${userId}`);
-      setEditingId(null);
-      await load();
-    } catch (e) {
-      cli.err("save password", e);
-      alert((e as Error).message);
-    }
+      await fetchJSON(`/api/admin/credentials/${userId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ plainPassword: editValue.trim() }) });
+      setEditingId(null); await load();
+    } catch (e) { alert((e as Error).message); }
   };
 
   const copyToClipboard = (text: string, userId: number) => {
     navigator.clipboard.writeText(text).then(
-      () => {
-        setCopiedId(userId);
-        setTimeout(() => setCopiedId((c) => (c === userId ? null : c)), 1500);
-      },
-      () => {
-        // Fallback
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        document.body.removeChild(ta);
-        setCopiedId(userId);
-        setTimeout(() => setCopiedId((c) => (c === userId ? null : c)), 1500);
-      }
+      () => { setCopiedId(userId); setTimeout(() => setCopiedId((c) => (c === userId ? null : c)), 1500); },
+      () => { const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); setCopiedId(userId); setTimeout(() => setCopiedId((c) => (c === userId ? null : c)), 1500); }
     );
   };
 
   const copyAll = () => {
-    const text = rows
-      .map((r) => `${r.email}\t${r.plainPassword}\t${r.name}\t${r.batchNames.join("; ")}`)
-      .join("\n");
+    const text = rows.map((r) => `${r.email}\t${r.plainPassword}\t${r.name}\t${r.batchNames.join("; ")}`).join("\n");
     copyToClipboard(text, -1);
   };
 
   return (
-    <div className="flex flex-col" style={{ gap: 24, padding: "32px 56px 96px", maxWidth: 1320, margin: "0 auto" }}>
-      <div className="flex justify-between items-start">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ fontFamily: "var(--font-brand)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-            Student Credentials
-          </h1>
-          <p className="text-sm mt-1" style={{ color: "var(--text-secondary)" }}>
-            Plain-text passwords for every student. Share out-of-band, change anytime. If a student forgets their password, edit it here.
-          </p>
+    <div className="p-10 space-y-8 max-w-[1600px] mx-auto">
+      <div className="flex items-end justify-between gap-4 pb-2">
+        <div className="space-y-1.5">
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Student Credentials</h1>
+          <p className="text-sm text-muted-foreground">Plain-text passwords for every student. Share out-of-band, change anytime.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={load}>Refresh</Button>
-          <Button variant="outline" size="sm" onClick={copyAll}>
-            Copy all
-          </Button>
-          <Button
-            size="sm"
-            onClick={() => {
-              const a = document.createElement("a");
-              a.href = "/api/admin/credentials/export.csv";
-              a.click();
-            }}
-          >
-            Export CSV
-          </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" size="sm" onClick={load}><RefreshCw className="h-4 w-4" /> Refresh</Button>
+          <Button variant="outline" size="sm" onClick={copyAll}><Copy className="h-4 w-4" /> Copy all</Button>
+          <Button size="sm" onClick={() => { const a = document.createElement("a"); a.href = "/api/admin/credentials/export.csv"; a.click(); }}><Download className="h-4 w-4" /> Export CSV</Button>
         </div>
       </div>
 
       <Card>
-        <div className="flex items-center gap-3 mb-3 flex-wrap">
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, password, or batch…"
-            aria-label="Search credentials"
-            style={{ ...inputStyle, flex: "1 1 320px", fontSize: 13 }}
-          />
-          <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
-            {filtered.length} of {rows.length}
-          </span>
-        </div>
-
-        {loading ? (
-          <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</p>
-        ) : filtered.length === 0 ? (
-          <p className="text-sm font-mono" style={{ color: "var(--text-tertiary)" }}>
-            {rows.length === 0 ? "No students yet." : "No matches."}
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ background: "var(--bg-input)", borderBottom: "1px solid var(--border-subtle)" }}>
-                  <th style={thStyle}>Name</th>
-                  <th style={thStyle}>Email</th>
-                  <th style={thStyle}>Password</th>
-                  <th style={thStyle}>Batches</th>
-                  <th style={thStyle}>Joined</th>
-                  <th style={thStyle}>Set By</th>
-                  <th style={thStyle}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((r) => {
-                  const isEditing = editingId === r.userId;
-                  return (
-                    <tr key={r.userId} style={{ borderBottom: "1px solid var(--border-muted)" }}>
-                      <td style={tdStyle}>
-                        <span style={{ color: "var(--text-primary)" }}>{r.name}</span>
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={{ color: "var(--text-secondary)" }}>{r.email}</span>
-                      </td>
-                      <td style={tdStyle}>
-                        {isEditing ? (
-                          <div className="flex gap-1">
-                            <input
-                              value={editValue}
-                              onChange={(e) => setEditValue(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveEdit(r.userId);
-                                if (e.key === "Escape") setEditingId(null);
-                              }}
-                              autoFocus
-                              style={{ ...inputStyle, width: 130 }}
-                            />
-                            <button
-                              onClick={() => saveEdit(r.userId)}
-                              className="text-[10px] font-mono uppercase px-2 py-1"
-                              style={{ color: "var(--mint)" }}
-                            >
-                              Save
-                            </button>
-                            <button
-                              onClick={() => setEditingId(null)}
-                              className="text-[10px] font-mono uppercase px-2 py-1"
-                              style={{ color: "var(--text-tertiary)" }}
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <span style={{ color: "var(--cyan)" }}>{r.plainPassword || "—"}</span>
-                        )}
-                      </td>
-                      <td style={tdStyle}>
-                        {r.batchNames.length === 0 ? (
-                          <span style={{ color: "var(--text-tertiary)" }}>—</span>
-                        ) : (
-                          <div className="flex gap-1 flex-wrap">
-                            {r.batchNames.map((b) => (
-                              <span
-                                key={b}
-                                className="text-[10px] font-mono px-1.5 py-0.5 rounded"
-                                style={{
-                                  background: "rgba(72,190,255,0.10)",
-                                  color: "var(--cyan)",
-                                  border: "1px solid var(--border-active)",
-                                }}
-                              >
-                                {b}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={{ color: "var(--text-tertiary)" }}>
-                          {new Date(r.joinedAt).toLocaleDateString()}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <span style={{ color: "var(--text-tertiary)" }}>
-                          {r.setByAdminEmail ?? "—"}
-                        </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => copyToClipboard(r.plainPassword, r.userId)}
-                            className="text-[10px] font-mono uppercase"
-                            style={{ color: copiedId === r.userId ? "var(--mint)" : "var(--cyan)" }}
-                          >
-                            {copiedId === r.userId ? "Copied ✓" : "Copy"}
-                          </button>
-                          {!isEditing && (
-                            <button
-                              onClick={() => startEdit(r)}
-                              className="text-[10px] font-mono uppercase"
-                              style={{ color: "var(--amber)" }}
-                            >
-                              Edit
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <CardContent>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input aria-label="Search credentials" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name, email, password, or batch…" className="pl-9" />
+            </div>
+            <span className="text-xs font-mono text-muted-foreground shrink-0">{filtered.length} of {rows.length}</span>
           </div>
-        )}
+
+          {loading ? (
+            <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : filtered.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">{rows.length === 0 ? "No students yet." : "No matches."}</p>
+          ) : (
+            <div className="rounded-lg border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-muted/50">
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Name</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Email</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Password</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Batches</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Joined</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase">Set By</th>
+                    <th className="text-right px-4 py-2.5 text-[10px] font-semibold text-muted-foreground uppercase"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((r) => {
+                    const isEditing = editingId === r.userId;
+                    return (
+                      <tr key={r.userId} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 text-xs font-medium">{r.name}</td>
+                        <td className="px-4 py-3 text-xs font-mono text-muted-foreground">{r.email}</td>
+                        <td className="px-4 py-3">
+                          {isEditing ? (
+                            <div className="flex gap-1 items-center">
+                              <Input value={editValue} onChange={(e) => setEditValue(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") saveEdit(r.userId); if (e.key === "Escape") setEditingId(null); }} autoFocus className="h-7 w-32 text-xs font-mono" />
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-success" onClick={() => saveEdit(r.userId)}>Save</Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => setEditingId(null)}>Cancel</Button>
+                            </div>
+                          ) : (
+                            <span className="text-xs font-mono text-primary">{r.plainPassword || "—"}</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          {r.batchNames.length === 0 ? (
+                            <span className="text-muted-foreground">—</span>
+                          ) : (
+                            <div className="flex gap-1 flex-wrap">
+                              {r.batchNames.map((b) => <Badge key={b} variant="info" className="text-[9px]">{b}</Badge>)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-[10px] font-mono text-muted-foreground">{new Date(r.joinedAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-[10px] font-mono text-muted-foreground">{r.setByAdminEmail ?? "—"}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={() => copyToClipboard(r.plainPassword, r.userId)} className={cn("text-[10px] font-mono uppercase hover:underline flex items-center gap-1", copiedId === r.userId ? "text-success" : "text-info")}>
+                              {copiedId === r.userId ? <><Check className="h-3 w-3" /> Copied</> : <><Copy className="h-3 w-3" /> Copy</>}
+                            </button>
+                            {!isEditing && (
+                              <button onClick={() => startEdit(r)} className="text-[10px] font-mono uppercase text-amber hover:underline">Edit</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
       </Card>
     </div>
   );

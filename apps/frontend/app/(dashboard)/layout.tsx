@@ -9,7 +9,7 @@ import { log as cli } from "@/lib/logger";
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isFullBleed = pathname === "/admin" || pathname === "/exam";
+  const isFullBleed = pathname === "/exam";
 
   useEffect(() => {
     let cancelled = false;
@@ -23,22 +23,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       })
       .catch(() => {
         if (cancelled) return;
-        // 401 handler in fetchJSON already redirects; this is a fallback
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
       });
     return () => { cancelled = true; };
   }, [pathname, router]);
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg-base)" }}>
+    <div className="min-h-screen flex flex-col bg-background">
       <Topbar />
       {isFullBleed ? (
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
       ) : (
-        <main
-          className="flex-1"
-          style={{ maxWidth: "1320px", margin: "0 auto", width: "100%", padding: "48px 56px 96px" }}
-        >
+        <main className="flex-1 max-w-[1320px] mx-auto w-full px-8 py-12">
           {children}
         </main>
       )}

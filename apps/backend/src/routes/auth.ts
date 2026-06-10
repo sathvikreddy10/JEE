@@ -69,14 +69,8 @@ authRouter.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    // Check UserCredential.plainPassword first (admin-set passwords are visible)
-    let ok = false;
-    if (user.credential && user.credential.plainPassword === cleanPassword) {
-      ok = true;
-    } else {
-      // Fall back to bcrypt
-      ok = await verifyPassword(cleanPassword, user.passwordHash);
-    }
+    // Verify password using bcrypt only
+    const ok = await verifyPassword(cleanPassword, user.passwordHash);
     if (!ok) {
       log.warn(`Login failed: wrong password for ${cleanEmail}`);
       return res.status(401).json({ error: "Invalid email or password" });

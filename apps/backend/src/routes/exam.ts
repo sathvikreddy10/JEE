@@ -91,43 +91,62 @@ examRouter.post("/start", async (req, res) => {
       }
     }
 
-    // 1) In-progress check: at most one unfinished session per (user, set)
-    const inProgress = await prisma.examSession.findFirst({
-      where: { setId: set.id, userId: user.id, completed: false },
-      select: { id: true, startTime: true },
-    });
-    if (inProgress) {
-      log.warn(`User ${user.id} has in-progress session=${inProgress.id} for set=${set.id}`);
-      return res.status(409).json({
-        error: "You already have an in-progress session for this paper",
-        inProgressSessionId: inProgress.id,
-      });
+    // Reject empty question sets
+    if (set.questions.length === 0) {
+      return res.status(400).json({ error: "This exam has no questions" });
     }
 
-    // 2) Attempt-limit check (per user, completed sessions only)
-    const completedCount = await prisma.examSession.count({
-      where: { setId: set.id, userId: user.id, completed: true },
+    // Wrap check+create in a transaction to prevent race conditions on concurrent starts
+    const result = await prisma.$transaction(async (tx) => {
+      // 1) In-progress check: at most one unfinished session per (user, set)
+      const inProgress = await tx.examSession.findFirst({
+        where: { setId: set.id, userId: user.id, completed: false },
+        select: { id: true, startTime: true },
+      });
+      if (inProgress) {
+        return { type: "inProgress" as const, inProgressSessionId: inProgress.id };
+      }
+
+      // 2) Attempt-limit check (per user, completed sessions only)
+      const completedCount = await tx.examSession.count({
+        where: { setId: set.id, userId: user.id, completed: true },
+      });
+      if (completedCount >= set.attemptsAllowed) {
+        return { type: "exhausted" as const, completedCount };
+      }
+
+      // 3) Create session
+      const session = await tx.examSession.create({
+        data: {
+          setId: set.id,
+          userId: user.id,
+          studentName: user.name,
+          kind: kind || "regular",
+          timeLimit: set.timeLimit,
+        },
+      });
+
+      return { type: "created" as const, session, completedCount };
     });
-    if (completedCount >= set.attemptsAllowed) {
-      log.warn(`User ${user.id} exhausted attempts: ${completedCount}/${set.attemptsAllowed} for set=${set.id}`);
+
+    if (result.type === "inProgress") {
+      log.warn(`User ${user.id} has in-progress session=${result.inProgressSessionId} for set=${set.id}`);
       return res.status(409).json({
-        error: `Attempt limit reached for "${set.name}" (${completedCount}/${set.attemptsAllowed} attempts used)`,
-        attemptsUsed: completedCount,
+        error: "You already have an in-progress session for this paper",
+        inProgressSessionId: result.inProgressSessionId,
+      });
+    }
+    if (result.type === "exhausted") {
+      log.warn(`User ${user.id} exhausted attempts: ${result.completedCount}/${set.attemptsAllowed} for set=${set.id}`);
+      return res.status(409).json({
+        error: `Attempt limit reached for "${set.name}" (${result.completedCount}/${set.attemptsAllowed} attempts used)`,
+        attemptsUsed: result.completedCount,
         attemptsAllowed: set.attemptsAllowed,
       });
     }
 
+    const { session, completedCount } = result;
     const allIds = set.questions.map((q) => q.id);
-    const session = await prisma.examSession.create({
-      data: {
-        setId: set.id,
-        userId: user.id,
-        studentName: user.name,
-        kind: kind || "regular",
-        timeLimit: set.timeLimit,
-      },
-    });
-
     const shuffledIds = getShuffledQuestionIds(allIds, session.id);
     const orderMap = new Map(shuffledIds.map((id, i) => [id, i]));
     const sortedQuestions = [...set.questions].sort((a, b) => (orderMap.get(a.id)! - orderMap.get(b.id)!));
@@ -182,6 +201,16 @@ examRouter.get("/:id", async (req, res) => {
     if (session.userId !== user.id) {
       log.warn(`User ${user.id} tried to access session ${id} owned by ${session.userId}`);
       return res.status(404).json({ error: "Not found" });
+    }
+
+    // Server-side time limit enforcement: if exam has expired, block access
+    if (!session.completed && !session.autoEndedAt) {
+      const elapsedMs = Date.now() - session.startTime.getTime();
+      const limitMs = session.timeLimit * 1000;
+      if (elapsedMs > limitMs + 5000) { // 5 second grace
+        log.warn(`Session ${id} time expired on GET: elapsed=${elapsedMs}ms limit=${limitMs}ms`);
+        return res.status(410).json({ error: "Exam time has expired" });
+      }
     }
 
     if (session.completed && session.analytics) {
@@ -268,20 +297,42 @@ examRouter.post("/:id/answer", async (req, res) => {
     markedForReview: markedForReview ?? false,
   });
   try {
-    const session = await prisma.examSession.findUnique({ where: { id: Number(id) } });
-    if (!session || session.completed) {
-      log.warn(`Session ${id} not found or already completed`);
-      return res.status(400).json({ error: "Session not found or already ended" });
+    const user = userOr401(req);
+    const session = await prisma.examSession.findUnique({
+      where: { id: Number(id) },
+      include: { set: { include: { questions: { select: { id: true } } } } },
+    });
+    if (!session) {
+      log.warn(`Session ${id} not found`);
+      return res.status(404).json({ error: "Not found" });
+    }
+    if (session.userId !== user.id) {
+      log.warn(`User ${user.id} tried to answer session ${id} owned by ${session.userId}`);
+      return res.status(403).json({ error: "Not your session" });
+    }
+    if (session.completed || session.autoEndedAt) {
+      log.warn(`Session ${id} already completed or auto-ended`);
+      return res.status(409).json({ error: "Exam already ended" });
     }
 
-    const existing = await prisma.studentAnswer.findUnique({
-      where: { sessionId_questionId: { sessionId: Number(id), questionId } },
-    });
+    // Server-side time limit enforcement
+    const elapsedMs = Date.now() - session.startTime.getTime();
+    const limitMs = session.timeLimit * 1000;
+    if (elapsedMs > limitMs + 5000) { // 5 second grace
+      log.warn(`Session ${id} time expired: elapsed=${elapsedMs}ms limit=${limitMs}ms`);
+      return res.status(410).json({ error: "Exam time has expired" });
+    }
 
-    const updatedTimeSpent = (existing?.timeSpent ?? 0) + (timeSpent ?? 0);
+    // Validate question belongs to this session's set
+    const validQuestionIds = new Set(session.set.questions.map((q) => q.id));
+    if (!validQuestionIds.has(questionId)) {
+      log.warn(`Invalid questionId ${questionId} for session ${id}`);
+      return res.status(400).json({ error: "Invalid question for this exam" });
+    }
+
     const updateData: Record<string, unknown> = {
       selectedOption: selectedOption === "" ? null : selectedOption,
-      timeSpent: updatedTimeSpent,
+      timeSpent: timeSpent ?? 0,
     };
     if (markedForReview !== undefined) {
       updateData.markedForReview = !!markedForReview;
@@ -309,7 +360,7 @@ examRouter.post("/:id/answer", async (req, res) => {
     return res.json({ saved: true, id: result.id, timeSpent: result.timeSpent });
   } catch (e) {
     log.err(`POST /exam/${id}/answer`, e);
-    return res.status(500).json({ error: (e as Error).message });
+    return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
   }
 });
 
@@ -319,6 +370,7 @@ examRouter.post("/:id/end", async (req, res) => {
   const sessionIdNum = Number(id);
   log.api("POST", `/exam/${id}/end`);
   try {
+    const user = userOr401(req);
     const session = await prisma.examSession.findUnique({
       where: { id: sessionIdNum },
       include: {
@@ -332,22 +384,26 @@ examRouter.post("/:id/end", async (req, res) => {
     });
     if (!session) {
       log.warn(`Session ${id} not found`);
-      return res.status(404).json({ error: "Session not found" });
+      return res.status(404).json({ error: "Not found" });
     }
-    if (session.completed) {
+    if (session.userId !== user.id) {
+      log.warn(`User ${user.id} tried to end session ${id} owned by ${session.userId}`);
+      return res.status(403).json({ error: "Not your session" });
+    }
+    if (session.completed && session.analytics) {
       log.warn(`Session ${id} already completed — returning stored analytics`);
-      if (session.analytics) {
-        try {
-          return res.json(JSON.parse(session.analytics));
-        } catch {
-          /* fall through to recompute */
-        }
+      try {
+        return res.json(JSON.parse(session.analytics));
+      } catch {
+        /* fall through to recompute */
       }
     }
 
+    // If auto-ended, use the auto-end time as canonical endTime
+    const endTime = session.autoEndedAt ? session.autoEndedAt : new Date();
+
     log.info(`Evaluating session ${id}: ${session.set.questions.length} questions`);
 
-    const endTime = new Date();
     const analytics = buildSessionAnalytics({
       sessionId: sessionIdNum,
       timeLimit: session.timeLimit,
@@ -412,7 +468,7 @@ examRouter.post("/:id/end", async (req, res) => {
     return res.json(analytics);
   } catch (e) {
     log.err(`POST /exam/${id}/end`, e);
-    return res.status(500).json({ error: (e as Error).message });
+    return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
   }
 });
 
@@ -431,6 +487,9 @@ examRouter.get("/:id/leaderboard", async (req, res) => {
     }
     if (session.userId !== user.id) {
       return res.status(404).json({ error: "Not found" });
+    }
+    if (!session.completed) {
+      return res.status(403).json({ error: "Complete the exam first to view the leaderboard" });
     }
 
     const allCompleted = await prisma.examSession.findMany({
@@ -530,19 +589,21 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
       return res.status(400).json({ error: "Invalid event type" });
     }
 
-    const nextCount = session.tabSwitches + 1;
-    let flaggedAt: Date | null = session.flaggedAt;
-    let flagReason: string | null = session.flagReason;
-    let autoEndedAt: Date | null = session.autoEndedAt;
+    // Atomic increment to prevent race conditions
+    const updatedSession = await prisma.examSession.update({
+      where: { id: sessionId },
+      data: { tabSwitches: { increment: 1 } },
+      select: { tabSwitches: true, flaggedAt: true, flagReason: true, autoEndedAt: true, completed: true },
+    });
+
+    const nextCount = updatedSession.tabSwitches;
+    let flaggedAt: Date | null = updatedSession.flaggedAt;
+    let flagReason: string | null = updatedSession.flagReason;
+    let autoEndedAt: Date | null = updatedSession.autoEndedAt;
     let ended = false;
 
     // Warning at 3rd switch (auto-send to student)
     if (nextCount === 3) {
-      await prisma.examSession.update({
-        where: { id: sessionId },
-        data: { tabSwitches: nextCount },
-      });
-      // Notify the student
       await prisma.notification.create({
         data: {
           userId: user.id,
@@ -555,12 +616,12 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
       log.info("Student warning for tab switch", { sessionId, userId: user.id, tabSwitches: nextCount });
     }
     // Flag at 4th switch
-    else if (nextCount === 4) {
+    else if (nextCount === 4 && !updatedSession.flaggedAt) {
       flaggedAt = new Date();
       flagReason = `Tab switch: ${nextCount}`;
       await prisma.examSession.update({
         where: { id: sessionId },
-        data: { tabSwitches: nextCount, flaggedAt, flagReason },
+        data: { flaggedAt, flagReason },
       });
       // Notify ALL admins
       const allAdmins = await prisma.admin.findMany();
@@ -586,13 +647,12 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
       log.info("Student red-flagged", { sessionId, userId: user.id, tabSwitches: nextCount });
     }
     // Auto-end at 7th switch
-    else if (nextCount === 7) {
+    else if (nextCount === 7 && !updatedSession.autoEndedAt) {
       autoEndedAt = new Date();
       flagReason = flagReason || `Tab switch: ${nextCount}`;
       await prisma.examSession.update({
         where: { id: sessionId },
         data: {
-          tabSwitches: nextCount,
           flaggedAt: flaggedAt || new Date(),
           flagReason,
           autoEndedAt,
@@ -613,11 +673,6 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
       });
       ended = true;
       log.info("Student exam auto-ended", { sessionId, userId: user.id, tabSwitches: nextCount });
-    } else {
-      await prisma.examSession.update({
-        where: { id: sessionId },
-        data: { tabSwitches: nextCount },
-      });
     }
 
     const warning = nextCount === 3 ? "1 more tab switch will red-flag your exam" :

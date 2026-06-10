@@ -26,6 +26,34 @@ export function startScheduler() {
 
 async function tick(windowMs: number, closingSoonMs: number) {
   const now = new Date();
+
+  // ── 1) Auto-end expired exam sessions ──
+  const expiredSessions = await prisma.examSession.findMany({
+    where: { completed: false, autoEndedAt: null },
+    include: { set: true, user: true },
+  });
+  let ended = 0;
+  for (const s of expiredSessions) {
+    const elapsedMs = now.getTime() - s.startTime.getTime();
+    const limitMs = s.timeLimit * 1000;
+    if (elapsedMs > limitMs + 5000) { // 5 second grace
+      await prisma.examSession.update({
+        where: { id: s.id },
+        data: {
+          completed: true,
+          endTime: new Date(s.startTime.getTime() + limitMs),
+          autoEndedAt: now,
+        },
+      });
+      ended++;
+      log.info("Auto-ended expired session", { sessionId: s.id, userId: s.userId, elapsedMs, limitMs });
+    }
+  }
+  if (ended > 0) {
+    log.info("Scheduler auto-ended expired sessions", { count: ended });
+  }
+
+  // ── 2) Buffer closing notifications ──
   // Find BatchPapers that are LIVE (goTime set) and whose deadline is in (closingSoon, closingSoon+window)
   const live = await prisma.batchPaper.findMany({
     where: { goTime: { not: null } },

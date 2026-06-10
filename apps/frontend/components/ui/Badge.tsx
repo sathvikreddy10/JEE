@@ -1,36 +1,43 @@
-"use client";
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { cn } from "@/lib/utils";
 
-import { ReactNode } from "react";
+const badgeVariants = cva(
+  "inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",
+  {
+    variants: {
+      variant: {
+        default: "border-transparent bg-primary text-primary-foreground",
+        secondary: "border-transparent bg-secondary text-secondary-foreground",
+        destructive: "border-transparent bg-destructive text-destructive-foreground",
+        outline: "border-border text-foreground bg-background",
+        success: "border-transparent bg-success text-success-foreground",
+        warning: "border-transparent bg-warning text-warning-foreground",
+        info: "border-transparent bg-info text-info-foreground",
+        muted: "border-transparent bg-slate-200 text-slate-700",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  }
+);
 
-interface BadgeProps {
-  variant?: "cyan" | "mint" | "forest" | "crimson" | "amber" | "muted";
-  children: ReactNode;
-  className?: string;
-}
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {}
 
-export function Badge({ variant = "cyan", children, className = "" }: BadgeProps) {
-  const styles = {
-    cyan: { background: "rgba(72,190,255,0.12)", color: "var(--cyan)", border: "rgba(72,190,255,0.2)" },
-    mint: { background: "rgba(94,243,140,0.12)", color: "var(--mint)", border: "rgba(94,243,140,0.2)" },
-    forest: { background: "rgba(43,151,32,0.12)", color: "var(--forest)", border: "rgba(43,151,32,0.2)" },
-    crimson: { background: "rgba(248,81,73,0.12)", color: "var(--crimson)", border: "rgba(248,81,73,0.2)" },
-    amber: { background: "rgba(210,153,34,0.12)", color: "var(--amber)", border: "rgba(210,153,34,0.2)" },
-    muted: { background: "rgba(148,163,184,0.15)", color: "var(--text-secondary)", border: "var(--border-subtle)" },
-  };
+const Badge = React.forwardRef<HTMLDivElement, BadgeProps>(
+  ({ className, variant, ...props }, ref) => {
+    return (
+      <div
+        ref={ref}
+        className={cn(badgeVariants({ variant }), className)}
+        {...props}
+      />
+    );
+  }
+);
+Badge.displayName = "Badge";
 
-  const s = styles[variant];
-
-  return (
-    <span
-      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium uppercase tracking-wider ${className}`}
-      style={{
-        fontFamily: "var(--font-mono)",
-        background: s.background,
-        color: s.color,
-        border: `1px solid ${s.border}`,
-      }}
-    >
-      {children}
-    </span>
-  );
-}
+export { Badge, badgeVariants };

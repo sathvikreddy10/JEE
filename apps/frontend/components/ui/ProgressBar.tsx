@@ -2,7 +2,7 @@
 
 interface ProgressBarProps {
   value: number;
-  variant?: "cyan" | "mint" | "forest";
+  variant?: "cyan" | "mint" | "forest" | "destructive" | "warning";
   className?: string;
 }
 
@@ -11,6 +11,8 @@ export function ProgressBar({ value, variant = "cyan", className = "" }: Progres
     cyan: "var(--cyan)",
     mint: "var(--mint)",
     forest: "var(--forest)",
+    destructive: "var(--destructive)",
+    warning: "var(--warning)",
   };
 
   return (

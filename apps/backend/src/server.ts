@@ -1,6 +1,8 @@
 import express from "express";
 import cookieParser from "cookie-parser";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 import { createServer } from "http";
 import { config } from "dotenv";
 import { log } from "./lib/logger";
@@ -23,12 +25,17 @@ import { prisma } from "./lib/db";
 
 config(); // load .env
 
-// Global safety net: log unhandled rejections instead of crashing the process
+// Global safety net: log unhandled rejections and exit gracefully
 process.on("unhandledRejection", (reason) => {
   log.warn("Unhandled promise rejection", reason);
+  process.exit(1);
 });
 process.on("uncaughtException", (err) => {
   log.warn("Uncaught exception", err);
+  // Only force exit on truly unrecoverable errors; let startup errors (EADDRINUSE) exit naturally
+  if ((err as any).code !== "EADDRINUSE") {
+    process.exit(1);
+  }
 });
 
 const PORT = Number(process.env.PORT || 4000);
@@ -37,11 +44,43 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const app = express();
 const server = createServer(app);
 
+// Security headers
+app.use(helmet({
+  contentSecurityPolicy: false, // disable strict CSP for now (Next.js compatibility)
+  crossOriginEmbedderPolicy: false,
+}));
+
 // CORS: allow frontend to call us with credentials
 app.use(cors({
   origin: FRONTEND_URL,
   credentials: true,
 }));
+
+// Rate limiting: general API
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minute
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use(generalLimiter);
+
+// Rate limiting: strict on auth endpoints (skip on localhost for dev)
+const isLocalhost = (req: express.Request) => {
+  const ip = req.ip || "unknown";
+  return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
+};
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: (req) => (isLocalhost(req) ? 1000 : 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many attempts, please try again later." },
+  skip: (req) => isLocalhost(req),
+});
+app.use("/auth", authLimiter);
+app.use("/admin/auth", authLimiter);
 
 // Body parsers
 app.use(express.json({ limit: "10mb" }));
@@ -88,10 +127,20 @@ app.use((err: Error & { status?: number }, _req: express.Request, res: express.R
   res.status(status).json({ error: err.message });
 });
 
+// Handle server startup errors (e.g., EADDRINUSE) gracefully
+server.on("error", (err: any) => {
+  if (err.code === "EADDRINUSE") {
+    log.err("Server startup", `Port ${PORT} is already in use. Please stop the other process first.`);
+  } else {
+    log.err("Server error", err);
+  }
+  process.exit(1);
+});
+
 // Ensure Prisma is connected before accepting requests
 prisma.$connect().then(() => {
   log.info("Prisma connected to SQLite");
-  server.listen(PORT, () => {
+  server.listen(PORT, "0.0.0.0", () => {
     log.success(`Backend listening on http://localhost:${PORT}`);
     log.info(`CORS origin: ${FRONTEND_URL}`);
   });

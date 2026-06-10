@@ -193,7 +193,7 @@ function extractPreviouslySeenQuestions(
 /* ────────────────────────  QuestionSets  ─────────────────────────── */
 
 // GET /admin/sets — full list, no auth gate (used by student pages too via /sets)
-adminRouter.get("/sets", async (_req, res) => {
+adminRouter.get("/sets", requireAdmin, async (_req, res) => {
   log.api("GET", "/admin/sets");
   try {
     const sets = await prisma.questionSet.findMany({
@@ -717,7 +717,7 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
 });
 
 // GET /admin/sets/:id — full paper incl questions
-adminRouter.get("/sets/:id", async (req, res) => {
+adminRouter.get("/sets/:id", requireAdmin, async (req, res) => {
   const id = Number(req.params.id);
   log.api("GET", `/admin/sets/${id}`);
   try {
@@ -793,7 +793,7 @@ adminRouter.get("/sets/:id", async (req, res) => {
 
 // GET /admin/questions/all — every question, grouped by set, for the question-bank dropdown
 // (Must come BEFORE /admin/questions/:id, otherwise /:id matches "all")
-adminRouter.get("/questions/all", async (_req, res) => {
+adminRouter.get("/questions/all", requireAdmin, async (_req, res) => {
   log.api("GET", "/admin/questions/all");
   try {
     const sets = await prisma.questionSet.findMany({
@@ -848,7 +848,7 @@ adminRouter.get("/questions/all", async (_req, res) => {
 });
 
 // GET /admin/questions
-adminRouter.get("/questions", async (req, res) => {
+adminRouter.get("/questions", requireAdmin, async (req, res) => {
   const id = req.query.id ? Number(req.query.id) : null;
   const setId = req.query.setId ? Number(req.query.setId) : null;
   log.api("GET", "/admin/questions", { id, setId });
@@ -1034,7 +1034,7 @@ adminRouter.delete("/questions/:id", requireAdmin, async (req, res) => {
 
 // GET /admin/daily-challenge
 // Returns all batch daily challenges (optionally filtered by date)
-adminRouter.get("/daily-challenge", async (req, res) => {
+adminRouter.get("/daily-challenge", requireAdmin, async (req, res) => {
   const { date } = req.query;
   log.api("GET", "/admin/daily-challenge", { date });
   try {
@@ -1130,7 +1130,7 @@ adminRouter.delete("/daily-challenge/:id", requireAdmin, async (req, res) => {
 
 // GET /admin/daily-challenge/tomorrow-status
 // Check if all batches have a daily challenge assigned for tomorrow
-adminRouter.get("/daily-challenge/tomorrow-status", async (req, res) => {
+adminRouter.get("/daily-challenge/tomorrow-status", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/daily-challenge/tomorrow-status");
   try {
     const tomorrow = new Date();
@@ -1163,31 +1163,39 @@ adminRouter.get("/daily-challenge/tomorrow-status", async (req, res) => {
 // ─── Live Proctor Monitoring ───
 
 // GET /admin/live
-// Returns all active (non-completed) exam sessions with tab switch counts
-adminRouter.get("/live", async (req, res) => {
+// Returns all active (non-completed, non-expired) exam sessions with tab switch counts
+adminRouter.get("/live", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/live");
   try {
+    const now = Date.now();
     const sessions = await prisma.examSession.findMany({
-      where: { completed: false },
+      where: { completed: false, autoEndedAt: null },
       include: {
-        set: { select: { name: true } },
+        set: { select: { name: true, subject: true, _count: { select: { questions: true } } } },
         user: { select: { name: true, email: true } },
         answers: { select: { id: true, selectedOption: true } },
       },
     });
-    const data = sessions.map((s) => {
+    // Filter out sessions whose time has expired (student never submitted)
+    const activeSessions = sessions.filter((s) => {
+      const elapsedMs = now - s.startTime.getTime();
+      const limitMs = s.timeLimit * 1000;
+      return elapsedMs < limitMs + 5000; // 5 second grace
+    });
+    const data = activeSessions.map((s) => {
       const answeredCount = s.answers.filter((a) => a.selectedOption !== null && a.selectedOption !== "").length;
-      const totalQuestions = s.answers.length;
+      const totalQuestions = s.set._count.questions;
       const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
       const isWarned = s.tabSwitches >= 3;
       const isFlagged = !!s.flaggedAt;
-      const timeRemaining = s.timeLimit - Math.floor((Date.now() - s.startTime.getTime()) / 1000);
+      const elapsedSeconds = Math.floor((now - s.startTime.getTime()) / 1000);
+      const timeRemaining = Math.max(0, s.timeLimit - elapsedSeconds);
       return {
         id: s.id,
         student: s.user?.name || s.studentName,
-        email: s.user?.email,
+        email: s.user?.email ?? null,
         setName: s.set.name,
-        section: s.set.name.split(" ")[0] || "Mixed",
+        section: s.set.subject || "Mixed",
         progress,
         tabs: s.tabSwitches,
         focus: 0, // future: window blur events
@@ -1196,14 +1204,11 @@ adminRouter.get("/live", async (req, res) => {
         flagReason: s.flagReason,
         autoEndedAt: s.autoEndedAt,
         startTime: s.startTime,
-        timeRemaining: Math.max(0, timeRemaining),
-        lastActivity: s.answers.reduce((latest, a) => {
-          // We don't have updatedAt on answers, so we use startTime as fallback
-          return latest;
-        }, s.startTime),
+        timeRemaining,
+        lastActivity: s.startTime,
       };
     });
-    log.info(`Proctor live: ${sessions.length} active sessions`);
+    log.info(`Proctor live: ${data.length} active sessions`);
     return res.json({ sessions: data });
   } catch (e) {
     log.err("GET /admin/live", e);
@@ -1223,13 +1228,17 @@ adminRouter.post("/sessions/:id/dismiss-flag", requireAdmin, async (req, res) =>
     if (!session) {
       return res.status(404).json({ error: "Session not found" });
     }
+    // Only reduce tab switches if the session was actually flagged
+    const updateData: Record<string, unknown> = {
+      flaggedAt: null,
+      flagReason: null,
+    };
+    if (session.flaggedAt) {
+      updateData.tabSwitches = Math.max(0, session.tabSwitches - 4);
+    }
     await prisma.examSession.update({
       where: { id: sessionId },
-      data: {
-        flaggedAt: null,
-        flagReason: null,
-        tabSwitches: Math.max(0, session.tabSwitches - 4),
-      },
+      data: updateData,
     });
     log.info("Flag dismissed", { sessionId, adminId: req.admin!.id });
     return res.json({ ok: true });
@@ -1241,7 +1250,7 @@ adminRouter.post("/sessions/:id/dismiss-flag", requireAdmin, async (req, res) =>
 
 // GET /admin/results
 // Returns all completed exam sessions with full analytics for admin results sheet
-adminRouter.get("/results", async (req, res) => {
+adminRouter.get("/results", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/results");
   try {
     const sessions = await prisma.examSession.findMany({
@@ -1293,7 +1302,7 @@ adminRouter.get("/results", async (req, res) => {
 
 // GET /admin/results/exams
 // Returns all exams (papers) with aggregate KPIs for the admin chooser grid
-adminRouter.get("/results/exams", async (req, res) => {
+adminRouter.get("/results/exams", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/results/exams");
   try {
     const sets = await prisma.questionSet.findMany({
@@ -1366,7 +1375,7 @@ adminRouter.get("/results/exams", async (req, res) => {
 
 // GET /admin/results/batches
 // Returns all batches with aggregate KPIs for the admin chooser grid
-adminRouter.get("/results/batches", async (req, res) => {
+adminRouter.get("/results/batches", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/results/batches");
   try {
     const batches = await prisma.batch.findMany({
@@ -1425,7 +1434,7 @@ adminRouter.get("/results/batches", async (req, res) => {
 
 // GET /admin/results/exam/:id
 // Returns detailed results for a specific exam (paper)
-adminRouter.get("/results/exam/:id", async (req, res) => {
+adminRouter.get("/results/exam/:id", requireAdmin, async (req, res) => {
   const setId = Number(req.params.id);
   log.api("GET", `/admin/results/exam/${setId}`);
   try {
@@ -1492,7 +1501,7 @@ adminRouter.get("/results/exam/:id", async (req, res) => {
 
 // GET /admin/results/batch/:id
 // Returns detailed results for a specific batch
-adminRouter.get("/results/batch/:id", async (req, res) => {
+adminRouter.get("/results/batch/:id", requireAdmin, async (req, res) => {
   const batchId = Number(req.params.id);
   log.api("GET", `/admin/results/batch/${batchId}`);
   try {
@@ -1579,7 +1588,7 @@ adminRouter.get("/results/batch/:id", async (req, res) => {
 
 // GET /admin/questions/template
 // Download an Excel template for bulk question upload
-adminRouter.get("/questions/template", async (_req, res) => {
+adminRouter.get("/questions/template", requireAdmin, async (_req, res) => {
   log.api("GET", "/admin/questions/template");
   try {
     const headers = [
@@ -1615,7 +1624,7 @@ adminRouter.get("/questions/template", async (_req, res) => {
 
 // POST /admin/questions/upload
 // Upload questions from Excel file
-adminRouter.post("/questions/upload", async (req, res) => {
+adminRouter.post("/questions/upload", requireAdmin, async (req, res) => {
   log.api("POST", "/admin/questions/upload");
   try {
     if (!req.body || !req.body.file) {

@@ -5,8 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Input } from "@/components/ui/Input";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { renderMath } from "@/components/exam/MathRenderer";
 import { fetchJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface QuestionResult {
   id: number;
@@ -66,8 +69,8 @@ export default function ReviewListPage() {
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  if (loading) return <div className="flex items-center justify-center h-[60vh]" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>Loading…</div>;
-  if (!data || !data.questions) return <div className="flex items-center justify-center h-[60vh]" style={{ color: "var(--text-secondary)" }}>No review data.</div>;
+  if (loading) return <div className="flex items-center justify-center h-[60vh] gap-2"><Skeleton className="h-5 w-32" /><span className="text-sm text-muted-foreground font-mono">Loading…</span></div>;
+  if (!data || !data.questions) return <div className="flex items-center justify-center h-[60vh] text-muted-foreground">No review data.</div>;
 
   const filtered = data.questions.filter((q) => {
     if (filter === "correct" && !q.isCorrect) return false;
@@ -117,21 +120,21 @@ export default function ReviewListPage() {
   };
 
   return (
-    <div className="flex flex-col" style={{ gap: 40 }}>
+    <div className="flex flex-col gap-10">
       {/* Header */}
       <div className="flex items-end justify-between">
         <div>
-          <button
+          <Button
+            variant="link"
             onClick={() => router.push(`/results/session/${sessionId}`)}
-            className="text-xs font-mono mb-3 hover:underline"
-            style={{ color: "var(--cyan)" }}
+            className="text-xs font-mono mb-3 p-0 h-auto text-cyan hover:text-cyan/80"
           >
             ← Back to Results
-          </button>
-          <h1 style={{ fontSize: 32, fontWeight: 700, fontFamily: "var(--font-brand)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
+          </Button>
+          <h1 className="text-3xl font-bold font-[family-name:var(--font-brand)] tracking-tight text-foreground">
             Question Review
           </h1>
-          <p className="text-sm mt-2" style={{ color: "var(--text-secondary)" }}>
+          <p className="text-sm mt-2 text-muted-foreground">
             Session #{sessionId} · {data.questions.length} questions · Click any to view full solution
           </p>
         </div>
@@ -141,36 +144,31 @@ export default function ReviewListPage() {
       </div>
 
       {/* Filter bar */}
-      <Card style={{ padding: "20px 24px" }}>
+      <Card className="p-5 px-6">
         <div className="flex items-center gap-4 flex-wrap">
           <div className="flex gap-2">
             {(["all", "correct", "incorrect", "skipped"] as Filter[]).map((f) => (
-              <button
+              <Button
                 key={f}
+                variant="outline"
                 onClick={() => setFilter(f)}
-                className="px-4 py-2 rounded-lg text-xs font-mono uppercase tracking-wider transition-all"
-                style={{
-                  background: filter === f ? "var(--cyan)" : "var(--bg-input)",
-                  color: filter === f ? "#fff" : "var(--text-secondary)",
-                  border: `1px solid ${filter === f ? "var(--cyan)" : "var(--border-subtle)"}`,
-                }}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-mono uppercase tracking-wider transition-all",
+                  filter === f
+                    ? "bg-cyan text-white border-cyan"
+                    : "bg-input text-muted-foreground border-border"
+                )}
               >
-                {f} <span style={{ opacity: 0.6, marginLeft: 6 }}>{filterCounts[f]}</span>
-              </button>
+                {f} <span className="opacity-60 ml-1.5">{filterCounts[f]}</span>
+              </Button>
             ))}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <input
+            <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search by text or topic…"
-              className="w-full px-4 py-2 rounded-lg text-sm"
-              style={{
-                background: "var(--bg-input)",
-                border: "1px solid var(--border-subtle)",
-                color: "var(--text-primary)",
-                fontFamily: "var(--font-ui)",
-              }}
+              className="w-full"
             />
           </div>
         </div>
@@ -178,83 +176,81 @@ export default function ReviewListPage() {
 
       {/* Question list */}
       {filtered.length === 0 ? (
-        <Card style={{ padding: "48px 32px", textAlign: "center" }}>
-          <p style={{ color: "var(--text-secondary)" }}>No questions match this filter.</p>
+        <Card className="p-12 px-8 text-center">
+          <p className="text-muted-foreground">No questions match this filter.</p>
         </Card>
       ) : (
-        <div className="flex flex-col" style={{ gap: 16 }}>
+        <div className="flex flex-col gap-4">
           {filtered.map((q) => {
             const isAnswered = q.yourAnswer !== null;
             const isCorrect = isAnswered && q.isCorrect;
             const status = q.isSkipped ? "skipped" : isCorrect ? "correct" : "incorrect";
-            const statusColor = status === "correct" ? "var(--mint)" : status === "incorrect" ? "var(--crimson)" : "var(--text-tertiary)";
+            const borderColor = status === "correct" ? "border-l-mint" : status === "incorrect" ? "border-l-crimson" : "border-l-muted-foreground";
+            const statusTextColor = status === "correct" ? "text-mint" : status === "incorrect" ? "text-crimson" : "text-muted-foreground";
             return (
               <Card
                 key={q.id}
                 onClick={() => router.push(`/review/${sessionId}/${q.id}`)}
-                style={{
-                  padding: "24px 28px",
-                  cursor: "pointer",
-                  borderLeft: `4px solid ${statusColor}`,
-                  transition: "transform 0.15s, box-shadow 0.15s",
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    router.push(`/review/${sessionId}/${q.id}`);
+                  }
                 }}
-                className="hover:shadow-lg"
+                className={cn(
+                  "p-6 px-7 cursor-pointer border-l-4 transition-all duration-150 hover:shadow-lg",
+                  borderColor
+                )}
               >
                 <div className="flex items-center gap-4 mb-4">
-                  <span
-                    style={{
-                      fontSize: 12, fontFamily: "var(--font-mono)", fontWeight: 600,
-                      padding: "4px 10px", borderRadius: 6,
-                      background: "var(--bg-input)", border: "1px solid var(--border-subtle)",
-                      color: "var(--text-primary)",
-                    }}
-                  >
+                  <span className="text-xs font-mono font-semibold px-2.5 py-1 rounded-md bg-input border border-border text-foreground">
                     Q{q.order}
                   </span>
                   <span
-                    style={{
-                      fontSize: 10, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em",
-                      padding: "3px 8px", borderRadius: 4,
-                      background: q.type === "mcq" ? "rgba(14,165,233,0.1)" : "rgba(34,197,94,0.1)",
-                      color: q.type === "mcq" ? "var(--cyan)" : "var(--mint)",
-                    }}
+                    className={cn(
+                      "text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded",
+                      q.type === "mcq"
+                        ? "bg-cyan/10 text-cyan"
+                        : "bg-mint/10 text-mint"
+                    )}
                   >
                     {q.type}
                   </span>
-                  <span style={{ fontSize: 12, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
+                  <span className="text-xs text-muted-foreground font-mono">
                     {q.topic}
                   </span>
                   {q.timeSpent > 0 && (
-                    <span style={{ fontSize: 11, color: "var(--text-tertiary)", fontFamily: "var(--font-mono)" }}>
+                    <span className="text-[11px] text-muted-foreground font-mono">
                       ⏱ {q.timeSpent}s
                     </span>
                   )}
                   <span className="ml-auto">
                     <Badge
-                      variant={status === "correct" ? "forest" : status === "incorrect" ? "crimson" : "muted"}
+                      variant={status === "correct" ? "success" : status === "incorrect" ? "destructive" : "muted"}
                     >
                       {status === "correct" ? "✓ Correct" : status === "incorrect" ? "✗ Wrong" : "— Skipped"}
                     </Badge>
                   </span>
                 </div>
                 <div
-                  className="line-clamp-2 text-sm"
-                  style={{ color: "var(--text-primary)", lineHeight: 1.7 }}
+                  className="line-clamp-2 text-sm text-foreground leading-relaxed"
                   dangerouslySetInnerHTML={{ __html: renderMath(q.text) }}
                 />
-                <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: "1px solid var(--border-muted)" }}>
-                  <div className="flex gap-6 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+                <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
+                  <div className="flex gap-6 text-xs font-mono text-muted-foreground">
                     <span>
                       Your answer:{" "}
-                      <span style={{ color: isAnswered ? statusColor : "var(--text-tertiary)" }}>
+                      <span className={cn(isAnswered ? statusTextColor : "text-muted-foreground")}>
                         {q.yourAnswer || "—"}
                       </span>
                     </span>
                     <span>
-                      Correct: <span style={{ color: "var(--mint)" }}>{q.correctAnswer}</span>
+                      Correct: <span className="text-mint">{q.correctAnswer}</span>
                     </span>
                   </div>
-                  <span className="text-xs font-mono" style={{ color: "var(--cyan)" }}>
+                  <span className="text-xs font-mono text-cyan">
                     View Solution →
                   </span>
                 </div>

@@ -5,9 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { renderMath } from "@/components/exam/MathRenderer";
 import { QuestionContent } from "@/components/exam/QuestionContent";
 import { fetchJSON } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 interface QuestionImage {
   url: string;
@@ -55,12 +57,12 @@ export default function QuestionDetailPage() {
     return () => { cancelled = true; };
   }, [sessionId, questionId]);
 
-  if (loading) return <div className="flex items-center justify-center h-[60vh]" style={{ color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>Loading question…</div>;
+  if (loading) return <div className="flex items-center justify-center h-[60vh] gap-2"><Skeleton className="h-5 w-40" /><span className="text-sm text-muted-foreground font-mono">Loading question…</span></div>;
 
   const currentIdx = questions.findIndex((q) => q.id === questionId);
   const q = questions[currentIdx];
   if (!q) return (
-    <div className="flex items-center justify-center h-[60vh] flex-col gap-4" style={{ color: "var(--text-secondary)" }}>
+    <div className="flex items-center justify-center h-[60vh] flex-col gap-4 text-muted-foreground">
       <p>Question not found.</p>
       <Button variant="outline" onClick={() => router.push(`/review/${sessionId}`)}>Back to Review</Button>
     </div>
@@ -71,54 +73,47 @@ export default function QuestionDetailPage() {
   const isAnswered = q.yourAnswer !== null;
   const isCorrect = isAnswered && q.isCorrect;
   const status = q.isSkipped ? "skipped" : isCorrect ? "correct" : isAnswered ? "incorrect" : "skipped";
-  const statusColor = status === "correct" ? "var(--mint)" : status === "incorrect" ? "var(--crimson)" : "var(--text-tertiary)";
+  const borderColor = status === "correct" ? "border-l-mint" : status === "incorrect" ? "border-l-crimson" : "border-l-muted-foreground";
 
   return (
-    <div className="flex flex-col" style={{ gap: 40, maxWidth: 960, margin: "0 auto" }}>
+    <div className="flex flex-col gap-10 max-w-[960px] mx-auto">
       {/* Top bar */}
       <div className="flex items-center justify-between">
-        <button
+        <Button
+          variant="link"
           onClick={() => router.push(`/review/${sessionId}`)}
-          className="text-xs font-mono hover:underline"
-          style={{ color: "var(--cyan)" }}
+          className="text-xs font-mono p-0 h-auto text-cyan hover:text-cyan/80"
         >
           ← Back to Review
-        </button>
-        <div className="flex items-center gap-3 text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
+        </Button>
+        <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
           <span>Question</span>
-          <span style={{ fontSize: 18, color: "var(--text-primary)", fontWeight: 600 }}>{q.order}</span>
+          <span className="text-lg text-foreground font-semibold">{q.order}</span>
           <span>of {questions.length}</span>
         </div>
       </div>
 
       {/* Question Header Card */}
-      <Card style={{ padding: "32px 40px", borderLeft: `4px solid ${statusColor}` }}>
+      <Card className={cn("p-8 px-10 border-l-4", borderColor)}>
         <div className="flex items-center gap-3 mb-6">
-          <span
-            style={{
-              fontSize: 11, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.06em",
-              padding: "4px 10px", borderRadius: 6,
-              background: "var(--bg-input)", border: "1px solid var(--border-subtle)",
-              color: "var(--text-secondary)",
-            }}
-          >
+          <span className="text-[11px] font-mono uppercase tracking-widest px-2.5 py-1 rounded-md bg-input border border-border text-muted-foreground">
             {q.topic}
           </span>
           <span
-            style={{
-              fontSize: 10, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em",
-              padding: "3px 8px", borderRadius: 4,
-              background: q.type === "mcq" ? "rgba(14,165,233,0.1)" : "rgba(34,197,94,0.1)",
-              color: q.type === "mcq" ? "var(--cyan)" : "var(--mint)",
-            }}
+            className={cn(
+              "text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded",
+              q.type === "mcq"
+                ? "bg-cyan/10 text-cyan"
+                : "bg-mint/10 text-mint"
+            )}
           >
             {q.type}
           </span>
-          <Badge variant={status === "correct" ? "forest" : status === "incorrect" ? "crimson" : "muted"}>
+          <Badge variant={status === "correct" ? "success" : status === "incorrect" ? "destructive" : "muted"}>
             {status === "correct" ? "✓ Correct" : status === "incorrect" ? "✗ Wrong" : "— Skipped"}
           </Badge>
           {q.timeSpent > 0 && (
-            <span className="ml-auto text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+            <span className="ml-auto text-xs font-mono text-muted-foreground">
               ⏱ {q.timeSpent}s
             </span>
           )}
@@ -133,11 +128,11 @@ export default function QuestionDetailPage() {
 
       {/* MCQ Options */}
       {q.type === "mcq" && q.options && (
-        <Card style={{ padding: "32px 40px" }}>
-          <div className="text-[11px] uppercase tracking-wider mb-5 font-mono" style={{ color: "var(--text-secondary)" }}>
+        <Card className="p-8 px-10">
+          <div className="text-[11px] uppercase tracking-wider mb-5 font-mono text-muted-foreground">
             Answer Options
           </div>
-          <div className="flex flex-col" style={{ gap: 12 }}>
+          <div className="flex flex-col gap-3">
             {q.options.map((opt, i) => {
               const letter = String.fromCharCode(65 + i);
               const isUsersAnswer = q.yourAnswer === letter;
@@ -145,41 +140,39 @@ export default function QuestionDetailPage() {
               return (
                 <div
                   key={i}
-                  className="flex items-center"
-                  style={{
-                    padding: "16px 20px",
-                    borderRadius: 10,
-                    background: isCorrectAnswer ? "rgba(34,197,94,0.08)" : isUsersAnswer ? "rgba(220,38,38,0.06)" : "var(--bg-input)",
-                    border: `1.5px solid ${
-                      isCorrectAnswer ? "var(--mint)" : isUsersAnswer ? "var(--crimson)" : "var(--border-subtle)"
-                    }`,
-                  }}
+                  className={cn(
+                    "flex items-center p-4 px-5 rounded-[10px] border-[1.5px]",
+                    isCorrectAnswer
+                      ? "bg-mint/[0.08] border-mint"
+                      : isUsersAnswer
+                        ? "bg-crimson/[0.06] border-crimson"
+                        : "bg-input border-border"
+                  )}
                 >
                   <span
-                    className="flex items-center justify-center shrink-0"
-                    style={{
-                      width: 36, height: 36, borderRadius: 8,
-                      background: isCorrectAnswer ? "var(--mint)" : isUsersAnswer ? "var(--crimson)" : "var(--bg-card)",
-                      color: isCorrectAnswer || isUsersAnswer ? "#fff" : "var(--text-secondary)",
-                      border: `1.5px solid ${isCorrectAnswer ? "var(--mint)" : isUsersAnswer ? "var(--crimson)" : "var(--border-subtle)"}`,
-                      fontSize: 13, fontFamily: "var(--font-mono)", fontWeight: 600,
-                    }}
+                    className={cn(
+                      "flex items-center justify-center shrink-0 w-9 h-9 rounded-lg border-[1.5px] text-[13px] font-mono font-semibold",
+                      isCorrectAnswer
+                        ? "bg-mint text-white border-mint"
+                        : isUsersAnswer
+                          ? "bg-crimson text-white border-crimson"
+                          : "bg-card text-muted-foreground border-border"
+                    )}
                   >
                     {letter}
                   </span>
                   <span
-                    className="ml-4 flex-1 text-base"
-                    style={{ color: "var(--text-primary)" }}
+                    className="ml-4 flex-1 text-base text-foreground"
                     dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
                   />
                   <div className="flex items-center gap-2 ml-3">
                     {isUsersAnswer && (
-                      <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--crimson)" }}>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-crimson">
                         Your pick
                       </span>
                     )}
                     {isCorrectAnswer && (
-                      <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--mint)" }}>
+                      <span className="text-[10px] font-mono uppercase tracking-wider text-mint">
                         ✓ Correct
                       </span>
                     )}
@@ -190,12 +183,12 @@ export default function QuestionDetailPage() {
           </div>
 
           {q.type === "mcq" && q.yourAnswer === null && (
-            <div className="mt-5 px-4 py-3 rounded-lg text-sm" style={{ background: "var(--bg-input)", color: "var(--text-secondary)" }}>
+            <div className="mt-5 px-4 py-3 rounded-lg text-sm bg-input text-muted-foreground">
               You skipped this question.
             </div>
           )}
           {q.type === "mcq" && q.yourAnswer !== null && !q.isCorrect && (
-            <div className="mt-5 px-4 py-3 rounded-lg text-sm" style={{ background: "rgba(220,38,38,0.06)", color: "var(--crimson)" }}>
+            <div className="mt-5 px-4 py-3 rounded-lg text-sm bg-crimson/[0.06] text-crimson">
               You picked <strong>{q.yourAnswer}</strong>, but the correct answer is <strong>{q.correctAnswer}</strong>.
             </div>
           )}
@@ -204,33 +197,31 @@ export default function QuestionDetailPage() {
 
       {/* Numeric Answer */}
       {q.type === "numeric" && (
-        <Card style={{ padding: "32px 40px" }}>
-          <div className="text-[11px] uppercase tracking-wider mb-5 font-mono" style={{ color: "var(--text-secondary)" }}>
+        <Card className="p-8 px-10">
+          <div className="text-[11px] uppercase tracking-wider mb-5 font-mono text-muted-foreground">
             Numerical Answer
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div
-              className="p-6 rounded-lg"
-              style={{
-                background: q.yourAnswer && q.isCorrect ? "rgba(34,197,94,0.08)" : "rgba(220,38,38,0.06)",
-                border: `1.5px solid ${q.yourAnswer && q.isCorrect ? "var(--mint)" : "var(--crimson)"}`,
-              }}
+              className={cn(
+                "p-6 rounded-lg border-[1.5px]",
+                q.yourAnswer && q.isCorrect
+                  ? "bg-mint/[0.08] border-mint"
+                  : "bg-crimson/[0.06] border-crimson"
+              )}
             >
-              <div className="text-[10px] uppercase tracking-wider mb-2 font-mono" style={{ color: "var(--text-secondary)" }}>
+              <div className="text-[10px] uppercase tracking-wider mb-2 font-mono text-muted-foreground">
                 Your answer
               </div>
-              <div className="text-3xl font-mono" style={{ color: q.yourAnswer && q.isCorrect ? "var(--mint)" : "var(--crimson)" }}>
+              <div className={cn("text-3xl font-mono", q.yourAnswer && q.isCorrect ? "text-mint" : "text-crimson")}>
                 {q.yourAnswer ?? "—"}
               </div>
             </div>
-            <div
-              className="p-6 rounded-lg"
-              style={{ background: "rgba(34,197,94,0.08)", border: "1.5px solid var(--mint)" }}
-            >
-              <div className="text-[10px] uppercase tracking-wider mb-2 font-mono" style={{ color: "var(--text-secondary)" }}>
+            <div className="p-6 rounded-lg bg-mint/[0.08] border-[1.5px] border-mint">
+              <div className="text-[10px] uppercase tracking-wider mb-2 font-mono text-muted-foreground">
                 Correct answer
               </div>
-              <div className="text-3xl font-mono" style={{ color: "var(--mint)" }}>
+              <div className="text-3xl font-mono text-mint">
                 {q.correctAnswer}
               </div>
             </div>
@@ -240,13 +231,12 @@ export default function QuestionDetailPage() {
 
       {/* Explanation */}
       {q.explanation && (
-        <Card style={{ padding: "32px 40px" }}>
-          <div className="text-[11px] uppercase tracking-wider mb-4 font-mono" style={{ color: "var(--cyan)" }}>
+        <Card className="p-8 px-10">
+          <div className="text-[11px] uppercase tracking-wider mb-4 font-mono text-cyan">
             Explanation
           </div>
           <div
-            className="text-base"
-            style={{ color: "var(--text-primary)", lineHeight: 1.8 }}
+            className="text-base text-foreground leading-loose"
             dangerouslySetInnerHTML={{ __html: renderMath(q.explanation) }}
           />
         </Card>
@@ -261,7 +251,7 @@ export default function QuestionDetailPage() {
         >
           ← Previous {prev ? `(Q${prev.order})` : ""}
         </Button>
-        <span className="text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+        <span className="text-xs font-mono text-muted-foreground">
           {currentIdx + 1} / {questions.length}
         </span>
         <Button

@@ -129,7 +129,7 @@ analyticsRouter.get("/students", async (req, res) => {
       const totalMax = s.reduce((acc, x) => acc + (x.total ?? 0), 0);
       const avgPercent = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
       const best = s.reduce((acc, x) => Math.max(acc, x.score ?? 0), 0);
-      const last = s.length > 0 ? s.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0] : null;
+      const last = s.length > 0 ? [...s].sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0] : null;
       return {
         id: u.id,
         name: u.name,
@@ -426,7 +426,7 @@ analyticsRouter.get("/batches/:id", async (req, res) => {
       const avgPercent = totalMax > 0 ? Math.round((totalScore / totalMax) * 100) : 0;
       const best = userSessions.reduce((acc, x) => Math.max(acc, x.score ?? 0), 0);
       const last = userSessions.length > 0
-        ? userSessions.sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0]
+        ? [...userSessions].sort((a, b) => b.startTime.getTime() - a.startTime.getTime())[0]
         : null;
       // Per-paper breakdown: best % per paper (across attempts) + attempts count
       const perPaperMap = new Map<number, { attempts: number; bestPercent: number; lastPercent: number }>();
@@ -521,9 +521,20 @@ analyticsRouter.get("/options", async (_req, res) => {
   try {
     const [batches, students] = await Promise.all([
       prisma.batch.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-      prisma.user.findMany({ select: { id: true, name: true, email: true }, orderBy: { name: "asc" } }),
+      prisma.user.findMany({
+        select: { id: true, name: true, email: true, batchMembers: { include: { batch: { select: { name: true } } } } },
+        orderBy: { name: "asc" },
+      }),
     ]);
-    return res.json({ batches, students });
+    return res.json({
+      batches,
+      students: students.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        batches: u.batchMembers.map((bm) => bm.batch.name),
+      })),
+    });
   } catch (e) {
     log.err("GET /admin/analytics/options", e);
     return res.status(500).json({ error: (e as Error).message });

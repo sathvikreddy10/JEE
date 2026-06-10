@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Bell } from "lucide-react";
 import type { AppNotification } from "@testify/shared";
 
 interface NotificationsResponse {
@@ -96,45 +97,27 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className="relative w-9 h-9 flex items-center justify-center rounded transition-colors"
-        style={{
-          color: "var(--text-secondary)",
-          background: open ? "rgba(72,190,255,0.08)" : "transparent",
-          border: "1px solid var(--border-subtle)",
-        }}
+        className={`relative w-11 h-11 flex items-center justify-center rounded-lg border-2 transition-colors ${open ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:border-primary hover:text-primary"}`}
       >
-        <span style={{ fontSize: 16 }}>🔔</span>
+        <Bell className="h-5 w-5" />
         {data.unreadCount > 0 && (
-          <span
-            className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center text-[10px] font-mono font-bold"
-            style={{ background: "var(--crimson)", color: "#fff" }}
-          >
+          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold bg-destructive text-destructive-foreground border-2 border-card">
             {data.unreadCount > 9 ? "9+" : data.unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div
-          className="absolute right-0 top-[44px] w-[360px] max-h-[480px] overflow-auto rounded shadow-2xl z-50"
-          style={{
-            background: "var(--bg-card)",
-            border: "1px solid var(--border-active)",
-          }}
-        >
-          <div
-            className="sticky top-0 px-4 py-3 flex items-center justify-between"
-            style={{ background: "var(--bg-card)", borderBottom: "1px solid var(--border-subtle)" }}
-          >
-            <span className="text-xs font-mono uppercase tracking-wider" style={{ color: "var(--text-primary)" }}>
+        <div className="absolute right-0 top-[52px] w-[380px] max-h-[520px] overflow-auto rounded-xl shadow-2xl z-50 bg-card border-2 border-border">
+          <div className="sticky top-0 px-5 py-4 flex items-center justify-between bg-card border-b border-border">
+            <span className="text-xs font-mono uppercase tracking-wider font-semibold text-foreground">
               Notifications
             </span>
             {data.unreadCount > 0 && (
               <button
                 onClick={markAll}
                 disabled={loading}
-                className="text-[10px] font-mono uppercase"
-                style={{ color: "var(--cyan)" }}
+                className="text-xs font-semibold text-primary hover:underline"
               >
                 Mark all read
               </button>
@@ -142,7 +125,7 @@ export function NotificationBell() {
           </div>
 
           {data.notifications.length === 0 ? (
-            <div className="px-4 py-8 text-center text-xs font-mono" style={{ color: "var(--text-tertiary)" }}>
+            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
               No notifications yet
             </div>
           ) : (
@@ -151,27 +134,20 @@ export function NotificationBell() {
                 <button
                   key={n.id}
                   onClick={() => handleClick(n)}
-                  className="text-left px-4 py-3 flex flex-col gap-1 transition-colors"
-                  style={{
-                    borderBottom: "1px solid var(--border-subtle)",
-                    background: n.readAt ? "transparent" : "rgba(72,190,255,0.04)",
-                  }}
+                  className={`text-left px-5 py-4 flex flex-col gap-1.5 transition-colors border-b border-border last:border-b-0 hover:bg-accent ${n.readAt ? "" : "bg-primary/5"}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-medium" style={{ color: "var(--text-primary)" }}>
+                    <span className="text-sm font-semibold text-foreground">
                       {n.title}
                     </span>
                     {!n.readAt && (
-                      <span
-                        className="w-1.5 h-1.5 rounded-full shrink-0"
-                        style={{ background: "var(--cyan)" }}
-                      />
+                      <span className="w-2 h-2 rounded-full shrink-0 bg-primary" />
                     )}
                   </div>
-                  <span className="text-[11px] font-mono" style={{ color: "var(--text-secondary)" }}>
+                  <span className="text-xs text-muted-foreground">
                     {n.body}
                   </span>
-                  <span className="text-[10px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                  <span className="text-[11px] font-mono text-muted-foreground/70">
                     {timeAgo(n.createdAt)}
                   </span>
                 </button>

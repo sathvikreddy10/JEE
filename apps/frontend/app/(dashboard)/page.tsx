@@ -4,67 +4,27 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { StreakCard } from "@/components/dashboard/StreakCard";
 import { DailyChallenge } from "@/components/dashboard/DailyChallenge";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 import type { MyBatch } from "@testify/shared";
+import { Flame, Zap, Trophy, BookOpen, ArrowRight, Clock, Info, BarChart3, TrendingUp, Target, Award } from "lucide-react";
 
-interface HeatmapDay {
-  date: string;
-  count: number;
-  accuracy: number | null;
-  done: boolean;
-}
-
-interface WeekDay {
-  day: string;
-  date: string;
-  accuracy: number | null;
-  attempts: number;
-}
-
-interface StatsPayload {
-  studentId: number;
-  streak: number;
-  bestStreak: number;
+interface HeatmapDay { date: string; count: number; accuracy: number | null; done: boolean }
+interface WeekDay { day: string; date: string; accuracy: number | null; attempts: number }
+interface StatsPayload { studentId: number; streak: number; bestStreak: number; totalSessions: number;
+  lifetimeAccuracy: number; heatmap: HeatmapDay[]; weekly: WeekDay[] }
+interface MeUser { id: number; email: string; name: string }
+interface InsightsSummary {
   totalSessions: number;
+  bestScore: number;
   lifetimeAccuracy: number;
-  heatmap: HeatmapDay[];
-  weekly: WeekDay[];
-}
-
-function InfoTip({ text }: { text: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <span className="relative inline-flex items-center">
-      <span
-        className="w-4 h-4 rounded-full inline-flex items-center justify-center text-[10px] font-mono cursor-help ml-1.5"
-        style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)" }}
-        onMouseEnter={() => setShow(true)}
-        onMouseLeave={() => setShow(false)}
-      >
-        ?
-      </span>
-      {show && (
-        <span
-          className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 rounded text-xs whitespace-nowrap z-10"
-          style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)", color: "var(--text-secondary)", maxWidth: 260, whiteSpace: "normal" }}
-        >
-          {text}
-        </span>
-      )}
-    </span>
-  );
-}
-
-interface MeUser {
-  id: number;
-  email: string;
-  name: string;
+  avgPercent: number;
 }
 
 export default function DashboardPage() {
@@ -72,132 +32,165 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [user, setUser] = useState<MeUser | null>(null);
   const [myBatches, setMyBatches] = useState<MyBatch[]>([]);
-  const [incompleteSessions, setIncompleteSessions] = useState<
-    { id: number; setName: string; subject: string; startTime: string }[]
-  >([]);
+  const [incompleteSessions, setIncompleteSessions] = useState<{ id: number; setName: string; subject: string; startTime: string }[]>([]);
+  const [insights, setInsights] = useState<InsightsSummary | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const studentName = user?.name ?? "there";
 
   useEffect(() => {
-    fetchJSON<StatsPayload>("/api/student/stats")
-      .then((data) => {
-        setStats(data);
-        cli.success(`Stats loaded: streak=${data.streak} sessions=${data.totalSessions}`);
-      })
-      .catch((e) => cli.err("fetch stats", e));
-    fetchJSON<{ user: { id: number; name: string; email: string } | null }>("/api/auth/me")
-      .then((data) => setUser(data.user))
-      .catch(() => {});
-    fetchJSON<MyBatch[]>("/api/batches/mine")
-      .then((data) => setMyBatches(data ?? []))
-      .catch(() => {});
-    fetchJSON<{
-      sessions: {
-        id: number;
-        setName: string;
-        subject: string;
-        startTime: string;
-        completed: boolean;
-      }[];
-    }>("/api/student/history")
-      .then((data) => {
-        const incomplete = (data.sessions ?? [])
-          .filter((s) => !s.completed)
-          .slice(0, 3)
-          .map((s) => ({
-            id: s.id,
-            setName: s.setName,
-            subject: s.subject,
-            startTime: s.startTime,
-          }));
-        setIncompleteSessions(incomplete);
-      })
-      .catch(() => {});
+    Promise.all([
+      fetchJSON<StatsPayload>("/api/student/stats").then(d => { setStats(d); cli.success(`Stats: streak=${d.streak}`) }).catch(e => cli.err("stats", e)),
+      fetchJSON<{ user: MeUser | null }>("/api/auth/me").then(d => setUser(d.user)).catch(() => {}),
+      fetchJSON<MyBatch[]>("/api/batches/mine").then(d => setMyBatches(d ?? [])).catch(() => {}),
+      fetchJSON<{ sessions: { id: number; setName: string; subject: string; startTime: string; completed: boolean }[] }>("/api/student/history")
+        .then(d => setIncompleteSessions((d.sessions ?? []).filter(s => !s.completed).slice(0, 3).map(s => ({ id: s.id, setName: s.setName, subject: s.subject, startTime: s.startTime }))))
+        .catch(() => {}),
+      fetchJSON<{ summary: InsightsSummary }>("/api/student/insights")
+        .then(d => setInsights(d.summary))
+        .catch(() => {}),
+    ]).finally(() => setLoading(false));
   }, []);
 
-  return (
-    <div className="flex flex-col" style={{ gap: 40 }}>
-      {/* Header */}
-      <div
-        className="flex justify-between items-center bg-[var(--bg-card)]"
-        style={{ padding: "32px 40px", border: "1px solid var(--border-subtle)", borderRadius: 16 }}
-      >
-        <div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1
-              style={{
-                fontSize: 32,
-                fontWeight: 700,
-                fontFamily: "var(--font-brand)",
-                letterSpacing: "-0.02em",
-                color: "var(--text-primary)",
-              }}
-            >
-              Good morning, {studentName}
-            </h1>
-            {myBatches.length > 0 && (
-              <span
-                className="text-[10px] font-mono uppercase tracking-wider px-2.5 py-1 rounded"
-                style={{
-                  background: "rgba(72,190,255,0.10)",
-                  color: "var(--cyan)",
-                  border: "1px solid var(--border-active)",
-                }}
-                title={myBatches.map((b) => b.name).join(", ")}
-              >
-                {myBatches.length === 1
-                  ? `Batch: ${myBatches[0].name}`
-                  : `In ${myBatches.length} batches`}
-              </span>
-            )}
-          </div>
-          <p className="mt-2" style={{ color: "var(--text-secondary)", fontSize: 15 }}>
-            {stats
-              ? `${stats.streak}-day streak • ${stats.totalSessions} sessions completed • ${stats.lifetimeAccuracy}% lifetime accuracy`
-              : "Ready for your next challenge?"}
-          </p>
+  if (loading) {
+    return (
+      <div className="space-y-8 max-w-[1400px] mx-auto">
+        <Skeleton className="h-36 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
         </div>
-        <Link href="/tests">
-          <Button>Browse Tests →</Button>
-        </Link>
+        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-8 max-w-[1400px] mx-auto">
+      {/* Hero Header */}
+      <div className="rounded-2xl border-2 border-border bg-card p-8 md:p-10 shadow-sm">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                Welcome back{studentName !== "there" ? `, ${studentName}` : ""}
+              </h1>
+              {myBatches.length > 0 && (
+                <Badge variant="info">
+                  {myBatches.length === 1 ? myBatches[0].name : `${myBatches.length} batches`}
+                </Badge>
+              )}
+            </div>
+            <p className="text-muted-foreground">
+              {stats ? (
+                <span className="flex items-center gap-2 flex-wrap text-sm">
+                  <Flame className="h-4 w-4 text-warning" /> {stats.streak}-day streak
+                  <span className="text-border">·</span>
+                  <Trophy className="h-4 w-4 text-info" /> {stats.totalSessions} sessions
+                  <span className="text-border">·</span>
+                  <Zap className="h-4 w-4 text-success" /> {stats.lifetimeAccuracy}% accuracy
+                </span>
+              ) : "Ready for your next challenge?"}
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <Link href="/insights">
+              <Button size="lg" variant="outline" className="gap-2">
+                <BarChart3 className="h-4 w-4" /> View Insights
+              </Button>
+            </Link>
+            <Link href="/tests">
+              <Button size="lg" className="gap-2">
+                <BookOpen className="h-4 w-4" /> Browse Tests <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
 
-      {/* Resume Exam */}
+      {/* Quick stats */}
+      {insights && (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Accuracy</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{insights.lifetimeAccuracy}%</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Target className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Tests</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{insights.totalSessions}</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-info/10 text-info flex items-center justify-center">
+                  <BookOpen className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Best Score</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{insights.bestScore}</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-success/10 text-success flex items-center justify-center">
+                  <Award className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-5">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avg %</p>
+                  <p className="text-2xl font-bold font-mono text-foreground">{insights.avgPercent}%</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
+                  <TrendingUp className="h-5 w-5" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* Resume Exams */}
       {incompleteSessions.length > 0 && (
         <Card>
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-3">
-              <span
-                className="text-[11px] font-mono uppercase tracking-wider px-3 py-1.5 rounded-full"
-                style={{ background: "rgba(217,119,6,0.12)", color: "var(--amber)" }}
-              >
-                In Progress
-              </span>
-              <span className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
-                {incompleteSessions.length} active session{incompleteSessions.length > 1 ? "s" : ""}
-              </span>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-4 w-4 text-warning" /> In Progress
+              </CardTitle>
+              <Badge variant="warning">{incompleteSessions.length} active</Badge>
             </div>
-            <div className="flex flex-col gap-3">
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
               {incompleteSessions.map((s) => (
-                <div
-                  key={s.id}
-                  onClick={() => router.push(`/exam?sessionId=${s.id}`)}
-                  className="flex items-center justify-between p-4 rounded-lg cursor-pointer transition-all hover:bg-[var(--bg-card-hover)]"
-                  style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)" }}
-                >
+                <div key={s.id} onClick={() => router.push(`/exam?sessionId=${s.id}`)}
+                  className="flex items-center justify-between p-4 rounded-xl border-2 border-border bg-card hover:border-primary hover:bg-accent/30 cursor-pointer transition-all">
                   <div>
-                    <div className="font-medium text-sm" style={{ color: "var(--text-primary)" }}>
-                      {s.setName}
-                    </div>
-                    <div className="text-xs font-mono" style={{ color: "var(--text-secondary)" }}>
-                      {s.subject} • Started {new Date(s.startTime).toLocaleTimeString()}
-                    </div>
+                    <p className="font-semibold text-sm text-foreground">{s.setName}</p>
+                    <p className="text-xs text-muted-foreground">{s.subject} · Started {new Date(s.startTime).toLocaleTimeString()}</p>
                   </div>
-                  <Button size="sm">Resume →</Button>
+                  <Button size="sm">Resume <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
                 </div>
               ))}
             </div>
-          </div>
+          </CardContent>
         </Card>
       )}
 
@@ -206,27 +199,21 @@ export default function DashboardPage() {
 
       {/* Daily Challenge */}
       <Card>
-        <DailyChallenge />
+        <CardContent className="pt-6">
+          <DailyChallenge />
+        </CardContent>
       </Card>
 
       {/* Performance History */}
       <div>
-        <div className="flex justify-between items-center mb-6">
-          <h2
-            className="text-xl font-bold"
-            style={{
-              fontFamily: "var(--font-brand)",
-              letterSpacing: "-0.015em",
-              color: "var(--text-primary)",
-            }}
-          >
-            Performance History
-            <InfoTip text="Your weekly accuracy trend across all practice sets and mock tests." />
-          </h2>
-          <Badge variant="mint">Last 7 days</Badge>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-bold tracking-tight text-foreground">Performance History</h2>
+          <Badge variant="muted">Last 7 days</Badge>
         </div>
         <Card>
-          <AnalyticsChart weekly={stats?.weekly ?? []} heatmap={stats?.heatmap ?? []} />
+          <CardContent className="pt-6">
+            <AnalyticsChart weekly={stats?.weekly ?? []} heatmap={stats?.heatmap ?? []} />
+          </CardContent>
         </Card>
       </div>
     </div>

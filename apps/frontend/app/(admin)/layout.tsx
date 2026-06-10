@@ -1,11 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { fetchJSON } from "@/lib/api";
 import { log as cli } from "@/lib/logger";
 import { NotificationBell } from "@/components/NotificationBell";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+import {
+  FileText,
+  Users,
+  Calendar,
+  Tag,
+  BarChart3,
+  Radio,
+  Trophy,
+  Key,
+  LogOut,
+  ChevronRight,
+  PanelLeftClose,
+  PanelLeftOpen,
+} from "lucide-react";
 
 interface AdminMe {
   id: number;
@@ -14,15 +30,18 @@ interface AdminMe {
 }
 
 const NAV = [
-  { label: "Papers", path: "/papers" },
-  { label: "Batches", path: "/batches" },
-  { label: "Daily Challenge", path: "/daily-challenge" },
-  { label: "Topics", path: "/topics" },
-  { label: "Analytics", path: "/analytics" },
-  { label: "Live", path: "/admin/live" },
-  { label: "Results", path: "/admin/results" },
-  { label: "Credentials", path: "/credentials" },
+  { label: "Papers", path: "/papers", icon: FileText },
+  { label: "Batches", path: "/batches", icon: Users },
+  { label: "Daily Challenge", path: "/daily-challenge", icon: Calendar },
+  { label: "Topics", path: "/topics", icon: Tag },
+  { label: "Analytics", path: "/analytics", icon: BarChart3 },
+  { label: "Live", path: "/admin/live", icon: Radio },
+  { label: "Results", path: "/admin/results", icon: Trophy },
+  { label: "Credentials", path: "/credentials", icon: Key },
 ];
+
+const SIDEBAR_W = 240;
+const SIDEBAR_COLLAPSED_W = 68;
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -30,6 +49,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLogin = pathname === "/admin/login";
   const [admin, setAdmin] = useState<AdminMe | null>(null);
   const [ready, setReady] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("admin-sidebar-collapsed");
+      if (saved === "true") setCollapsed(true);
+    } catch {}
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("admin-sidebar-collapsed", String(next)); } catch {}
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (isLogin) {
@@ -57,21 +92,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return () => { cancelled = true; };
   }, [pathname, router, isLogin]);
 
-  if (isLogin) {
-    return <>{children}</>;
-  }
+  if (isLogin) return <>{children}</>;
 
   if (!ready) {
     return (
-      <div className="flex items-center justify-center h-screen" style={{ color: "var(--text-secondary)" }}>
-        Checking admin session…
+      <div className="flex items-center justify-center h-screen bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p className="text-sm text-muted-foreground font-mono">Checking admin session…</p>
+        </div>
       </div>
     );
   }
 
-  if (!admin) {
-    return null;
-  }
+  if (!admin) return null;
 
   const handleLogout = async () => {
     try {
@@ -82,51 +116,140 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "var(--bg-base)" }}>
-      <header
-        className="h-[56px] flex items-center justify-between px-8"
-        style={{ background: "var(--bg-nav)", borderBottom: "1px solid var(--border-subtle)" }}
+    <div className="min-h-screen flex bg-background overflow-x-hidden">
+      {/* Sidebar */}
+      <aside
+        aria-label="Admin navigation"
+        className={cn(
+          "fixed left-0 top-0 bottom-0 border-r bg-card flex flex-col z-30 shadow-sm transition-all duration-300 ease-in-out",
+          collapsed ? "w-[68px]" : "w-60"
+        )}
       >
-        <div className="flex items-center gap-8">
-          <Link href="/admin" className="text-xl font-extrabold tracking-tight" style={{ fontFamily: "var(--font-brand)", color: "var(--text-primary)" }}>
-            <span style={{ color: "var(--cyan)" }}>●</span> TESTIFY
-            <span className="ml-3 text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded" style={{ background: "rgba(72,190,255,0.12)", color: "var(--cyan)" }}>
-              Admin
-            </span>
+        {/* Logo */}
+        <div className="h-20 flex items-center gap-3 px-5 border-b overflow-hidden shrink-0">
+          <Link href="/admin" aria-label="Testify Admin Home" className="flex items-center gap-3 shrink-0 min-w-0">
+            <div className="h-10 w-10 rounded-xl bg-primary flex items-center justify-center shrink-0 shadow-sm">
+              <span className="text-primary-foreground text-base font-bold">●</span>
+            </div>
+            {!collapsed && (
+              <div className="flex flex-col gap-0.5 min-w-0">
+                <span className="text-base font-bold tracking-tight font-[family-name:var(--font-brand)] text-foreground leading-tight">
+                  TESTIFY
+                </span>
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-primary-foreground w-fit">
+                  Admin
+                </span>
+              </div>
+            )}
           </Link>
-          <nav className="flex items-center gap-1">
-            {NAV.map((n) => {
-              const isActive = pathname === n.path || (n.path === "/admin" && pathname === "/admin");
+        </div>
+
+        {/* Nav */}
+        <nav className="flex-1 overflow-y-auto py-6 px-3">
+          <div className="space-y-1.5">
+            {NAV.map((item) => {
+              const isActive = pathname === item.path || pathname.startsWith(item.path + "/");
               return (
                 <Link
-                  key={n.path}
-                  href={n.path}
-                  className="px-4 py-2 text-xs font-medium uppercase tracking-wider transition-colors"
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    color: isActive ? "var(--cyan)" : "var(--text-secondary)",
-                    borderLeft: isActive ? "3px solid var(--cyan)" : "3px solid transparent",
-                  }}
+                  key={item.path}
+                  href={item.path}
+                  title={collapsed ? item.label : undefined}
+                  className={cn(
+                    "flex items-center gap-3 rounded-lg text-sm font-medium transition-all duration-200 group relative",
+                    collapsed ? "px-2 py-3 justify-center" : "px-4 py-3",
+                    isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-foreground hover:bg-accent hover:text-foreground"
+                  )}
                 >
-                  {n.label}
+                  <item.icon
+                    className={cn(
+                      "h-4 w-4 shrink-0 transition-transform duration-200",
+                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
+                    )}
+                  />
+                  {!collapsed && (
+                    <>
+                      <span className="flex-1 truncate">{item.label}</span>
+                      {isActive && <ChevronRight className="h-3.5 w-3.5 text-primary" />}
+                    </>
+                  )}
+                  {collapsed && (
+                    <div className="absolute left-full ml-2 px-2.5 py-1.5 rounded-md bg-popover text-popover-foreground text-xs font-medium shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
+                      {item.label}
+                    </div>
+                  )}
                 </Link>
               );
             })}
-          </nav>
-        </div>
-        <div className="flex items-center gap-5">
-          <NotificationBell />
-          <span className="text-sm" style={{ color: "var(--text-secondary)" }}>{admin.email}</span>
+          </div>
+        </nav>
+
+        {/* Bottom: toggle + user + logout */}
+        <div className="border-t p-4 space-y-3 shrink-0">
+          {/* Collapse toggle */}
           <button
-            onClick={handleLogout}
-            className="px-3 py-1.5 text-xs rounded cursor-pointer"
-            style={{ color: "var(--cyan)", border: "1px solid var(--border-subtle)", background: "transparent" }}
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!collapsed}
+            className={cn(
+              "w-full flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium border-2 transition-all",
+              collapsed ? "justify-center" : "",
+              "border-border bg-background text-foreground hover:border-primary hover:bg-primary/5 hover:text-primary"
+            )}
+            title={collapsed ? "Expand sidebar" : undefined}
           >
-            Logout
+            {collapsed ? (
+              <PanelLeftOpen className="h-4 w-4" />
+            ) : (
+              <>
+                <PanelLeftClose className="h-4 w-4" />
+                <span className="truncate">Collapse</span>
+              </>
+            )}
           </button>
+
+          {!collapsed ? (
+            <>
+              <div className="flex items-center gap-3 px-1 py-2">
+                <div className="h-9 w-9 rounded-full bg-primary text-primary-foreground flex items-center justify-center shrink-0 font-semibold">
+                  {admin.name?.charAt(0)?.toUpperCase() || "A"}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold truncate text-foreground">{admin.name || "Admin"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{admin.email}</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" className="w-full" onClick={handleLogout}>
+                <LogOut className="h-3.5 w-3.5" />
+                Logout
+              </Button>
+            </>
+          ) : (
+            <Button variant="outline" size="sm" className="w-full justify-center px-0" onClick={handleLogout} title="Logout">
+              <LogOut className="h-3.5 w-3.5" />
+            </Button>
+          )}
         </div>
-      </header>
-      <main className="flex-1 overflow-hidden">{children}</main>
+      </aside>
+
+      {/* Main content area */}
+      <div
+        className="flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out"
+        style={{ marginLeft: collapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}
+      >
+        {/* Top bar */}
+        <header className="h-20 flex items-center justify-between px-10 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-20 shrink-0">
+          <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+            <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
+            <span>System online</span>
+          </div>
+          <div className="flex items-center gap-4 pr-2">
+            <NotificationBell />
+          </div>
+        </header>
+        <main className="flex-1 overflow-auto p-0">{children}</main>
+      </div>
     </div>
   );
 }

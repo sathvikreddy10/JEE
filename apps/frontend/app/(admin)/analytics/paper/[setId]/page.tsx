@@ -50,11 +50,11 @@ export default function PaperAnalyticsPage() {
             {paper.questionCount} questions · {paper.timeLimit}m · max {paper.attemptsAllowed} attempts
           </div>
           <div className="flex flex-wrap gap-1 mt-2">
-            <Badge variant="cyan">{paper.subject}</Badge>
-            <Badge variant={paper.kind === "INSTITUTE" ? "forest" : "muted"}>{paper.kind}</Badge>
-            {paper.batches.map((b) => (
+            <Badge variant="info">{paper.subject || "—"}</Badge>
+            <Badge variant={paper.kind === "INSTITUTE" ? "success" : "muted"}>{paper.kind || "—"}</Badge>
+            {(paper.batches || []).map((b) => (
               <Link key={b.id} href={`/analytics/batch/${b.id}`}>
-                <Badge variant="amber">{b.name}</Badge>
+                <Badge variant="warning">{b.name || "—"}</Badge>
               </Link>
             ))}
           </div>

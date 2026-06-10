@@ -1,10 +1,60 @@
 @import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,600,700&f[]=array@400&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&display=swap');
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 @import "katex/dist/katex.min.css";
 
+@theme {
+  /* shadcn/ui theme tokens */
+  --color-background: var(--bg-base);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--bg-card);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--bg-elevated);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--cyan);
+  --color-primary-foreground: var(--text-inverse);
+  --color-secondary: #F1F5F9;
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: #F1F5F9;
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: #F1F5F9;
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--crimson);
+  --color-destructive-foreground: var(--text-inverse);
+  --color-border: var(--border-subtle);
+  --color-input: var(--border-subtle);
+  --color-ring: var(--border-focus);
+  --radius: 0.625rem;
+
+  /* Semantic status colors (WCAG AA compliant) */
+  --color-success: #15803D;
+  --color-success-foreground: #FFFFFF;
+  --color-warning: #B45309;
+  --color-warning-foreground: #FFFFFF;
+  --color-info: #0369A1;
+  --color-info-foreground: #FFFFFF;
+
+  /* Brand colors as Tailwind utilities */
+  --color-cyan: #0369A1;
+  --color-cyan-hover: #075985;
+  --color-cyan-active: #0C4A6E;
+  --color-forest: #15803D;
+  --color-mint: #15803D;
+  --color-amber: #B45309;
+  --color-crimson: #B91C1C;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
 :root {
-  /* Backgrounds — Light Theme */
+  /* Backgrounds */
   --bg-base: #F0F4F8;
   --bg-elevated: #FFFFFF;
   --bg-card: #FFFFFF;
@@ -16,20 +66,22 @@
   /* Borders */
   --border-subtle: rgba(148, 163, 184, 0.5);
   --border-muted: rgba(148, 163, 184, 0.3);
-  --border-active: rgba(72, 190, 255, 0.6);
-  --border-focus: rgba(72, 190, 255, 0.9);
+  --border-active: rgba(3, 105, 161, 0.6);
+  --border-focus: rgba(3, 105, 161, 0.9);
 
-  /* Brand Accents */
-  --cyan: #0EA5E9;
-  --forest: #16A34A;
-  --mint: #22C55E;
-  --amber: #D97706;
-  --crimson: #DC2626;
+  /* Brand Accents (WCAG AA compliant against white) */
+  --cyan: #0369A1;
+  --cyan-hover: #075985;
+  --cyan-active: #0C4A6E;
+  --forest: #15803D;
+  --mint: #15803D;
+  --amber: #B45309;
+  --crimson: #B91C1C;
 
   /* Text */
   --text-primary: #0F172A;
-  --text-secondary: #64748B;
-  --text-tertiary: #94A3B8;
+  --text-secondary: #475569;
+  --text-tertiary: #64748B;
   --text-inverse: #FFFFFF;
 
   /* JEE Palette Colors */
@@ -53,8 +105,6 @@
   --font-mono: 'Array', ui-monospace, 'JetBrains Mono', monospace;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
 html { scroll-behavior: smooth; }
 
 body {
@@ -64,38 +114,40 @@ body {
   font-size: 15px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
 }
 
-button { font: inherit; cursor: pointer; border: none; background: none; }
-input, textarea, select { font: inherit; color: inherit; }
-a { color: var(--cyan); text-decoration: none; }
+a { color: var(--cyan); text-decoration: none; transition: color 0.2s; }
 a:hover { text-decoration: underline; }
 img { max-width: 100%; display: block; }
 
+/* Page transitions */
+@keyframes slide-up-fade {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slide-up-fade 0.4s ease-out forwards;
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-scale-in {
+  animation: scale-in 0.3s ease-out forwards;
+}
+
+/* Scrollbar */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.5); border-radius: 3px; }
 
-/* KaTeX: make $$..$$ display math render as centered block, not inline */
+/* KaTeX */
 .katex-display {
   display: block !important;
   margin: 1em 0 !important;
   text-align: center;
   overflow-x: auto;
   overflow-y: hidden;
-}
-
-@keyframes streak-pulse {
-  0%, 100% { text-shadow: 0 0 20px rgba(34,197,94,0.3); }
-  50% { text-shadow: 0 0 50px rgba(34,197,94,0.8), 0 0 80px rgba(34,197,94,0.3); }
-}
-
-@keyframes timer-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-@keyframes modal-in {
-  from { opacity: 0; transform: scale(0.96) translateY(8px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
 }
