@@ -162,16 +162,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       : "text-foreground hover:bg-accent hover:text-foreground"
                   )}
                 >
-                  <item.icon
-                    className={cn(
-                      "h-4 w-4 shrink-0 transition-transform duration-200",
-                      isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
-                    )}
-                  />
+                    <item.icon
+                      className={cn(
+                        "h-4 w-4 shrink-0 transition-transform duration-200",
+                        isActive ? "text-primary-foreground" : "text-muted-foreground group-hover:text-foreground"
+                      )}
+                    />
                   {!collapsed && (
                     <>
                       <span className="flex-1 truncate">{item.label}</span>
-                      {isActive && <ChevronRight className="h-3.5 w-3.5 text-primary" />}
+                      {isActive && <ChevronRight className="h-3.5 w-3.5 text-primary-foreground" />}
                     </>
                   )}
                   {collapsed && (

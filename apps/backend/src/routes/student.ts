@@ -227,6 +227,7 @@ studentRouter.get("/my-tests", async (req, res) => {
     const sessions = await prisma.examSession.findMany({
       where: { userId: user.id, setId: { in: setIds } },
       orderBy: { startTime: "desc" },
+      take: 100,
     });
 
     // 4. Build per-set session maps
@@ -387,14 +388,20 @@ studentRouter.get("/insights", async (req, res) => {
   try {
     const user = userOr401(req);
 
-    // Fetch all completed sessions with question-level analytics
+    // Fetch recent completed sessions (limit 100 for performance)
     const sessions = await prisma.examSession.findMany({
       where: { userId: user.id, completed: true },
-      include: {
+      select: {
+        id: true,
+        setId: true,
+        startTime: true,
+        score: true,
+        total: true,
+        analytics: true,
         set: { select: { id: true, name: true, subject: true, exam: true } },
-        answers: { select: { questionId: true, selectedOption: true, timeSpent: true, isCorrect: true } },
       },
       orderBy: { startTime: "asc" },
+      take: 100,
     });
 
     if (sessions.length === 0) {
@@ -493,15 +500,37 @@ studentRouter.get("/insights", async (req, res) => {
       .sort((a, b) => b.total - a.total);
 
     // ─── 4. Difficulty-wise accuracy ───
-    // Difficulty is on the Question model. Fetch question metadata once.
+    // Collect question IDs from analytics to fetch difficulty metadata
     const questionIds = new Set<number>();
+    let totalTimeSec = 0;
+    let totalQuestionsTime = 0;
+    let fastestSec = Infinity;
+    let slowestSec = 0;
+
     for (const s of sessions) {
-      for (const a of s.answers) questionIds.add(a.questionId);
+      if (!s.analytics) continue;
+      try {
+        const a = JSON.parse(s.analytics);
+        const qs = a.questions ?? [];
+        for (const q of qs) {
+          questionIds.add(q.questionId);
+          // Time analysis from analytics
+          if (q.timeSpent != null && q.timeSpent > 0) {
+            totalTimeSec += q.timeSpent;
+            totalQuestionsTime += 1;
+            if (q.timeSpent < fastestSec) fastestSec = q.timeSpent;
+            if (q.timeSpent > slowestSec) slowestSec = q.timeSpent;
+          }
+        }
+      } catch { /* skip */ }
     }
-    const questions = await prisma.question.findMany({
-      where: { id: { in: Array.from(questionIds) } },
-      select: { id: true, difficulty: true, topic: true, subject: true },
-    });
+
+    const questions = questionIds.size > 0
+      ? await prisma.question.findMany({
+          where: { id: { in: Array.from(questionIds) } },
+          select: { id: true, difficulty: true },
+        })
+      : [];
     const qMeta = new Map(questions.map((q) => [q.id, q]));
 
     const diffMap = new Map<number, { correct: number; total: number }>();
@@ -530,25 +559,10 @@ studentRouter.get("/insights", async (req, res) => {
       }))
       .sort((a, b) => a.difficulty - b.difficulty);
 
-    // ─── 5. Time analysis ───
-    let totalTimeSec = 0;
-    let totalQuestions = 0;
-    let fastestSec = Infinity;
-    let slowestSec = 0;
-    for (const s of sessions) {
-      for (const a of s.answers) {
-        if (a.timeSpent != null && a.timeSpent > 0) {
-          totalTimeSec += a.timeSpent;
-          totalQuestions += 1;
-          if (a.timeSpent < fastestSec) fastestSec = a.timeSpent;
-          if (a.timeSpent > slowestSec) slowestSec = a.timeSpent;
-        }
-      }
-    }
     const timeAnalysis = {
-      avgTimePerQuestion: totalQuestions > 0 ? Math.round(totalTimeSec / totalQuestions) : 0,
+      avgTimePerQuestion: totalQuestionsTime > 0 ? Math.round(totalTimeSec / totalQuestionsTime) : 0,
       totalTimeSec,
-      totalQuestions,
+      totalQuestions: totalQuestionsTime,
       fastestSec: fastestSec === Infinity ? 0 : fastestSec,
       slowestSec,
     };

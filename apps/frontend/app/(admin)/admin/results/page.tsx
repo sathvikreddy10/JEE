@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -149,6 +149,7 @@ type ChooserMode = "exam" | "batch";
 
 export default function AdminResultsPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [view, setView] = useState<View>("chooser");
   const [chooserMode, setChooserMode] = useState<ChooserMode>("exam");
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -231,6 +232,23 @@ export default function AdminResultsPage() {
     setBatchDetail(null);
     setSelectedStudent(null);
   };
+
+  // Auto-select exam from ?exam=X search param
+  const triggeredRef = useRef(false);
+  useEffect(() => {
+    const examId = searchParams.get("exam");
+    if (examId && exams.length > 0 && !triggeredRef.current) {
+      triggeredRef.current = true;
+      const match = exams.find((e) => e.id === Number(examId));
+      if (match) {
+        setChooserMode("exam");
+        setSelectedId(match.id);
+        setSelectedName(match.name);
+        setView("detail");
+        loadExamDetail(match.id);
+      }
+    }
+  }, [searchParams, exams]);
 
   const filteredExams = useMemo(() => {
     let r = exams.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()) || e.subject.toLowerCase().includes(search.toLowerCase()));
@@ -477,8 +495,8 @@ function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void })
             </h3>
             <div className="flex gap-2 flex-wrap">
               <Badge variant="muted">{exam.exam}</Badge>
-              <Badge variant="cyan">{exam.kind}</Badge>
-              <Badge variant="forest">{exam.subject}</Badge>
+              <Badge variant="info">{exam.kind}</Badge>
+              <Badge variant="success">{exam.subject}</Badge>
             </div>
           </div>
           <span className="text-xs font-mono text-primary">View →</span>
@@ -523,10 +541,10 @@ function ExamCard({ exam, onClick }: { exam: ExamSummary; onClick: () => void })
         {/* Badges */}
         <div className="flex gap-2 flex-wrap">
           {exam.flaggedCount > 0 && (
-            <Badge variant="crimson">🔴 {exam.flaggedCount} flagged</Badge>
+            <Badge variant="destructive">🔴 {exam.flaggedCount} flagged</Badge>
           )}
           {exam.autoEndedCount > 0 && (
-            <Badge variant="amber">⚠ {exam.autoEndedCount} auto-ended</Badge>
+            <Badge variant="warning">⚠ {exam.autoEndedCount} auto-ended</Badge>
           )}
           {(exam.batches || []).map((b) => (
             <Badge key={b.id} variant="info">{b.name || "—"}</Badge>
@@ -576,15 +594,15 @@ function BatchCard({ batch, onClick }: { batch: BatchSummary; onClick: () => voi
 
         <div className="flex gap-2 flex-wrap">
           {batch.flaggedCount > 0 && (
-            <Badge variant="crimson">🔴 {batch.flaggedCount} flagged</Badge>
+            <Badge variant="destructive">🔴 {batch.flaggedCount} flagged</Badge>
           )}
           {batch.autoEndedCount > 0 && (
-            <Badge variant="amber">⚠ {batch.autoEndedCount} auto-ended</Badge>
+            <Badge variant="warning">⚠ {batch.autoEndedCount} auto-ended</Badge>
           )}
           {batch.inactiveStudents > 0 && (
             <Badge variant="muted">{batch.inactiveStudents} inactive</Badge>
           )}
-          {!batch.isActive && <Badge variant="crimson">Inactive</Badge>}
+          {!batch.isActive && <Badge variant="destructive">Inactive</Badge>}
         </div>
       </div>
     </Card>
@@ -617,8 +635,8 @@ function StudentRow({
             <span className="font-medium text-sm text-foreground">
               {s.name}
             </span>
-            {s.flaggedAt && <Badge variant="crimson">Flagged</Badge>}
-            {s.autoEndedAt && <Badge variant="amber">Auto-ended</Badge>}
+            {s.flaggedAt && <Badge variant="destructive">Flagged</Badge>}
+            {s.autoEndedAt && <Badge variant="warning">Auto-ended</Badge>}
           </div>
           <div className="text-right">
             <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.percent))}>
@@ -650,7 +668,7 @@ function StudentRow({
           <span className="font-medium text-sm text-foreground">
             {s.name}
           </span>
-          {s.flaggedCount > 0 && <Badge variant="crimson">{s.flaggedCount} flagged</Badge>}
+          {s.flaggedCount > 0 && <Badge variant="destructive">{s.flaggedCount} flagged</Badge>}
         </div>
         <div className="text-right">
           <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.avgPercent))}>
@@ -737,10 +755,10 @@ function StudentDetail({
         {/* Status Badges */}
         <div className="flex gap-2 flex-wrap">
           {s.flaggedAt && (
-            <Badge variant="crimson">🔴 Flagged: {s.flagReason || "Unknown"}</Badge>
+            <Badge variant="destructive">🔴 Flagged: {s.flagReason || "Unknown"}</Badge>
           )}
           {s.autoEndedAt && (
-            <Badge variant="amber">⚠ Auto-ended at {new Date(s.autoEndedAt).toLocaleString()}</Badge>
+            <Badge variant="warning">⚠ Auto-ended at {new Date(s.autoEndedAt).toLocaleString()}</Badge>
           )}
         </div>
 
@@ -852,7 +870,7 @@ function StudentDetail({
                     {paper.subject} · {paper.attempts} attempts · avg {paper.avgPercent}%
                   </div>
                 </div>
-                <Badge variant={paper.avgPercent >= 60 ? "mint" : paper.avgPercent >= 40 ? "amber" : "crimson"}>
+                <Badge variant={paper.avgPercent >= 60 ? "success" : paper.avgPercent >= 40 ? "warning" : "destructive"}>
                   {paper.avgPercent}%
                 </Badge>
               </div>

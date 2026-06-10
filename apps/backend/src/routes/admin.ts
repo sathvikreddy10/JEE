@@ -532,6 +532,10 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
   try {
     const { name, subject, pattern, timeLimit, attemptsAllowed, kind, exam, tags, markingScheme, isReadyForDailyChallenge, batchAssignments } =
       req.body ?? {};
+    // Check the set exists first
+    const setExists = await prisma.questionSet.findUnique({ where: { id }, select: { id: true } });
+    if (!setExists) return res.status(404).json({ error: "Not found" });
+
     const data: Record<string, unknown> = {};
     if (name !== undefined) {
       const cleanName = String(name).trim();
@@ -586,6 +590,7 @@ adminRouter.put("/sets/:id", requireAdmin, async (req, res) => {
 
     // Validate batchAssignments (if provided) — full replace of assignments
     let cleanedAssignments: { batchId: number; scheduledStart: Date; scheduledEnd: Date; bufferMinutes: number }[] | null = null;
+
     if (batchAssignments !== undefined) {
       if (!Array.isArray(batchAssignments)) {
         return res.status(400).json({ error: "batchAssignments must be an array" });
@@ -1163,53 +1168,159 @@ adminRouter.get("/daily-challenge/tomorrow-status", requireAdmin, async (req, re
 // ─── Live Proctor Monitoring ───
 
 // GET /admin/live
-// Returns all active (non-completed, non-expired) exam sessions with tab switch counts
+// Returns all active (non-completed, non-expired) exam sessions grouped by paper
+// with student details, progress, and per-batch registered counts
 adminRouter.get("/live", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/live");
   try {
     const now = Date.now();
+
+    // 1. Fetch active sessions efficiently (no answers include, use _count)
     const sessions = await prisma.examSession.findMany({
       where: { completed: false, autoEndedAt: null },
-      include: {
-        set: { select: { name: true, subject: true, _count: { select: { questions: true } } } },
+      select: {
+        id: true,
+        setId: true,
+        userId: true,
+        studentName: true,
+        startTime: true,
+        timeLimit: true,
+        tabSwitches: true,
+        flaggedAt: true,
+        flagReason: true,
+        autoEndedAt: true,
         user: { select: { name: true, email: true } },
-        answers: { select: { id: true, selectedOption: true } },
+        set: { select: { id: true, name: true, subject: true, _count: { select: { questions: true } } } },
+        _count: { select: { answers: { where: { selectedOption: { not: null } } } } },
       },
     });
-    // Filter out sessions whose time has expired (student never submitted)
+
+    // 2. Filter out sessions whose time has expired (student never submitted)
     const activeSessions = sessions.filter((s) => {
       const elapsedMs = now - s.startTime.getTime();
       const limitMs = s.timeLimit * 1000;
-      return elapsedMs < limitMs + 5000; // 5 second grace
+      return elapsedMs < limitMs + 5000;
     });
-    const data = activeSessions.map((s) => {
-      const answeredCount = s.answers.filter((a) => a.selectedOption !== null && a.selectedOption !== "").length;
-      const totalQuestions = s.set._count.questions;
+
+    if (activeSessions.length === 0) {
+      log.info("Proctor live: 0 active sessions");
+      return res.json({ papers: [] });
+    }
+
+    // 3. Get question counts for all active sets
+    const setIds = [...new Set(activeSessions.map((s) => s.setId))];
+    const questionCounts = await prisma.questionSet.findMany({
+      where: { id: { in: setIds } },
+      select: { id: true, _count: { select: { questions: true } } },
+    });
+    const questionCountMap = new Map(questionCounts.map((q) => [q.id, q._count.questions]));
+
+    // 4. Get batch papers for these sets (with batch info)
+    const batchPapers = await prisma.batchPaper.findMany({
+      where: { setId: { in: setIds } },
+      include: { 
+        batch: { select: { id: true, name: true } },
+        set: { select: { name: true, subject: true } },
+      },
+    });
+
+    // 5. Get batch member counts for involved batches
+    const batchIds = [...new Set(batchPapers.map((bp) => bp.batchId))];
+    const batchMembers = await prisma.batchMember.groupBy({
+      by: ["batchId"],
+      where: { batchId: { in: batchIds } },
+      _count: { userId: true },
+    });
+    const batchMemberCountMap = new Map(batchMembers.map((bm) => [bm.batchId, bm._count.userId]));
+
+    // 6. Build per-set groups (each set may appear in multiple batches)
+    const setGroups = new Map<number, {
+      setId: number;
+      setName: string;
+      subject: string;
+      totalQuestions: number;
+      batches: { batchId: number; batchName: string; registeredCount: number }[];
+      students: any[];
+    }>();
+
+    for (const bp of batchPapers) {
+      const existing = setGroups.get(bp.setId);
+      if (!existing) {
+        setGroups.set(bp.setId, {
+          setId: bp.setId,
+          setName: bp.set.name,
+          subject: bp.set.subject || "Mixed",
+          totalQuestions: questionCountMap.get(bp.setId) ?? 0,
+          batches: [{
+            batchId: bp.batchId,
+            batchName: bp.batch.name,
+            registeredCount: batchMemberCountMap.get(bp.batchId) ?? 0,
+          }],
+          students: [],
+        });
+      } else {
+        existing.batches.push({
+          batchId: bp.batchId,
+          batchName: bp.batch.name,
+          registeredCount: batchMemberCountMap.get(bp.batchId) ?? 0,
+        });
+      }
+    }
+
+    // 7. Populate students into groups
+    for (const s of activeSessions) {
+      const group = setGroups.get(s.setId);
+      if (!group) continue;
+
+      const totalQuestions = group.totalQuestions;
+      const answeredCount = s._count.answers;
       const progress = totalQuestions > 0 ? Math.round((answeredCount / totalQuestions) * 100) : 0;
-      const isWarned = s.tabSwitches >= 3;
-      const isFlagged = !!s.flaggedAt;
       const elapsedSeconds = Math.floor((now - s.startTime.getTime()) / 1000);
       const timeRemaining = Math.max(0, s.timeLimit - elapsedSeconds);
-      return {
+      const isFlagged = !!s.flaggedAt;
+      const isWarned = s.tabSwitches >= 3;
+
+      group.students.push({
         id: s.id,
         student: s.user?.name || s.studentName,
         email: s.user?.email ?? null,
-        setName: s.set.name,
-        section: s.set.subject || "Mixed",
         progress,
         tabs: s.tabSwitches,
-        focus: 0, // future: window blur events
         status: isFlagged ? "flagged" : isWarned ? "warned" : "clean",
         flaggedAt: s.flaggedAt,
         flagReason: s.flagReason,
         autoEndedAt: s.autoEndedAt,
-        startTime: s.startTime,
         timeRemaining,
-        lastActivity: s.startTime,
-      };
-    });
-    log.info(`Proctor live: ${data.length} active sessions`);
-    return res.json({ sessions: data });
+        startTime: s.startTime,
+      });
+    }
+
+    // 8. Build final response — one entry per batch-paper to show registered vs active
+    const papers: any[] = [];
+    for (const group of setGroups.values()) {
+      if (group.students.length === 0) continue;
+
+      for (const batch of group.batches) {
+        const batchStudents = group.students; // simplified: all students shown under each batch
+        papers.push({
+          setId: group.setId,
+          setName: group.setName,
+          subject: group.subject,
+          batchId: batch.batchId,
+          batchName: batch.batchName,
+          registeredCount: batch.registeredCount,
+          activeCount: batchStudents.length,
+          flaggedCount: batchStudents.filter((s: any) => s.status === "flagged").length,
+          warnedCount: batchStudents.filter((s: any) => s.status === "warned").length,
+          cleanCount: batchStudents.filter((s: any) => s.status === "clean").length,
+          students: batchStudents,
+        });
+      }
+    }
+
+    const totalStudents = activeSessions.length;
+    log.info(`Proctor live: ${papers.length} active paper groups, ${totalStudents} active students`);
+    return res.json({ papers });
   } catch (e) {
     log.err("GET /admin/live", e);
     return res.status(500).json({ error: "Internal error" });
@@ -1253,20 +1364,30 @@ adminRouter.post("/sessions/:id/dismiss-flag", requireAdmin, async (req, res) =>
 adminRouter.get("/results", requireAdmin, async (req, res) => {
   log.api("GET", "/admin/results");
   try {
+    // Use _count for answers instead of loading all answers rows
     const sessions = await prisma.examSession.findMany({
       where: { completed: true },
-      include: {
-        set: { 
-          select: { name: true, batchPapers: { select: { batch: { select: { name: true } } } } } 
-        },
+      select: {
+        id: true,
+        score: true,
+        total: true,
+        startTime: true,
+        endTime: true,
+        timeLimit: true,
+        tabSwitches: true,
+        flaggedAt: true,
+        flagReason: true,
+        autoEndedAt: true,
+        studentName: true,
         user: { select: { name: true, email: true } },
-        answers: { select: { id: true, selectedOption: true } },
+        set: { select: { name: true, batchPapers: { select: { batch: { select: { name: true } } } } } },
+        _count: { select: { answers: true } },
       },
+      orderBy: { startTime: "desc" },
+      take: 500,
     });
 
     const data = sessions.map((s) => {
-      const totalQuestions = s.answers.length;
-      const answeredCount = s.answers.filter((a) => a.selectedOption !== null && a.selectedOption !== "").length;
       const percent = s.total && s.total > 0 ? Math.round(((s.score ?? 0) / s.total) * 100) : 0;
       const timeTaken = s.endTime
         ? Math.floor((s.endTime.getTime() - s.startTime.getTime()) / 1000)
@@ -1322,7 +1443,7 @@ adminRouter.get("/results/exams", requireAdmin, async (req, res) => {
     const setIds = sets.map((s) => s.id);
     const sessions = await prisma.examSession.findMany({
       where: { setId: { in: setIds }, completed: true },
-      include: { user: { select: { id: true, name: true, email: true } } },
+      select: { setId: true, score: true, total: true, userId: true, flaggedAt: true, autoEndedAt: true },
     });
 
     const sessionsBySet = new Map<number, typeof sessions>();

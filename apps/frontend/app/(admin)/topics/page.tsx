@@ -228,11 +228,11 @@ export default function TopicsPage() {
             Refresh
           </Button>
           {selected.size >= 2 && (
-            <Button variant="primary" onClick={() => setShowMerge(true)} disabled={busy}>
+            <Button variant="default" onClick={() => setShowMerge(true)} disabled={busy}>
               Merge selected ({selected.size})
             </Button>
           )}
-          <Button variant="primary" onClick={() => setShowCreate(true)} disabled={busy}>
+          <Button variant="default" onClick={() => setShowCreate(true)} disabled={busy}>
             + New topic
           </Button>
         </div>
@@ -351,9 +351,9 @@ export default function TopicsPage() {
                     <td className="py-2 pr-2 text-right tabular-nums">{r.sessionCount}</td>
                     <td className="py-2 pr-2">
                       {r.status === "canonical" ? (
-                        <Badge variant="forest">canonical</Badge>
+                        <Badge variant="success">canonical</Badge>
                       ) : (
-                        <Badge variant="amber">orphan{r.setCount ? ` (${r.setCount} sets)` : ""}</Badge>
+                        <Badge variant="warning">orphan{r.setCount ? ` (${r.setCount} sets)` : ""}</Badge>
                       )}
                     </td>
                     <td className="py-2 pl-2">
@@ -406,7 +406,7 @@ export default function TopicsPage() {
             </label>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="ghost" onClick={() => setShowCreate(false)} disabled={busy}>Cancel</Button>
-              <Button variant="primary" onClick={doCreate} disabled={busy || !newTopic.name.trim()}>Create</Button>
+              <Button variant="default" onClick={doCreate} disabled={busy || !newTopic.name.trim()}>Create</Button>
             </div>
           </div>
         </Modal>
@@ -467,7 +467,7 @@ function MergeModal({ sources, onClose, onConfirm, busy }: { sources: { name: st
           <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">Sources</div>
           <div className="flex flex-wrap gap-1">
             {sources.map((s) => (
-              <Badge key={s.name} variant={s.status === "canonical" ? "forest" : "amber"}>
+              <Badge key={s.name} variant={s.status === "canonical" ? "success" : "warning"}>
                 {s.name}
               </Badge>
             ))}
@@ -487,7 +487,7 @@ function MergeModal({ sources, onClose, onConfirm, busy }: { sources: { name: st
         </label>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="primary" onClick={() => onConfirm(target)} disabled={busy || !target.trim()}>Merge & recompute</Button>
+          <Button variant="default" onClick={() => onConfirm(target)} disabled={busy || !target.trim()}>Merge & recompute</Button>
         </div>
       </div>
     </Modal>

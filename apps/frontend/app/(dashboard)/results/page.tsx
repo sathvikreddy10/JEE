@@ -89,11 +89,11 @@ function band(percent: number): "excellent" | "good" | "average" | "needs-work" 
   return "needs-work";
 }
 
-function bandVariant(b: ReturnType<typeof band>): "forest" | "cyan" | "amber" | "crimson" {
-  if (b === "excellent") return "forest";
-  if (b === "good") return "cyan";
-  if (b === "average") return "amber";
-  return "crimson";
+function bandVariant(b: ReturnType<typeof band>): "success" | "info" | "warning" | "destructive" {
+  if (b === "excellent") return "success";
+  if (b === "good") return "info";
+  if (b === "average") return "warning";
+  return "destructive";
 }
 
 function bandLabel(b: ReturnType<typeof band>): string {
@@ -317,7 +317,7 @@ function ResultsPageInner() {
               <h2 className="text-xl font-bold font-brand tracking-tight text-foreground">
                 Performance History
               </h2>
-              <Badge variant="mint">Last 7 days</Badge>
+              <Badge variant="success">Last 7 days</Badge>
             </div>
             <Card>
               <AnalyticsChart weekly={stats?.weekly ?? []} heatmap={stats?.heatmap ?? []} />
@@ -351,7 +351,7 @@ function SessionCard({
               {s.setName}
             </h3>
             {s.kind === "daily-challenge" ? (
-              <Badge variant="cyan">Daily</Badge>
+              <Badge variant="info">Daily</Badge>
             ) : (
               <Badge variant="muted">Practice</Badge>
             )}
@@ -380,7 +380,7 @@ function SessionCard({
               </div>
             </div>
           ) : (
-            <Badge variant="amber">Incomplete</Badge>
+            <Badge variant="warning">Incomplete</Badge>
           )}
           <div className="text-right min-w-[60px]">
             <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">

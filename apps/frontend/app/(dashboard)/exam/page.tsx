@@ -68,6 +68,8 @@ function ExamPageInner() {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Local session ID state — updated when creating or resuming a session
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [ending, setEnding] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [confirmType, setConfirmType] = useState<"submit" | "end">("submit");
@@ -141,7 +143,7 @@ function ExamPageInner() {
 
   // Retry queue: try to flush every 3 seconds
   useEffect(() => {
-    if (!sessionIdParam || sessionIdParam === "0") return;
+    if (!currentSessionId) return;
     if (pendingQueue.length === 0) return;
 
     cli.queue(pendingQueue.length);
@@ -149,7 +151,7 @@ function ExamPageInner() {
       const stillPending: PendingSave[] = [];
       for (const item of pendingQueue) {
         try {
-          await apiCall("POST", `/api/exam/${sessionIdParam}/answer`, {
+          await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
             questionId: item.questionId,
             selectedOption: item.selectedOption,
             timeSpent: item.timeSpent,
@@ -167,7 +169,60 @@ function ExamPageInner() {
       }
     }, 3000);
     return () => clearTimeout(timer);
-  }, [pendingQueue, sessionIdParam]);
+  }, [pendingQueue, currentSessionId]);
+
+  // Shared helper to apply exam state from fetched data
+  const applyExamState = useCallback((
+    data: { questions: QuestionData[]; timeLimit: number; timeTaken?: number },
+    sessionId: number,
+    isFresh: boolean = false,
+  ) => {
+    setQuestions(data.questions);
+    setTimeLimit(data.timeLimit);
+    setCurrentSessionId(sessionId);
+    const elapsed = data.timeTaken ?? 0;
+    const remaining = Math.max(0, data.timeLimit - elapsed);
+    setTimeLeft(remaining);
+
+    const restoredAns: Record<number, string> = {};
+    const restoredVisited = new Set<number>();
+    const restoredReview = new Set<number>();
+    const restoredSkipped = new Set<number>();
+    for (const q of data.questions) {
+      if ((q as any).selectedAnswer) restoredAns[q.id] = (q as any).selectedAnswer;
+      if ((q as any).markedForReview) restoredReview.add(q.id);
+      // Only pre-visit questions on resume; fresh start: visit only the first question
+      if (!isFresh || q.id === data.questions[0]?.id) {
+        restoredVisited.add(q.id);
+      }
+      if (isFresh && !(q as any).selectedAnswer && q.id !== data.questions[0]?.id) {
+        restoredSkipped.add(q.id);
+      }
+    }
+    setAnswers(restoredAns);
+    setVisited(restoredVisited);
+    setReview(restoredReview);
+    setSkipped(restoredSkipped);
+    for (const q of data.questions) {
+      if (q.timeSpent && q.timeSpent > 0) {
+        timeSpentRef.current[q.id] = q.timeSpent;
+      }
+    }
+    const idx = Math.min(initialActiveIndex, data.questions.length - 1);
+    setActiveIndex(idx);
+    setSelectedOption(null);
+    setIsRedFlagged(false);
+    setIsTerminated(false);
+    tabSwitchCount.current = 0;
+    cli.info(`Timer: ${remaining}s remaining (elapsed ${elapsed}s)`);
+
+    // Update URL silently so refresh works, but we don't depend on it
+    window.history.replaceState(null, '', `/exam?sessionId=${sessionId}`);
+    questionStartTime.current = Date.now();
+    setLoading(false);
+
+    cli.info(`Loaded exam: ${data.questions.length} questions, ${Object.keys(restoredAns).length} restored answers, ${restoredReview.size} marked for review, starting at Q${idx + 1}`);
+  }, [initialActiveIndex]);
 
   // Initial load: always create or resume a session
   const isCreatingRef = useRef(false);
@@ -178,14 +233,12 @@ function ExamPageInner() {
     const init = async () => {
       try {
         if (!sessionIdParam || sessionIdParam === "0") {
-          // Prevent duplicate session creation on double-mount or rapid refresh
           if (isCreatingRef.current) {
             cli.info("Session creation already in progress, skipping duplicate");
             return;
           }
           isCreatingRef.current = true;
 
-          // No session: create one with the specified setId or the first available
           const targetSetId = setIdParam ? Number(setIdParam) : null;
           if (!targetSetId) {
             cli.info("No sessionId or setId — fetching available sets");
@@ -198,8 +251,9 @@ function ExamPageInner() {
               { setId: sets[0].id }
             );
             if (cancelled) return;
-            cli.success(`Session created: ${startData.sessionId}, redirecting`);
-            router.replace(`/exam?sessionId=${startData.sessionId}`);
+            cli.success(`Session created: ${startData.sessionId}`);
+            // Apply directly — no redirect/remount
+            applyExamState({ ...startData, timeTaken: 0, questions: startData.questions }, startData.sessionId, true);
             return;
           }
           cli.info(`No sessionId — creating new session for setId=${targetSetId}`);
@@ -209,9 +263,10 @@ function ExamPageInner() {
             { setId: targetSetId }
           );
           if (cancelled) return;
-          cli.success(`Session created: ${startData.sessionId}, redirecting`);
-            router.replace(`/exam?sessionId=${startData.sessionId}`);
-            return;
+          cli.success(`Session created: ${startData.sessionId}`);
+          // Apply directly — no redirect/remount
+          applyExamState({ ...startData, timeTaken: 0, questions: startData.questions }, startData.sessionId, true);
+          return;
         }
 
         // Resume existing session
@@ -230,37 +285,7 @@ function ExamPageInner() {
           return;
         }
 
-        setQuestions(data.questions);
-        setTimeLimit(data.timeLimit);
-        // Fix #1: Timer respects elapsed time on refresh
-        const elapsed = data.timeTaken ?? 0;
-        const remaining = Math.max(0, data.timeLimit - elapsed);
-        setTimeLeft(remaining);
-        cli.info(`Timer: ${remaining}s remaining (elapsed ${elapsed}s)`);
-
-        const restoredAns: Record<number, string> = {};
-        const restoredVisited = new Set<number>();
-        const restoredReview = new Set<number>();
-        for (const q of data.questions) {
-          if (q.selectedAnswer) restoredAns[q.id] = q.selectedAnswer;
-          if (q.markedForReview) restoredReview.add(q.id);
-          restoredVisited.add(q.id);
-        }
-        setAnswers(restoredAns);
-        setVisited(restoredVisited);
-        setReview(restoredReview);
-        // Restore accumulated time per question from server
-        for (const q of data.questions) {
-          if (q.timeSpent && q.timeSpent > 0) {
-            timeSpentRef.current[q.id] = q.timeSpent;
-          }
-        }
-        // Fix #5: Restore activeIndex from URL, bounded by question count
-        const idx = Math.min(initialActiveIndex, data.questions.length - 1);
-        setActiveIndex(idx);
-        questionStartTime.current = Date.now();
-        setLoading(false);
-        cli.success(`Loaded exam: ${data.questions.length} questions, ${Object.keys(restoredAns).length} restored answers, ${restoredReview.size} marked for review, starting at Q${idx + 1}`);
+        applyExamState(data, Number(sessionIdParam));
       } catch (e: any) {
         cli.err("init exam", e);
         if (!cancelled) {
@@ -299,7 +324,7 @@ function ExamPageInner() {
   // Tab switch detection: every visibility change = 1 tab switch
   useEffect(() => {
     if (isPractice) return; // disabled in practice mode
-    if (!sessionIdParam || sessionIdParam === "0" || isTerminated) return;
+    if (!currentSessionId || isTerminated) return;
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         tabSwitchCount.current++;
@@ -336,7 +361,7 @@ function ExamPageInner() {
         }
 
         // Report to backend
-        fetch(`/api/exam/${sessionIdParam}/suspicious-event`, {
+        fetch(`/api/exam/${currentSessionId}/suspicious-event`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ type: "TAB_SWITCH" }),
@@ -360,7 +385,7 @@ function ExamPageInner() {
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [sessionIdParam, isTerminated, beep, addToast]);
+  }, [currentSessionId, isTerminated, beep, addToast]);
 
   const currentQuestion = questions[activeIndex];
 
@@ -377,7 +402,7 @@ function ExamPageInner() {
       timeSpentRef.current[currentQuestion.id] = (timeSpentRef.current[currentQuestion.id] ?? 0) + spent;
     }
 
-    cli.info(`Ending exam session=${sessionIdParam}`);
+    cli.info(`Ending exam session=${currentSessionId}`);
 
     // Practice mode: compute local score and show results overlay
     if (isPractice) {
@@ -427,13 +452,13 @@ function ExamPageInner() {
       return;
     }
 
-    if (sessionIdParam && sessionIdParam !== "0") {
+    if (currentSessionId) {
       // Flush any pending saves first
       if (pendingQueue.length > 0) {
         cli.warn(`Flushing ${pendingQueue.length} pending saves before ending`);
         for (const item of pendingQueue) {
           try {
-            await apiCall("POST", `/api/exam/${sessionIdParam}/answer`, {
+            await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
               questionId: item.questionId,
               selectedOption: item.selectedOption,
               timeSpent: item.timeSpent,
@@ -447,15 +472,15 @@ function ExamPageInner() {
       try {
         const data = await apiCall<{ sessionId: number; score: number; total: number; percent: number }>(
           "POST",
-          `/api/exam/${sessionIdParam}/end`
+          `/api/exam/${currentSessionId}/end`
         );
         cli.success(`Exam evaluated: session=${data.sessionId} score=${data.score}/${data.total} (${data.percent}%)`);
-        router.replace(`/results/session/${sessionIdParam}`);
+        router.replace(`/results/session/${currentSessionId}`);
         return;
       } catch (e) {
         cli.err("end exam", e);
         // Still navigate to results so the user isn't stuck
-        router.replace(`/results/session/${sessionIdParam}`);
+        router.replace(`/results/session/${currentSessionId}`);
         return;
       }
     }
@@ -501,9 +526,9 @@ function ExamPageInner() {
       cli.info(`[PRACTICE] q=${questionId} → ${option === "" ? "(skipped)" : option} (${timeSpent}s)${markedForReview ? " [review]" : ""}`);
       return;
     }
-    if (!sessionIdParam || sessionIdParam === "0") return;
+    if (!currentSessionId) return;
     try {
-      await apiCall("POST", `/api/exam/${sessionIdParam}/answer`, {
+      await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
         questionId,
         selectedOption: option,
         timeSpent,
@@ -514,13 +539,13 @@ function ExamPageInner() {
       cli.warn(`Instant save failed for q=${questionId}, queuing for retry`);
       setPendingQueue((prev) => [...prev, { questionId, selectedOption: option, timeSpent, attempts: 1 }]);
     }
-  }, [sessionIdParam, isPractice]);
+  }, [currentSessionId, isPractice]);
 
   // Save marked-for-review state independently
   const saveMarkedForReview = useCallback(async (questionId: number, marked: boolean) => {
-    if (!sessionIdParam || sessionIdParam === "0") return;
+    if (!currentSessionId) return;
     try {
-      await apiCall("POST", `/api/exam/${sessionIdParam}/answer`, {
+      await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
         questionId,
         selectedOption: answers[questionId] ?? "",
         timeSpent: 0,
@@ -530,7 +555,7 @@ function ExamPageInner() {
     } catch {
       cli.warn(`Failed to persist mark-for-review for q=${questionId}`);
     }
-  }, [sessionIdParam, answers]);
+  }, [currentSessionId, answers]);
 
   const goToQuestion = useCallback((index: number) => {
     // Record time spent on the current question before moving
@@ -547,10 +572,10 @@ function ExamPageInner() {
       setVisited((prev) => new Set(prev).add(q.id));
     }
     // Persist activeIndex in URL so refresh keeps position
-    if (sessionIdParam) {
-      router.replace(`/exam?sessionId=${sessionIdParam}&activeIndex=${index}`, { scroll: false });
+    if (currentSessionId) {
+      router.replace(`/exam?sessionId=${currentSessionId}&activeIndex=${index}`, { scroll: false });
     }
-  }, [questions, currentQuestion, sessionIdParam, router]);
+  }, [questions, currentQuestion, currentSessionId, router]);
 
   const getCurrentTimeSpent = useCallback(() => {
     if (!currentQuestion) return 0;
@@ -602,13 +627,13 @@ function ExamPageInner() {
       return next;
     });
     const timeSpent = getCurrentTimeSpent();
-    if (sessionIdParam && sessionIdParam !== "0") {
+    if (currentSessionId) {
       await saveAnswer(currentQuestion.id, "", timeSpent);
     }
     if (activeIndex < questions.length - 1) {
       goToQuestion(activeIndex + 1);
     }
-  }, [currentQuestion, activeIndex, questions.length, goToQuestion, sessionIdParam, saveAnswer, getCurrentTimeSpent]);
+  }, [currentQuestion, activeIndex, questions.length, goToQuestion, currentSessionId, saveAnswer, getCurrentTimeSpent]);
 
   const handleNext = useCallback(() => {
     if (activeIndex >= questions.length - 1) {
@@ -772,19 +797,19 @@ function ExamPageInner() {
           {/* Tab switch counter */}
           {tabSwitchCount.current > 0 && (
             <Badge
-              variant={tabSwitchCount.current >= 4 ? "crimson" : tabSwitchCount.current >= 3 ? "amber" : "muted"}
+              variant={tabSwitchCount.current >= 4 ? "destructive" : tabSwitchCount.current >= 3 ? "warning" : "muted"}
               className="font-mono"
             >
               🔄 {tabSwitchCount.current}
             </Badge>
           )}
           {pendingQueue.length > 0 && (
-            <Badge variant="amber" className="font-mono">
+            <Badge variant="warning" className="font-mono">
               {pendingQueue.length} pending
             </Badge>
           )}
-          <Badge variant="cyan" className="font-mono">{activeIndex + 1}/{totalQuestions}</Badge>
-          <Badge variant={currentQuestion.type === "numeric" ? "forest" : "muted"} className="font-mono">
+          <Badge variant="info" className="font-mono">{activeIndex + 1}/{totalQuestions}</Badge>
+          <Badge variant={currentQuestion.type === "numeric" ? "success" : "muted"} className="font-mono">
             {currentQuestion.type === "numeric" ? "NUM" : "MCQ"}
           </Badge>
           <span
@@ -1009,7 +1034,7 @@ function ExamPageInner() {
                 <Button variant="outline" onClick={markForReview}>
                   {review.has(currentQuestion.id) ? "Unmark Review" : "Mark for Review"}
                 </Button>
-                <Button variant="primary" onClick={handleNext}>
+                <Button variant="default" onClick={handleNext}>
                   {isLastQuestion ? "Submit" : "Save & Next"}
                 </Button>
               </div>
@@ -1061,7 +1086,7 @@ function ExamPageInner() {
         <span className="text-xs font-mono text-muted-foreground">
           {Object.keys(answers).filter(k => answers[Number(k)]).length} of {totalQuestions} answered
         </span>
-        <Button variant="solid" onClick={() => { setConfirmType("end"); setShowConfirmModal(true); }} disabled={ending}>
+        <Button variant="default" onClick={() => { setConfirmType("end"); setShowConfirmModal(true); }} disabled={ending}>
           {ending ? "Ending..." : "End Test"}
         </Button>
       </div>
@@ -1118,7 +1143,7 @@ function ExamPageInner() {
               Each tab switch is logged and monitored. Switching tabs repeatedly will result in a red flag and possible exam termination.
             </p>
             <div className="flex justify-center">
-              <Button variant="primary" onClick={() => setShowTabSwitchModal(false)}>
+              <Button variant="default" onClick={() => setShowTabSwitchModal(false)}>
                 I understand — Stay on this page
               </Button>
             </div>
@@ -1203,3 +1228,4 @@ export default function ExamPage() {
     </Suspense>
   );
 }
+

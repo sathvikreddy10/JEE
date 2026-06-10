@@ -29,7 +29,7 @@ async function handle401() {
 
 export async function fetchJSON<T = unknown>(
   path: string,
-  init?: RequestInit
+  init?: Omit<RequestInit, 'body'> & { body?: BodyInit | Record<string, unknown> | null }
 ): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
   cli.api(method, path, init?.body ? safeParseBody(init.body) : undefined);

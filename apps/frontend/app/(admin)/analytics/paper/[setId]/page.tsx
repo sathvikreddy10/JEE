@@ -109,8 +109,8 @@ export default function PaperAnalyticsPage() {
         <Card>
           <h2 className="text-sm font-semibold text-zinc-700 mb-3">Topic performance</h2>
           <div className="space-y-2">
-            {topicBreakdown.map((t) => (
-              <div key={t.topic} className="flex items-center gap-3">
+            {topicBreakdown.map((t, i) => (
+              <div key={t.topic ?? `topic-${i}`} className="flex items-center gap-3">
                 <div className="w-40 text-sm text-zinc-700 truncate">{t.topic}</div>
                 <div className="flex-1 h-2 bg-zinc-100 rounded overflow-hidden">
                   <div
@@ -160,7 +160,7 @@ export default function PaperAnalyticsPage() {
                   <td className="py-2 text-right text-xs text-zinc-600">{Math.round(s.timeTaken / 60)}m</td>
                   <td className="py-2 text-xs text-zinc-500">{new Date(s.startTime).toLocaleString()}</td>
                   <td className="py-2 text-right">
-                    <Link href={`/results/session/${s.sessionId}`} className="text-xs text-cyan-700 hover:underline">View →</Link>
+                    <Link href={`/admin/results?exam=${setId}`} className="text-xs text-cyan-700 hover:underline">View detail →</Link>
                   </td>
                 </tr>
               ))}

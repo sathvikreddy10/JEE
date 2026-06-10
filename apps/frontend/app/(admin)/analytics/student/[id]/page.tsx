@@ -111,8 +111,8 @@ export default function StudentAnalyticsPage() {
           <div className="text-zinc-400 text-sm">No topic data yet.</div>
         ) : (
           <div className="space-y-2">
-            {topicStrength.map((t) => (
-              <div key={t.topic} className="flex items-center gap-3">
+            {topicStrength.map((t, i) => (
+              <div key={t.topic ?? `topic-${i}`} className="flex items-center gap-3">
                 <div className="w-40 text-sm text-zinc-700 truncate">{t.topic}</div>
                 <div className="flex-1 h-2 bg-zinc-100 rounded overflow-hidden">
                   <div
@@ -150,7 +150,7 @@ export default function StudentAnalyticsPage() {
                   <td className="py-2 text-right"><PercentCell value={s.percent} /> <span className="text-xs text-zinc-500">({s.score}/{s.total})</span></td>
                   <td className="py-2 text-right text-xs text-zinc-600">{Math.round(s.timeTaken / 60)}m</td>
                   <td className="py-2 text-right">
-                    <Link href={`/results/session/${s.id}`} className="text-xs text-cyan-700 hover:underline">View →</Link>
+                    <Link href={`/admin/results?exam=${s.setId}`} className="text-xs text-cyan-700 hover:underline">View detail →</Link>
                   </td>
                 </tr>
               ))}

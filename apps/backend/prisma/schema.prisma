@@ -155,7 +155,10 @@ model ExamSession {
   answers       StudentAnswer[]
 
   @@index([userId])
+  @@index([userId, completed])
   @@index([setId, completed])
+  @@index([completed, autoEndedAt])
+  @@index([startTime])
   @@index([flaggedAt])
   @@index([autoEndedAt])
 }

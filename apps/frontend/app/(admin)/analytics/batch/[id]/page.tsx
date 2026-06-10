@@ -56,7 +56,7 @@ export default function BatchAnalyticsPage() {
           <h1 className="text-2xl font-bold text-zinc-900">{batch.name}</h1>
           {batch.description && <div className="text-sm text-zinc-500 mt-1">{batch.description}</div>}
           <div className="flex items-center gap-2 mt-2">
-            <Badge variant={batch.isActive ? "forest" : "muted"}>{batch.isActive ? "Active" : "Inactive"}</Badge>
+            <Badge variant={batch.isActive ? "success" : "muted"}>{batch.isActive ? "Active" : "Inactive"}</Badge>
             <span className="text-xs text-zinc-500">{batch.memberCount} members · {batch.paperCount} papers · created {new Date(batch.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
@@ -103,7 +103,7 @@ export default function BatchAnalyticsPage() {
                       <div>{start.toLocaleDateString()} {start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       <div>→ {end.toLocaleDateString()} {end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
                       <div className="mt-1">
-                        {live ? <Badge variant="cyan">Live</Badge> : past ? <Badge variant="muted">Past</Badge> : <Badge variant="amber">Upcoming</Badge>}
+                        {live ? <Badge variant="info">Live</Badge> : past ? <Badge variant="muted">Past</Badge> : <Badge variant="warning">Upcoming</Badge>}
                       </div>
                     </td>
                     <td className="py-2 text-right tabular-nums">{p.attempts}</td>

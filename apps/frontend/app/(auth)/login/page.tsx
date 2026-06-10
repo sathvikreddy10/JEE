@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Select } from "@/components/ui/Select";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/Select";
 import { log as cli } from "@/lib/logger";
 
 export default function LoginPage() {
@@ -95,11 +95,19 @@ export default function LoginPage() {
             autoComplete={mode === "login" ? "current-password" : "new-password"}
           />
           {mode === "register" && (
-            <Select label="Target Exam" defaultValue="JEE Main 2026">
-              <option>JEE Main 2026</option>
-              <option>JEE Advanced 2026</option>
-              <option>BITSAT 2026</option>
-            </Select>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium text-foreground">Target Exam</label>
+              <Select defaultValue="JEE Main 2026">
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="JEE Main 2026">JEE Main 2026</SelectItem>
+                  <SelectItem value="JEE Advanced 2026">JEE Advanced 2026</SelectItem>
+                  <SelectItem value="BITSAT 2026">BITSAT 2026</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           )}
           {error && (
             <div
@@ -109,7 +117,7 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          <Button type="submit" variant="solid" className="w-full py-3" disabled={submitting}>
+          <Button type="submit" variant="default" className="w-full py-3" disabled={submitting}>
             {submitting ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Button>
         </form>

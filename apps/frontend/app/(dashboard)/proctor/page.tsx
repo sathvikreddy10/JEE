@@ -8,15 +8,12 @@ import { fetchJSON } from "@/lib/api";
 import { log as cli } from "@/lib/logger";
 import { cn } from "@/lib/utils";
 
-interface ProctorSession {
+interface LiveStudent {
   id: number;
   student: string;
   email: string | null;
-  setName: string;
-  section: string;
   progress: number;
   tabs: number;
-  focus: number;
   status: "clean" | "warned" | "flagged";
   flaggedAt: string | null;
   flagReason: string | null;
@@ -24,15 +21,29 @@ interface ProctorSession {
   startTime: string;
 }
 
+interface PaperGroup {
+  setId: number;
+  setName: string;
+  subject: string;
+  batchId: number;
+  batchName: string;
+  registeredCount: number;
+  activeCount: number;
+  flaggedCount: number;
+  warnedCount: number;
+  cleanCount: number;
+  students: LiveStudent[];
+}
+
 export default function ProctorPage() {
-  const [sessions, setSessions] = useState<ProctorSession[]>([]);
+  const [papers, setPapers] = useState<PaperGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
-      const data = await fetchJSON<{ sessions: ProctorSession[] }>("/api/admin/live");
-      setSessions(data.sessions);
+      const data = await fetchJSON<{ papers: PaperGroup[] }>("/api/admin/live");
+      setPapers(data.papers);
       setError(null);
     } catch (e) {
       cli.err("Failed to load proctor data", e);
@@ -48,9 +59,9 @@ export default function ProctorPage() {
     return () => clearInterval(id);
   }, [load]);
 
-  const cleanCount = sessions.filter((s) => s.status === "clean").length;
-  const flaggedCount = sessions.filter((s) => s.status === "flagged").length;
-  const warnedCount = sessions.filter((s) => s.status === "warned").length;
+  const totalActive = papers.reduce((sum, p) => sum + p.activeCount, 0);
+  const totalFlagged = papers.reduce((sum, p) => sum + p.flaggedCount, 0);
+  const totalWarned = papers.reduce((sum, p) => sum + p.warnedCount, 0);
 
   if (loading) {
     return <div className="p-8 text-center text-muted-foreground">Loading proctor data…</div>;
@@ -84,70 +95,73 @@ export default function ProctorPage() {
           <p className="text-sm mt-1 text-muted-foreground">Active browser monitoring</p>
         </div>
         <div className="flex gap-3">
-          <Badge variant="success">{cleanCount} Clean</Badge>
-          <Badge variant="warning">{warnedCount} Warned</Badge>
-          <Badge variant="destructive">{flaggedCount} Flagged</Badge>
+          <Badge variant="success">{totalActive - totalFlagged - totalWarned} Clean</Badge>
+          <Badge variant="warning">{totalWarned} Warned</Badge>
+          <Badge variant="destructive">{totalFlagged} Flagged</Badge>
+          <Badge variant="info">{totalActive} Active</Badge>
         </div>
       </div>
 
-      {sessions.length === 0 ? (
+      {papers.length === 0 ? (
         <div className="text-center py-12 text-sm text-muted-foreground">
           No active exam sessions
         </div>
       ) : (
-        <div className="grid grid-cols-3 gap-5">
-          {sessions.map((s) => {
-            const isFlagged = s.status === "flagged";
-            const isWarned = s.status === "warned";
+        <div className="space-y-6">
+          {papers.map((paper) => (
+            <Card key={`${paper.setId}-${paper.batchId}`} className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-lg">{paper.setName}</h3>
+                  <p className="text-sm text-muted-foreground">{paper.batchName} · {paper.subject}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Badge variant="success">{paper.cleanCount} Clean</Badge>
+                  {paper.warnedCount > 0 && <Badge variant="warning">{paper.warnedCount} Warned</Badge>}
+                  {paper.flaggedCount > 0 && <Badge variant="destructive">{paper.flaggedCount} Flagged</Badge>}
+                </div>
+              </div>
 
-            return (
-              <Card
-                key={s.id}
-                className={cn(
-                  "p-6 flex flex-col gap-4",
-                  isFlagged && "border-2 border-destructive shadow-lg shadow-destructive/20",
-                  isWarned && "border-2 border-warning"
-                )}
-              >
-                <div className="flex justify-between items-start">
-                  <div>
-                    <div className={cn("font-semibold text-base", isFlagged && "text-destructive")}>
-                      {isFlagged ? "🔴 " : ""}{s.student}
+              <div className="space-y-2">
+                {paper.students.map((s) => {
+                  const isFlagged = s.status === "flagged";
+                  const isWarned = s.status === "warned";
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={cn(
+                        "flex items-center gap-4 p-3 rounded-lg border",
+                        isFlagged ? "border-destructive bg-destructive/5" : 
+                        isWarned ? "border-warning bg-warning/5" : "border-border"
+                      )}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className={cn("font-medium text-sm", isFlagged && "text-destructive")}>
+                          {isFlagged ? "🔴 " : ""}{s.student}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge variant={isFlagged ? "destructive" : isWarned ? "warning" : "success"} className="text-[10px]">
+                            {s.status.toUpperCase()}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">{s.tabs} tabs</span>
+                        </div>
+                        {s.flagReason && (
+                          <div className="text-xs font-mono text-destructive mt-1">{s.flagReason}</div>
+                        )}
+                      </div>
+                      <div className="w-32">
+                        <ProgressBar value={s.progress} variant={isFlagged ? "destructive" : isWarned ? "warning" : "cyan"} />
+                        <div className="text-[10px] font-mono text-muted-foreground text-right mt-0.5">
+                          {s.progress}%
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-xs mt-1 text-muted-foreground">{s.setName}</div>
-                    {s.email && (
-                      <div className="text-[10px] font-mono mt-0.5 text-muted-foreground/70">{s.email}</div>
-                    )}
-                  </div>
-                  <Badge variant={isFlagged ? "destructive" : isWarned ? "warning" : "success"}>
-                    {isFlagged ? "FLAGGED" : isWarned ? "WARNED" : "CLEAN"}
-                  </Badge>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <ProgressBar value={s.progress} variant={isFlagged ? "destructive" : isWarned ? "warning" : "cyan"} />
-                  <span className="text-xs font-mono text-muted-foreground">{s.progress}%</span>
-                </div>
-
-                <div className="flex justify-between text-xs">
-                  <span className={cn(
-                    s.tabs >= 4 ? "text-destructive font-bold" : s.tabs >= 2 ? "text-warning font-semibold" : "text-muted-foreground"
-                  )}>
-                    Tab switches: {s.tabs}
-                  </span>
-                  <span className="text-muted-foreground/70">
-                    {s.flaggedAt ? new Date(s.flaggedAt).toLocaleTimeString() : "Active"}
-                  </span>
-                </div>
-
-                {s.flagReason && (
-                  <div className="text-xs font-mono text-destructive bg-destructive/10 p-2 rounded">
-                    {s.flagReason}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+                  );
+                })}
+              </div>
+            </Card>
+          ))}
         </div>
       )}
     </div>

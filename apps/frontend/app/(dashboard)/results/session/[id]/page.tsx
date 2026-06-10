@@ -427,7 +427,7 @@ export default function SessionResultPage() {
             </h3>
             <div className="flex flex-wrap gap-2.5">
               {data.weakAreas.map((area) => (
-                <Badge key={area} variant="crimson">{area}</Badge>
+                <Badge key={area} variant="destructive">{area}</Badge>
               ))}
             </div>
           </Card>
@@ -439,7 +439,7 @@ export default function SessionResultPage() {
             </h3>
             <div className="flex flex-wrap gap-2.5">
               {data.strongAreas.map((area) => (
-                <Badge key={area} variant="forest">{area}</Badge>
+                <Badge key={area} variant="success">{area}</Badge>
               ))}
             </div>
           </Card>
