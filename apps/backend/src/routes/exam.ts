@@ -609,55 +609,54 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
           userId: user.id,
           type: "STUDENT_FLAGGED",
           title: "Warning: Tab switching detected",
-          body: `You have switched tabs ${nextCount} times. One more switch will red-flag your exam.`,
+          body: `You have switched tabs ${nextCount} times. 2 more switches will red-flag your exam.`,
           link: "/tests",
         },
       });
       log.info("Student warning for tab switch", { sessionId, userId: user.id, tabSwitches: nextCount });
     }
-    // Flag at 4th switch
-    else if (nextCount === 4 && !updatedSession.flaggedAt) {
+    // Flag + auto-end at 5th switch (score = 0)
+    else if (nextCount === 5 && !updatedSession.autoEndedAt) {
+      autoEndedAt = new Date();
       flaggedAt = new Date();
       flagReason = `Tab switch: ${nextCount}`;
       await prisma.examSession.update({
         where: { id: sessionId },
-        data: { flaggedAt, flagReason },
-      });
-      // Notify ALL admins
-      const allAdmins = await prisma.admin.findMany();
-      await prisma.notification.createMany({
-        data: allAdmins.map((admin) => ({
-          adminId: admin.id,
-          type: "STUDENT_FLAGGED",
-          title: "Student red-flagged",
-          body: `${session.user?.name || session.studentName} switched tabs ${nextCount} times during "${session.set.name}".`,
-          link: `/proctor`,
-        })),
-      });
-      // Notify the student
-      await prisma.notification.create({
         data: {
-          userId: user.id,
-          type: "STUDENT_FLAGGED",
-          title: "RED FLAGGED",
-          body: `You have been RED FLAGGED for switching tabs ${nextCount} times. Your exam is under review.`,
-          link: "/tests",
-        },
-      });
-      log.info("Student red-flagged", { sessionId, userId: user.id, tabSwitches: nextCount });
-    }
-    // Auto-end at 7th switch
-    else if (nextCount === 7 && !updatedSession.autoEndedAt) {
-      autoEndedAt = new Date();
-      flagReason = flagReason || `Tab switch: ${nextCount}`;
-      await prisma.examSession.update({
-        where: { id: sessionId },
-        data: {
-          flaggedAt: flaggedAt || new Date(),
+          flaggedAt,
           flagReason,
           autoEndedAt,
           completed: true,
           endTime: autoEndedAt,
+          score: 0,
+          total: 0,
+          analytics: JSON.stringify({
+            sessionId,
+            totalScore: 0,
+            maxPossible: 0,
+            correctCount: 0,
+            incorrectCount: 0,
+            skippedCount: 0,
+            partialCount: 0,
+            percent: 0,
+            timeTaken: 0,
+            timeLimit: session.timeLimit,
+            avgTimePerQuestion: 0,
+            avgTimeOnAnswered: 0,
+            performanceBand: "needs-work",
+            topicAnalysis: [],
+            weakAreas: [],
+            strongAreas: [],
+            answeredCorrectly: 0,
+            answeredIncorrectly: 0,
+            questions: [],
+            completedAt: autoEndedAt.toISOString(),
+            tabSwitches: nextCount,
+            flaggedAt: flaggedAt.toISOString(),
+            flagReason,
+            autoEndedAt: autoEndedAt.toISOString(),
+            note: "Exam terminated due to excessive tab switching.",
+          }),
         },
       });
       // Notify ALL admins
@@ -666,20 +665,28 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
         data: allAdmins.map((admin) => ({
           adminId: admin.id,
           type: "STUDENT_AUTO_ENDED",
-          title: "Student exam auto-terminated",
-          body: `${session.user?.name || session.studentName} switched tabs ${nextCount} times during "${session.set.name}". Exam was auto-ended.`,
+          title: "Student exam terminated",
+          body: `${session.user?.name || session.studentName} switched tabs ${nextCount} times during "${session.set.name}". Exam was terminated with score 0.`,
           link: `/proctor`,
         })),
       });
+      // Notify the student
+      await prisma.notification.create({
+        data: {
+          userId: user.id,
+          type: "STUDENT_AUTO_ENDED",
+          title: "EXAM TERMINATED",
+          body: `Your exam was terminated for switching tabs ${nextCount} times. Your score is 0.`,
+          link: "/tests",
+        },
+      });
       ended = true;
-      log.info("Student exam auto-ended", { sessionId, userId: user.id, tabSwitches: nextCount });
+      log.info("Student exam terminated (score=0)", { sessionId, userId: user.id, tabSwitches: nextCount });
     }
 
-    const warning = nextCount === 3 ? "1 more tab switch will red-flag your exam" :
-                    nextCount === 4 ? "You have been RED FLAGGED for suspicious activity" :
-                    nextCount === 5 ? "RED FLAGGED - 2 more switches and your exam will end" :
-                    nextCount === 6 ? "RED FLAGGED - 1 more switch and your exam will end" :
-                    nextCount === 7 ? "Your exam has been terminated for suspicious activity" : null;
+    const warning = nextCount === 3 ? "2 more tab switches will red-flag your exam" :
+                    nextCount === 4 ? "RED FLAGGED - 1 more switch and your exam will be terminated" :
+                    nextCount === 5 ? "Your exam has been terminated for suspicious activity" : null;
 
     return res.json({
       tabSwitches: nextCount,

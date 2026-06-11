@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { log } from "./logger";
+import { buildSessionAnalytics } from "./marking";
 
 /**
  * Runs every 30s. Fires BUFFER_CLOSING notifications to batch members
@@ -30,23 +31,58 @@ async function tick(windowMs: number, closingSoonMs: number) {
   // ── 1) Auto-end expired exam sessions ──
   const expiredSessions = await prisma.examSession.findMany({
     where: { completed: false, autoEndedAt: null },
-    include: { set: true, user: true },
+    include: { set: { include: { questions: true } }, user: true, answers: true },
   });
   let ended = 0;
   for (const s of expiredSessions) {
     const elapsedMs = now.getTime() - s.startTime.getTime();
     const limitMs = s.timeLimit * 1000;
     if (elapsedMs > limitMs + 5000) { // 5 second grace
+      const endTime = new Date(s.startTime.getTime() + limitMs);
+      // Compute score even for abandoned sessions
+      const analytics = buildSessionAnalytics({
+        sessionId: s.id,
+        timeLimit: s.timeLimit,
+        startTime: s.startTime,
+        endTime,
+        questions: s.set.questions.map((q) => ({
+          id: q.id,
+          type: q.type,
+          text: q.text,
+          options: q.options,
+          topic: q.topic,
+          imageUrl: q.imageUrl,
+          images: q.images,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+          positiveMarks: q.positiveMarks,
+          negativeMarks: q.negativeMarks,
+          order: q.order,
+        })),
+        answers: s.answers.map((a) => ({
+          questionId: a.questionId,
+          selectedOption: a.selectedOption,
+          timeSpent: a.timeSpent,
+          markedForReview: a.markedForReview,
+        })),
+        tabSwitches: s.tabSwitches,
+        flaggedAt: s.flaggedAt?.toISOString() ?? null,
+        flagReason: s.flagReason,
+        autoEndedAt: now.toISOString(),
+      });
       await prisma.examSession.update({
         where: { id: s.id },
         data: {
           completed: true,
-          endTime: new Date(s.startTime.getTime() + limitMs),
+          endTime,
           autoEndedAt: now,
+          score: analytics.totalScore,
+          total: analytics.maxPossible,
+          analytics: JSON.stringify(analytics),
         },
       });
       ended++;
-      log.info("Auto-ended expired session", { sessionId: s.id, userId: s.userId, elapsedMs, limitMs });
+      log.info("Auto-ended expired session", { sessionId: s.id, userId: s.userId, elapsedMs, limitMs, score: analytics.totalScore, total: analytics.maxPossible });
     }
   }
   if (ended > 0) {

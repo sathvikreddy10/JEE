@@ -227,24 +227,38 @@ export default function SessionResultPage() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-        <Card className="text-center p-14 px-8">
+        <Card className={cn("text-center p-14 px-8", data.flaggedAt && "border-destructive bg-destructive/5")}>
           <div className="text-[11px] uppercase tracking-wider mb-6 font-mono text-muted-foreground">
-            Your Score
+            {data.flaggedAt ? "Exam Status" : "Your Score"}
           </div>
-          <div
-            className={cn(
-              "text-[96px] leading-none font-normal mb-4 font-mono",
-              scorePercent >= 70 ? "text-success" : scorePercent >= 40 ? "text-warning" : "text-destructive"
-            )}
-          >
-            {totalScore}
-          </div>
-          <div className="text-lg mb-6 text-muted-foreground">
-            out of {maxPossible}
-          </div>
-          <Badge variant={scorePercent >= 70 ? "success" : scorePercent >= 40 ? "warning" : "destructive"}>
-            {scorePercent}% accuracy
-          </Badge>
+          {data.flaggedAt ? (
+            <>
+              <div className="text-[72px] leading-none font-normal mb-4 font-mono text-destructive">
+                RED FLAGGED
+              </div>
+              <div className="text-lg mb-6 text-destructive">
+                Score: 0
+              </div>
+              <Badge variant="destructive">TERMINATED</Badge>
+            </>
+          ) : (
+            <>
+              <div
+                className={cn(
+                  "text-[96px] leading-none font-normal mb-4 font-mono",
+                  scorePercent >= 70 ? "text-success" : scorePercent >= 40 ? "text-warning" : "text-destructive"
+                )}
+              >
+                {totalScore}
+              </div>
+              <div className="text-lg mb-6 text-muted-foreground">
+                out of {maxPossible}
+              </div>
+              <Badge variant={scorePercent >= 70 ? "success" : scorePercent >= 40 ? "warning" : "destructive"}>
+                {scorePercent}% accuracy
+              </Badge>
+            </>
+          )}
         </Card>
 
         <Card className="text-center p-14 px-8">

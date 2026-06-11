@@ -639,12 +639,20 @@ function StudentRow({
             {s.autoEndedAt && <Badge variant="warning">Auto-ended</Badge>}
           </div>
           <div className="text-right">
-            <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.percent))}>
-              {s.score}/{s.total}
-            </div>
-            <div className={cn("text-[10px] font-mono", percentTextClass(s.percent))}>
-              {s.percent}%
-            </div>
+            {s.flaggedAt ? (
+              <div className="font-mono text-sm font-semibold text-destructive">
+                RED FLAGGED
+              </div>
+            ) : (
+              <>
+                <div className={cn("font-mono text-sm font-semibold", percentTextClass(s.percent))}>
+                  {s.score}/{s.total}
+                </div>
+                <div className={cn("text-[10px] font-mono", percentTextClass(s.percent))}>
+                  {s.percent}%
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="text-[10px] font-mono text-muted-foreground/70">
@@ -713,12 +721,20 @@ function StudentDetail({
             </p>
           </div>
           <div className="text-right">
-            <div className={cn("text-2xl font-mono font-bold", percentTextClass(s.percent))}>
-              {s.percent}%
-            </div>
-            <div className="text-sm font-mono text-muted-foreground">
-              {s.score}/{s.total}
-            </div>
+            {s.flaggedAt ? (
+              <div className="text-2xl font-mono font-bold text-destructive">
+                RED FLAGGED
+              </div>
+            ) : (
+              <>
+                <div className={cn("text-2xl font-mono font-bold", percentTextClass(s.percent))}>
+                  {s.percent}%
+                </div>
+                <div className="text-sm font-mono text-muted-foreground">
+                  {s.score}/{s.total}
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -727,8 +743,8 @@ function StudentDetail({
           <div className="grid grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-[10px] font-mono uppercase text-muted-foreground">Score</div>
-              <div className="text-lg font-mono font-semibold text-foreground">
-                {s.score}/{s.total}
+              <div className={cn("text-lg font-mono font-semibold", s.flaggedAt ? "text-destructive" : "text-foreground")}>
+                {s.flaggedAt ? "RED FLAGGED (0)" : `${s.score}/${s.total}`}
               </div>
             </div>
             <div className="text-center">
