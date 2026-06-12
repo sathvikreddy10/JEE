@@ -1,5 +1,6 @@
 # Render Blueprint for Testify
-# To deploy: push this to GitHub, then go to render.com → Blueprints → New Blueprint Instance
+# One-click deploy: render.com → Blueprints → New Blueprint Instance
+# Branch: my-awesome-branch
 
 services:
   # Backend API
@@ -7,7 +8,7 @@ services:
     name: testify-backend
     runtime: node
     repo: https://github.com/sathvikreddy10/JEE.git
-    branch: main
+    branch: my-awesome-branch
     buildCommand: "cd apps/backend && npm install && npm run build && npx prisma migrate deploy && npx prisma db seed"
     startCommand: "cd apps/backend && npm start"
     envVars:
@@ -20,10 +21,7 @@ services:
           name: testify-db
           property: connectionString
       - key: FRONTEND_URL
-        fromService:
-          type: web
-          name: testify-frontend
-          property: url
+        value: https://testify-frontend.onrender.com
       - key: SESSION_COOKIE
         value: testify_session
       - key: SESSION_TTL_DAYS
@@ -31,7 +29,7 @@ services:
       - key: ADMIN_COOKIE
         value: testify_admin
       - key: ADMIN_CREDENTIALS
-        generateValue: false  # Set this manually after first deploy
+        value: ""
     healthCheckPath: /health
     autoDeploy: true
 
@@ -40,7 +38,7 @@ services:
     name: testify-frontend
     runtime: node
     repo: https://github.com/sathvikreddy10/JEE.git
-    branch: main
+    branch: my-awesome-branch
     buildCommand: "cd apps/frontend && npm install && npm run build"
     startCommand: "cd apps/frontend && npm start"
     envVars:
@@ -49,15 +47,9 @@ services:
       - key: PORT
         value: 10000
       - key: BACKEND_URL
-        fromService:
-          type: web
-          name: testify-backend
-          property: url
+        value: https://testify-backend.onrender.com
       - key: NEXT_PUBLIC_BACKEND_URL
-        fromService:
-          type: web
-          name: testify-backend
-          property: url
+        value: https://testify-backend.onrender.com
     autoDeploy: true
 
 databases:
