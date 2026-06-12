@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Studia — Learn. Test. Analyse.</title>
+  <meta name="description" content="Studia — a minimal study app for students. Take tests, get instant analysis, study smarter." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300..700;1,9..144,300..700&family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body data-theme="paper">
+
+  <!-- ===== Preloader ===== -->
+  <div class="preloader" id="preloader" aria-hidden="true">
+    <div class="preloader__inner">
+      <span class="preloader__word">Studia</span>
+      <span class="preloader__count" id="preCount">00</span>
+    </div>
+    <div class="preloader__bar"><span id="preBar"></span></div>
+  </div>
+
+  <!-- ===== Custom cursor ===== -->
+  <div class="cursor" id="cursor"></div>
+  <div class="cursor-dot" id="cursorDot"></div>
+
+  <!-- ===== Grain overlay ===== -->
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- ===== Navigation ===== -->
+  <header class="nav" id="nav">
+    <a href="#top" class="nav__logo" data-magnetic>
+      <span class="nav__logo-mark">S.</span>tudia
+    </a>
+    <nav class="nav__links">
+      <a href="#about" class="nav__link" data-magnetic>Why</a>
+      <a href="#subjects" class="nav__link" data-magnetic>Subjects</a>
+      <a href="#analysis" class="nav__link" data-magnetic>Analysis</a>
+    </nav>
+    <a href="#subjects" class="btn btn--small" data-magnetic>
+      <span>Start a test</span>
+      <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </header>
+
+  <main id="top">
+
+    <!-- ===== Hero ===== -->
+    <section class="hero">
+      <p class="hero__eyebrow reveal">For students who want clarity, not clutter</p>
+      <h1 class="hero__title">
+        <span class="line"><span>Study with</span></span>
+        <span class="line"><span><em>intention</em>,</span></span>
+        <span class="line"><span>test with <em class="accent">insight</em>.</span></span>
+      </h1>
+      <div class="hero__bottom">
+        <p class="hero__copy reveal">
+          Studia is a minimal study companion. Take focused tests,
+          see exactly where you stand, and turn every result into
+          a plan — without the noise.
+        </p>
+        <div class="hero__actions reveal">
+          <a href="#subjects" class="btn btn--primary" data-magnetic>
+            <span>Take a test</span>
+            <svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </a>
+          <a href="#about" class="link-arrow" data-magnetic>How it works</a>
+        </div>
+      </div>
+
+      <div class="hero__stats reveal">
+        <div class="stat"><span class="stat__num" data-count="12000">0</span><span class="stat__suffix">+</span><p>questions practised</p></div>
+        <div class="stat"><span class="stat__num" data-count="94">0</span><span class="stat__suffix">%</span><p>say they study smarter</p></div>
+        <div class="stat"><span class="stat__num" data-count="3">0</span><span class="stat__suffix">min</span><p>to your first insight</p></div>
+      </div>
+
+      <div class="hero__scroll" aria-hidden="true"><span></span></div>
+    </section>
+
+    <!-- ===== Marquee ===== -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track">
+        <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
+        <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
+        <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
+      </div>
+    </div>
+
+    <!-- ===== Why / Features ===== -->
+    <section class="section" id="about">
+      <div class="section__head">
+        <span class="section__index reveal">01</span>
+        <h2 class="section__title reveal">Built for the way<br/>you actually <em>learn</em></h2>
+      </div>
+      <div class="features">
+        <article class="feature reveal" data-tilt>
+          <span class="feature__num">a.</span>
+          <h3>Focused tests</h3>
+          <p>Short, timed sets of questions. One question on screen at a time — no scrolling walls, no distraction.</p>
+          <div class="feature__art feature__art--rings"><i></i><i></i><i></i></div>
+        </article>
+        <article class="feature reveal" data-tilt>
+          <span class="feature__num">b.</span>
+          <h3>Instant analysis</h3>
+          <p>Accuracy, pace, strongest and weakest topics — rendered the second you finish, not buried in a PDF.</p>
+          <div class="feature__art feature__art--bars"><i></i><i></i><i></i><i></i><i></i></div>
+        </article>
+        <article class="feature reveal" data-tilt>
+          <span class="feature__num">c.</span>
+          <h3>Honest review</h3>
+          <p>Every answer revisited side-by-side with the correct one, so a mistake never happens twice.</p>
+          <div class="feature__art feature__art--check">
+            <svg viewBox="0 0 48 48" fill="none"><path class="check-path" d="M10 25l9 9 19-20" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== Subjects / start test ===== -->
+    <section class="section section--dark" id="subjects">
+      <div class="section__head">
+        <span class="section__index reveal">02</span>
+        <h2 class="section__title reveal">Pick a subject.<br/><em>Begin.</em></h2>
+        <p class="section__sub reveal">Six questions. Twenty seconds each. Full analysis at the end.</p>
+      </div>
+      <div class="subjects" id="subjectList">
+        <button class="subject reveal" data-subject="math" data-magnetic>
+          <span class="subject__index">01</span>
+          <span class="subject__name">Mathematics</span>
+          <span class="subject__meta">Algebra · Geometry · Arithmetic</span>
+          <span class="subject__arrow"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
+        <button class="subject reveal" data-subject="science" data-magnetic>
+          <span class="subject__index">02</span>
+          <span class="subject__name">Science</span>
+          <span class="subject__meta">Physics · Chemistry · Biology</span>
+          <span class="subject__arrow"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
+        <button class="subject reveal" data-subject="english" data-magnetic>
+          <span class="subject__index">03</span>
+          <span class="subject__name">English</span>
+          <span class="subject__meta">Grammar · Vocabulary · Comprehension</span>
+          <span class="subject__arrow"><svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14m0 0-6-6m6 6-6 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- ===== Quiz ===== -->
+    <section class="quiz" id="quiz" hidden>
+      <div class="quiz__top">
+        <button class="quiz__quit" id="quizQuit" data-magnetic>✕ <span>Quit</span></button>
+        <span class="quiz__subject" id="quizSubject">Mathematics</span>
+        <div class="quiz__timer">
+          <svg viewBox="0 0 44 44">
+            <circle cx="22" cy="22" r="19" class="timer-track"/>
+            <circle cx="22" cy="22" r="19" class="timer-ring" id="timerRing"/>
+          </svg>
+          <span id="timerText">20</span>
+        </div>
+      </div>
+      <div class="quiz__progress"><span id="quizBar"></span></div>
+      <div class="quiz__body" id="quizBody">
+        <p class="quiz__count" id="quizCount">Question 1 / 6</p>
+        <h3 class="quiz__question" id="quizQuestion">—</h3>
+        <div class="quiz__options" id="quizOptions"></div>
+      </div>
+      <p class="quiz__hint">Press <kbd>1</kbd>–<kbd>4</kbd> to answer</p>
+    </section>
+
+    <!-- ===== Results / Analysis ===== -->
+    <section class="results section" id="analysis" hidden>
+      <div class="section__head">
+        <span class="section__index">03</span>
+        <h2 class="section__title">Your <em>analysis</em></h2>
+      </div>
+
+      <div class="results__grid">
+        <div class="card card--score">
+          <div class="donut">
+            <svg viewBox="0 0 160 160">
+              <circle cx="80" cy="80" r="66" class="donut-track"/>
+              <circle cx="80" cy="80" r="66" class="donut-ring" id="donutRing"/>
+            </svg>
+            <div class="donut__label">
+              <span id="scorePct">0%</span>
+              <small id="scoreVerdict">—</small>
+            </div>
+          </div>
+        </div>
+
+        <div class="card card--stat"><small>Correct</small><span id="rCorrect">0/6</span></div>
+        <div class="card card--stat"><small>Avg. time / question</small><span id="rAvgTime">0s</span></div>
+        <div class="card card--stat"><small>Strongest topic</small><span id="rBest">—</span></div>
+        <div class="card card--stat"><small>Needs work</small><span id="rWorst">—</span></div>
+
+        <div class="card card--chart">
+          <small>Time per question <em>(seconds)</em></small>
+          <div class="barchart" id="barChart"></div>
+        </div>
+      </div>
+
+      <div class="results__review">
+        <h3>Answer review</h3>
+        <div id="reviewList"></div>
+      </div>
+
+      <div class="results__actions">
+        <button class="btn btn--primary" id="retryBtn" data-magnetic><span>Retake test</span></button>
+        <button class="btn" id="newSubjectBtn" data-magnetic><span>Another subject</span></button>
+      </div>
+    </section>
+
+    <!-- ===== CTA ===== -->
+    <section class="cta">
+      <h2 class="cta__title">
+        <span class="line"><span>Ready when</span></span>
+        <span class="line"><span><em>you</em> are.</span></span>
+      </h2>
+      <a href="#subjects" class="btn btn--primary btn--big" data-magnetic><span>Start studying</span></a>
+    </section>
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <span class="footer__logo">S.tudia</span>
+    <p>Designed for students. Minimal by intention.</p>
+    <span class="footer__year">© 2026</span>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
