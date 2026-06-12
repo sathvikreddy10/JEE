@@ -49,8 +49,8 @@ if (PORT === 10000 && !process.env.FRONTEND_URL) {
 const app = express();
 const server = createServer(app);
 
-// Trust proxy so req.ip works correctly with Tailscale / VPN
-app.set("trust proxy", true);
+// Trust proxy so req.ip works correctly with Tailscale / VPN / Render
+app.set("trust proxy", 1);
 
 // Security headers
 app.use(helmet({
