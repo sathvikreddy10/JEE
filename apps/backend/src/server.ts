@@ -41,8 +41,16 @@ process.on("uncaughtException", (err) => {
 const PORT = Number(process.env.PORT || 4000);
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 
+// Auto-detect if we're on Render (PORT=10000 is Render's default)
+if (PORT === 10000 && !process.env.FRONTEND_URL) {
+  log.warn("Running on port 10000 but FRONTEND_URL not set — CORS may block requests");
+}
+
 const app = express();
 const server = createServer(app);
+
+// Trust proxy so req.ip works correctly with Tailscale / VPN
+app.set("trust proxy", true);
 
 // Security headers
 app.use(helmet({
@@ -51,8 +59,21 @@ app.use(helmet({
 }));
 
 // CORS: allow frontend to call us with credentials
+// Support multiple origins for local dev + deployed frontend
+const allowedOrigins = [
+  FRONTEND_URL,
+  "http://localhost:3000",
+  "https://localhost:3000",
+].filter(Boolean);
+
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    }
+  },
   credentials: true,
 }));
 
@@ -88,6 +109,13 @@ app.use(express.json({ limit: "10mb" }));
 // Cookies
 app.use(cookieParser());
 
+// Request logging: IP, method, URL, user-agent
+app.use((req, _res, next) => {
+  const ip = req.ip || req.socket.remoteAddress || "unknown";
+  log.api(req.method, req.url, { ip, agent: req.headers["user-agent"]?.slice(0, 60) });
+  next();
+});
+
 // Attach user from session cookie (does not block unauth)
 app.use(attachUser);
 
@@ -111,9 +139,31 @@ app.use("/admin", adminRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/upload", uploadRouter);
 app.use("/health", healthRouter);
+app.use("/api/health", healthRouter);
 
 // Background scheduler (buffer-closing notifications)
 startScheduler();
+
+// Diagnostic: /whoami — shows client IP, server info, and all routes
+app.get("/whoami", (req, res) => {
+  const routes = (app._router as any)?.stack
+    ?.filter((layer: any) => layer.route || layer.regexp)
+    ?.map((layer: any) => {
+      if (layer.route) {
+        return { path: layer.route.path, methods: Object.keys(layer.route.methods) };
+      }
+      return { regexp: layer.regexp?.toString() };
+    });
+  res.json({
+    yourIp: req.ip,
+    yourForwarded: req.headers["x-forwarded-for"],
+    serverTime: new Date().toISOString(),
+    serverUptime: process.uptime(),
+    port: PORT,
+    frontendUrl: FRONTEND_URL,
+    routes: routes ?? [],
+  });
+});
 
 // 404
 app.use((_req, res) => {
@@ -139,10 +189,31 @@ server.on("error", (err: any) => {
 
 // Ensure Prisma is connected before accepting requests
 prisma.$connect().then(() => {
-  log.info("Prisma connected to SQLite");
+  log.info(`Prisma connected (${process.env.DATABASE_URL?.startsWith("file:") ? "SQLite" : "PostgreSQL"})`);
   server.listen(PORT, "0.0.0.0", () => {
-    log.success(`Backend listening on http://localhost:${PORT}`);
+    const listRoutes = (stack: any[]) => {
+      const paths: string[] = [];
+      for (const layer of stack) {
+        if (layer.route) {
+          const methods = Object.keys(layer.route.methods).map((m) => m.toUpperCase()).join("|");
+          paths.push(`${methods} ${layer.route.path}`);
+        } else if (layer.name === "router" && layer.regexp) {
+          const prefix = layer.regexp.toString().replace("/^\\", "").replace("\\/?(?=\/|$)/i", "").replace("\\\\", "/");
+          const subPaths = listRoutes(layer.handle?.stack || []);
+          for (const sp of subPaths) {
+            const cleanPrefix = prefix.replace(/\//g, "");
+            paths.push(`${sp.replace(/^[A-Z|]+\s/, "")}${cleanPrefix ? "/" + cleanPrefix : ""}${sp.replace(/^[A-Z|]+\s/, "").replace(/\//g, "")}`);
+          }
+        }
+      }
+      return paths;
+    };
+    const routes = listRoutes((app as any)._router?.stack || []).filter((r: string) => r.includes("/")).sort();
+    log.success(`Backend listening on http://0.0.0.0:${PORT}`);
     log.info(`CORS origin: ${FRONTEND_URL}`);
+    log.info(`Registered routes: ${routes.length}`);
+    for (const r of routes.slice(0, 20)) log.info(`  ${r}`);
+    if (routes.length > 20) log.info(`  ... and ${routes.length - 20} more`);
   });
 }).catch((err) => {
   log.err("Failed to connect Prisma", err);

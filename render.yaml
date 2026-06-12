@@ -1,0 +1,70 @@
+# Render Blueprint for Testify
+# To deploy: push this to GitHub, then go to render.com → Blueprints → New Blueprint Instance
+
+services:
+  # Backend API
+  - type: web
+    name: testify-backend
+    runtime: node
+    repo: https://github.com/sathvikreddy10/JEE.git
+    branch: main
+    buildCommand: "cd apps/backend && npm install && npm run build && npx prisma migrate deploy && npx prisma db seed"
+    startCommand: "cd apps/backend && npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: testify-db
+          property: connectionString
+      - key: FRONTEND_URL
+        fromService:
+          type: web
+          name: testify-frontend
+          property: url
+      - key: SESSION_COOKIE
+        value: testify_session
+      - key: SESSION_TTL_DAYS
+        value: 30
+      - key: ADMIN_COOKIE
+        value: testify_admin
+      - key: ADMIN_CREDENTIALS
+        generateValue: false  # Set this manually after first deploy
+    healthCheckPath: /health
+    autoDeploy: true
+
+  # Frontend (Next.js)
+  - type: web
+    name: testify-frontend
+    runtime: node
+    repo: https://github.com/sathvikreddy10/JEE.git
+    branch: main
+    buildCommand: "cd apps/frontend && npm install && npm run build"
+    startCommand: "cd apps/frontend && npm start"
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: BACKEND_URL
+        fromService:
+          type: web
+          name: testify-backend
+          property: url
+      - key: NEXT_PUBLIC_BACKEND_URL
+        fromService:
+          type: web
+          name: testify-backend
+          property: url
+    autoDeploy: true
+
+databases:
+  - name: testify-db
+    databaseName: testify
+    user: testify
+    plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: everywhere
