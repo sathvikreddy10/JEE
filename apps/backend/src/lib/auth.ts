@@ -298,7 +298,7 @@ export function adminOr401(req: Request): CurrentAdmin {
 export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(ADMIN_COOKIE, token, {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: isSecureRequest(),
     expires: expiresAt,
     path: "/",
@@ -307,7 +307,14 @@ export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
 }
 
 export function clearAdminCookie(res: Response) {
-  res.cookie(ADMIN_COOKIE, "", { path: "/", domain: cookieDomain(), expires: new Date(0) });
+  res.cookie(ADMIN_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: isSecureRequest(),
+    path: "/",
+    domain: cookieDomain(),
+    expires: new Date(0),
+  });
 }
 
 // Augment Express Request to include user + admin
