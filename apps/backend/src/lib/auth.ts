@@ -8,12 +8,27 @@ export const SESSION_COOKIE = process.env.SESSION_COOKIE || "testify_session";
 export const ADMIN_COOKIE = process.env.ADMIN_COOKIE || "testify_admin";
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 30);
 
+function isSecureRequest(): boolean {
+  const url = process.env.FRONTEND_URL || "http://localhost:3000";
+  return url.startsWith("https://");
+}
+
+/**
+ * Returns the cookie domain based on FRONTEND_URL.
+ * - For localhost / 127.0.0.1 / raw IPs, return undefined so the browser
+ *   uses the request origin's domain (allows LAN/Tailscale access).
+ * - For production hostnames, return ".hostname" for subdomain support.
+ */
 function cookieDomain(): string | undefined {
   const url = process.env.FRONTEND_URL || "http://localhost:3000";
   try {
     const host = new URL(url).hostname;
-    if (host === "localhost" || host === "127.0.0.1") {
-      return host;
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)
+    ) {
+      return undefined;
     }
     return "." + host;
   } catch {
@@ -151,7 +166,7 @@ export function setSessionCookie(res: Response, token: string, expiresAt: Date) 
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: isSecureRequest(),
     expires: expiresAt,
     path: "/",
     domain: cookieDomain(),
@@ -284,7 +299,7 @@ export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(ADMIN_COOKIE, token, {
     httpOnly: true,
     sameSite: "strict",
-    secure: true,
+    secure: isSecureRequest(),
     expires: expiresAt,
     path: "/",
     domain: cookieDomain(),
