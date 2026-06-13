@@ -44,6 +44,12 @@ const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const app = express();
 const server = createServer(app);
 
+// Trust the first proxy hop (the Next.js rewrite proxy, or Render's load balancer in prod).
+// This lets Express read the real client IP from X-Forwarded-For for rate limiting
+// and req.ip — without it, every request looks like 127.0.0.1 and the authLimiter
+// would never trigger correctly for non-local users.
+app.set("trust proxy", 1);
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: false, // disable strict CSP for now (Next.js compatibility)
