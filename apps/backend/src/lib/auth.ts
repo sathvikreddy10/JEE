@@ -6,7 +6,9 @@ import { findAdminByEmail } from "./adminAuth";
 
 export const SESSION_COOKIE = process.env.SESSION_COOKIE || "testify_session";
 export const ADMIN_COOKIE = process.env.ADMIN_COOKIE || "testify_admin";
-const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 30);
+// Default TTL is 100 years (effectively forever). Set SESSION_TTL_DAYS in .env
+// to override (e.g., SESSION_TTL_DAYS=30 if you want auto-expiry).
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 36500);
 
 function isSecureRequest(): boolean {
   const url = process.env.FRONTEND_URL || "http://localhost:3000";
@@ -40,12 +42,16 @@ export interface CurrentUser {
   id: number;
   email: string;
   name: string;
+  flagged?: boolean;
+  flagReason?: string | null;
 }
 
 export interface CurrentAdmin {
   id: number;
   email: string;
   name: string;
+  flagged?: boolean;
+  flagReason?: string | null;
 }
 
 /**
@@ -64,10 +70,26 @@ export function sessionTtlMs(): number {
 
 /**
  * Creates an AuthSession row for the user and returns the token + expiry.
+ * If the user already has other active sessions, those are flagged as
+ * "Concurrent login from another device" so the user (and admin) can see
+ * something fishy is going on. The flagged sessions are NOT invalidated —
+ * the user can keep using the older device, they just see a warning.
  */
 export async function createSession(userId: number): Promise<{ token: string; expiresAt: Date }> {
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + sessionTtlMs());
+
+  const flagged = await prisma.authSession.updateMany({
+    where: { userId, flaggedAt: null },
+    data: {
+      flaggedAt: new Date(),
+      flagReason: "Concurrent login from another device",
+    },
+  });
+  if (flagged.count > 0) {
+    log.warn(`Flagged ${flagged.count} prior session(s) for user ${userId} as concurrent-login`);
+  }
+
   await prisma.authSession.create({ data: { token, userId, expiresAt } });
   log.db("CREATE", "AuthSession", { userId, token: token.slice(0, 8) + "...", expiresAt });
   return { token, expiresAt };
@@ -117,7 +139,13 @@ export async function getCurrentUser(req: Request): Promise<CurrentUser | null> 
     await destroySession(token);
     return null;
   }
-  return { id: session.user.id, email: session.user.email, name: session.user.name };
+  return {
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    flagged: !!session.flaggedAt,
+    flagReason: session.flagReason,
+  };
 }
 
 /**
@@ -182,6 +210,8 @@ export function clearSessionCookie(res: Response) {
 /**
  * Creates an AdminAuthSession row. Lazily creates the Admin DB row from
  * the CSV (which is the source of truth for admin credentials).
+ * If the admin already has other active sessions, those are flagged as
+ * "Concurrent admin login from another device".
  */
 export async function createAdminSession(email: string): Promise<{ token: string; expiresAt: Date; admin: CurrentAdmin } | null> {
   const cred = await findAdminByEmail(email);
@@ -194,6 +224,18 @@ export async function createAdminSession(email: string): Promise<{ token: string
     create: { email: cred.email, name: cred.name },
     update: { name: cred.name },
   });
+
+  const flagged = await prisma.adminAuthSession.updateMany({
+    where: { adminId: admin.id, flaggedAt: null },
+    data: {
+      flaggedAt: new Date(),
+      flagReason: "Concurrent admin login from another device",
+    },
+  });
+  if (flagged.count > 0) {
+    log.warn(`Flagged ${flagged.count} prior admin session(s) for ${email} as concurrent-login`);
+  }
+
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + sessionTtlMs());
   await prisma.adminAuthSession.create({ data: { token, adminId: admin.id, expiresAt } });
@@ -233,7 +275,13 @@ export async function getCurrentAdmin(req: Request): Promise<CurrentAdmin | null
     await destroyAdminSession(token);
     return null;
   }
-  return { id: session.admin.id, email: session.admin.email, name: session.admin.name };
+  return {
+    id: session.admin.id,
+    email: session.admin.email,
+    name: session.admin.name,
+    flagged: !!session.flaggedAt,
+    flagReason: session.flagReason,
+  };
 }
 
 /**

@@ -32,11 +32,13 @@ model UserCredential {
 }
 
 model AuthSession {
-  token     String   @id
-  userId    Int
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String    @id
+  userId     Int
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  flaggedAt  DateTime? // Set when a newer session for the same user is created (suspicious)
+  flagReason String?   // e.g., "Concurrent login from another device"
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }
@@ -53,11 +55,13 @@ model Admin {
 }
 
 model AdminAuthSession {
-  token     String   @id
-  adminId   Int
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  admin     Admin    @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  token      String    @id
+  adminId    Int
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  flaggedAt  DateTime? // Set when a newer admin session is created (suspicious)
+  flagReason String?   // e.g., "Concurrent admin login from another device"
+  admin      Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
   @@index([adminId])
 }
