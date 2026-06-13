@@ -114,6 +114,28 @@ function AdminLoginInner() {
           Not an admin?{" "}
           <a href="/login" style={{ color: "var(--cyan)" }}>Student sign in →</a>
         </div>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={async () => {
+              try { await fetch("/api/admin/auth/logout", { method: "POST" }); } catch { /* ignore */ }
+              const cookies = document.cookie.split(";");
+              for (const c of cookies) {
+                const name = c.split("=")[0].trim();
+                if (name) {
+                  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+                  document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${window.location.hostname}`;
+                }
+              }
+              window.location.reload();
+            }}
+            className="text-[11px] hover:underline font-mono"
+            style={{ color: "var(--text-tertiary)" }}
+          >
+            Stuck? Clear cookies and reload
+          </button>
+        </div>
       </div>
     </div>
   );
