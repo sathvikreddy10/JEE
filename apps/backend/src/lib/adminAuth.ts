@@ -22,30 +22,6 @@ export interface AdminCredential {
 let cache: Map<string, AdminCredential> | null = null;
 let cacheMtime = 0;
 
-function loadFromEnv(): Map<string, AdminCredential> {
-  const map = new Map<string, AdminCredential>();
-  const envCreds = process.env.ADMIN_CREDENTIALS;
-  if (!envCreds) return map;
-  try {
-    const parsed = JSON.parse(envCreds);
-    if (Array.isArray(parsed)) {
-      for (const entry of parsed) {
-        if (entry.email && entry.passwordHash) {
-          const email = entry.email.trim().toLowerCase();
-          map.set(email, {
-            email,
-            name: entry.name || email.split("@")[0],
-            passwordHash: entry.passwordHash,
-          });
-        }
-      }
-    }
-  } catch {
-    log.warn("ADMIN_CREDENTIALS env var is not valid JSON");
-  }
-  return map;
-}
-
 /**
  * Loads the admin CSV from disk. Cached by file mtime so the same Node
  * process picks up edits without a restart.
@@ -55,14 +31,6 @@ function loadFromEnv(): Map<string, AdminCredential> {
  * Lines starting with "#" are ignored.
  */
 export async function loadAdminCredentials(): Promise<Map<string, AdminCredential>> {
-  // Priority 1: env var (for cloud deployments)
-  const envMap = loadFromEnv();
-  if (envMap.size > 0) {
-    log.info(`Loaded ${envMap.size} admin credential(s) from ADMIN_CREDENTIALS env var`);
-    return envMap;
-  }
-
-  // Priority 2: CSV file (for local development)
   if (!existsSync(csvPath)) {
     if (cache) {
       log.warn(`Admin CSV vanished from ${csvPath} — clearing cache`);
@@ -109,7 +77,7 @@ export async function verifyAdminCredentials(
 ): Promise<AdminCredential | null> {
   const cred = await findAdminByEmail(email);
   if (!cred) {
-    log.warn(`Admin login: email ${email} not in CSV or env`);
+    log.warn(`Admin login: email ${email} not in CSV`);
     return null;
   }
   const ok = await bcrypt.compare(password, cred.passwordHash);

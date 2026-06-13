@@ -203,13 +203,56 @@ examRouter.get("/:id", async (req, res) => {
       return res.status(404).json({ error: "Not found" });
     }
 
-    // Server-side time limit enforcement: if exam has expired, block access
+    // Server-side time limit enforcement: if exam has expired, auto-end it on the spot
     if (!session.completed && !session.autoEndedAt) {
       const elapsedMs = Date.now() - session.startTime.getTime();
       const limitMs = session.timeLimit * 1000;
       if (elapsedMs > limitMs + 5000) { // 5 second grace
-        log.warn(`Session ${id} time expired on GET: elapsed=${elapsedMs}ms limit=${limitMs}ms`);
-        return res.status(410).json({ error: "Exam time has expired" });
+        log.info(`Session ${id} expired (elapsed=${elapsedMs}ms limit=${limitMs}ms) - auto-completing on GET`);
+        const endTime = new Date(session.startTime.getTime() + limitMs);
+        const analytics = buildSessionAnalytics({
+          sessionId: session.id,
+          timeLimit: session.timeLimit,
+          startTime: session.startTime,
+          endTime,
+          questions: session.set.questions.map((q) => ({
+            id: q.id,
+            type: q.type,
+            text: q.text,
+            options: q.options,
+            topic: q.topic,
+            imageUrl: q.imageUrl,
+            images: q.images,
+            correctAnswer: q.correctAnswer,
+            explanation: q.explanation,
+            positiveMarks: q.positiveMarks,
+            negativeMarks: q.negativeMarks,
+            order: q.order,
+          })),
+          answers: session.answers.map((a) => ({
+            questionId: a.questionId,
+            selectedOption: a.selectedOption,
+            timeSpent: a.timeSpent,
+            markedForReview: a.markedForReview,
+          })),
+          tabSwitches: session.tabSwitches,
+          flaggedAt: session.flaggedAt?.toISOString() ?? null,
+          flagReason: session.flagReason,
+          autoEndedAt: new Date().toISOString(),
+        });
+        await prisma.examSession.update({
+          where: { id: session.id },
+          data: {
+            completed: true,
+            endTime,
+            autoEndedAt: new Date(),
+            score: analytics.totalScore,
+            total: analytics.maxPossible,
+            analytics: JSON.stringify(analytics),
+          },
+        });
+        log.success(`Auto-completed expired session ${id} on GET`, { score: analytics.totalScore, total: analytics.maxPossible });
+        return res.json(analytics);
       }
     }
 

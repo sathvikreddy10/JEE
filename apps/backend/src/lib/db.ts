@@ -12,26 +12,22 @@ config({ path: envPath });
 const { PrismaClient } = pkg;
 const globalForPrisma = global as unknown as { prisma: InstanceType<typeof PrismaClient> };
 
-const dbUrl = process.env.DATABASE_URL || "";
-const isSqlite = dbUrl.startsWith("file:");
-
 // Resolve absolute path for SQLite on Windows (tsx/ESM can't handle relative paths)
-const resolvedUrl = isSqlite && !dbUrl.startsWith("file:/")
+const dbUrl = process.env.DATABASE_URL || "file:./prisma/dev.db";
+const absoluteUrl = dbUrl.startsWith("file:") && !dbUrl.startsWith("file:/")
   ? "file:" + path.resolve(process.cwd(), dbUrl.replace("file:", ""))
   : dbUrl;
 
-export const prisma = globalForPrisma.prisma || new PrismaClient(
-  isSqlite
-    ? {
-        datasources: {
-          db: { url: resolvedUrl },
-        },
-      }
-    : undefined
-);
+export const prisma = globalForPrisma.prisma || new PrismaClient({
+  datasources: {
+    db: {
+      url: absoluteUrl,
+    },
+  },
+});
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-log.info("Prisma client initialized", { provider: isSqlite ? "sqlite" : "postgresql", url: resolvedUrl.replace(/\/\/[^:]+:[^@]+@/, "//***:***@") });
+log.info("Prisma client initialized", { provider: "sqlite" });

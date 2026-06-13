@@ -13,18 +13,12 @@ function cookieDomain(): string | undefined {
   try {
     const host = new URL(url).hostname;
     if (host === "localhost" || host === "127.0.0.1") {
-      return undefined; // Don't set domain for localhost (browser treats it as host-only)
+      return host;
     }
-    // For Render/onrender.com subdomains, we need SameSite=None + Secure for cross-origin cookies
-    return undefined; // Modern browsers prefer host-only cookies with SameSite=None
+    return "." + host;
   } catch {
     return undefined;
   }
-}
-
-function isHttps(): boolean {
-  const url = process.env.FRONTEND_URL || "http://localhost:3000";
-  return url.startsWith("https://");
 }
 
 export interface CurrentUser {
@@ -156,8 +150,8 @@ export function userOr401(req: Request): CurrentUser {
 export function setSessionCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(SESSION_COOKIE, token, {
     httpOnly: true,
-    sameSite: isHttps() ? "none" : "lax",
-    secure: true, // Always true since Render uses HTTPS
+    sameSite: "lax",
+    secure: true,
     expires: expiresAt,
     path: "/",
     domain: cookieDomain(),
@@ -165,7 +159,7 @@ export function setSessionCookie(res: Response, token: string, expiresAt: Date) 
 }
 
 export function clearSessionCookie(res: Response) {
-  res.cookie(SESSION_COOKIE, "", { path: "/", domain: cookieDomain(), expires: new Date(0), sameSite: isHttps() ? "none" : "lax", secure: true });
+  res.cookie(SESSION_COOKIE, "", { path: "/", domain: cookieDomain(), expires: new Date(0) });
 }
 
 /* ─────────────────────────  Admin auth  ───────────────────────── */
@@ -289,7 +283,7 @@ export function adminOr401(req: Request): CurrentAdmin {
 export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
   res.cookie(ADMIN_COOKIE, token, {
     httpOnly: true,
-    sameSite: isHttps() ? "none" : "lax",
+    sameSite: "strict",
     secure: true,
     expires: expiresAt,
     path: "/",
@@ -298,7 +292,7 @@ export function setAdminCookie(res: Response, token: string, expiresAt: Date) {
 }
 
 export function clearAdminCookie(res: Response) {
-  res.cookie(ADMIN_COOKIE, "", { path: "/", domain: cookieDomain(), expires: new Date(0), sameSite: isHttps() ? "none" : "lax", secure: true });
+  res.cookie(ADMIN_COOKIE, "", { path: "/", domain: cookieDomain(), expires: new Date(0) });
 }
 
 // Augment Express Request to include user + admin

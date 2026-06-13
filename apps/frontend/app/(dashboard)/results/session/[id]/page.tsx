@@ -67,6 +67,7 @@ interface ExamAnalytics {
   answeredCorrectly: number;
   answeredIncorrectly: number;
   questions: QuestionResult[];
+  completed: boolean;
   completedAt: string;
   tabSwitches?: number;
   flaggedAt?: string | null;
@@ -90,6 +91,8 @@ export default function SessionResultPage() {
         if (cancelled) return;
         if (!d.questions) {
           setError("No questions");
+        } else if (d.completed === false) {
+          setError("Exam is still in progress");
         } else {
           setData(d);
         }
@@ -113,6 +116,43 @@ export default function SessionResultPage() {
       <div className="flex flex-col items-center justify-center h-[60vh] gap-3">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-4 w-56" />
+      </div>
+    );
+  }
+  if (error) {
+    const isInProgress = error === "Exam is still in progress";
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] gap-4">
+        <p className="text-muted-foreground text-center max-w-md">
+          {isInProgress
+            ? "This exam hasn't been submitted yet. Results will be available once the timer expires or the exam is completed."
+            : error}
+        </p>
+        <div className="flex gap-3">
+          <Button variant="outline" onClick={() => router.push("/tests")}>
+            Back to Tests
+          </Button>
+          {isInProgress && (
+            <Button
+              variant="default"
+              onClick={() => {
+                setError(null);
+                setData(null);
+                fetchJSON<ExamAnalytics>(`/api/exam/${sessionId}`)
+                  .then((d) => {
+                    if (d.completed === false) {
+                      setError("Exam is still in progress");
+                    } else {
+                      setData(d);
+                    }
+                  })
+                  .catch((e) => setError((e as Error).message ?? "Failed to load"));
+              }}
+            >
+              Check Again
+            </Button>
+          )}
+        </div>
       </div>
     );
   }
