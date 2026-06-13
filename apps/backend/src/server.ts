@@ -71,10 +71,8 @@ const generalLimiter = rateLimit({
 });
 app.use(generalLimiter);
 
-// Rate limiting: strict on auth endpoints (skip on localhost for dev).
-// The non-localhost limit is intentionally generous (50/15min) to support
-// multi-device testing via Tailscale/LAN; production deployments should
-// lower this via the AUTH_LIMIT env var.
+// Rate limiting: generous on auth endpoints for Tailscale/LAN testing.
+// Localhost is skipped entirely; non-localhost gets AUTH_LIMIT/15min (default 200).
 const isLocalhost = (req: express.Request) => {
   const ip = req.ip || "unknown";
   return ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
@@ -82,7 +80,7 @@ const isLocalhost = (req: express.Request) => {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: (req) => (isLocalhost(req) ? 1000 : Number(process.env.AUTH_LIMIT || 50)),
+  max: (req) => (isLocalhost(req) ? 1000 : Number(process.env.AUTH_LIMIT || 200)),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many attempts, please try again later." },
