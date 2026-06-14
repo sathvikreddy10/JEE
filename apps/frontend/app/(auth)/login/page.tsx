@@ -31,7 +31,13 @@ function LoginPageInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { error?: string; user?: { email: string } };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Backend server is not running. Start with: cd apps/backend && npm run dev");
+      }
       if (!res.ok) {
         setError(data.error || "Something went wrong");
         cli.warn(`Auth failed: ${data.error}`);
