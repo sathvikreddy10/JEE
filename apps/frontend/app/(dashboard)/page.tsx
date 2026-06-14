@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StreakCard } from "@/components/dashboard/StreakCard";
@@ -13,7 +13,7 @@ import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 import type { MyBatch } from "@testify/shared";
-import { Flame, Zap, Trophy, BookOpen, ArrowRight, Clock, Info, BarChart3, TrendingUp, Target, Award } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 interface HeatmapDay { date: string; count: number; accuracy: number | null; done: boolean }
 interface WeekDay { day: string; date: string; accuracy: number | null; attempts: number }
@@ -55,167 +55,162 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="space-y-8 max-w-[1400px] mx-auto">
-        <Skeleton className="h-36 w-full rounded-2xl" />
+        <Skeleton className="h-36 w-full rounded-[14px]" />
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-[14px]" />)}
         </div>
-        <Skeleton className="h-32 w-full rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-xl" />
+        <Skeleton className="h-32 w-full rounded-[14px]" />
+        <Skeleton className="h-48 w-full rounded-[14px]" />
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 max-w-[1400px] mx-auto">
-      {/* Hero Header */}
-      <div className="rounded-2xl border-2 border-border bg-card p-8 md:p-10 shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Welcome back{studentName !== "there" ? `, ${studentName}` : ""}
-              </h1>
-              {myBatches.length > 0 && (
-                <Badge variant="info">
-                  {myBatches.length === 1 ? myBatches[0].name : `${myBatches.length} batches`}
-                </Badge>
-              )}
-            </div>
-            <p className="text-muted-foreground">
-              {stats ? (
-                <span className="flex items-center gap-2 flex-wrap text-sm">
-                  <Flame className="h-4 w-4 text-warning" /> {stats.streak}-day streak
-                  <span className="text-border">·</span>
-                  <Trophy className="h-4 w-4 text-info" /> {stats.totalSessions} sessions
-                  <span className="text-border">·</span>
-                  <Zap className="h-4 w-4 text-success" /> {stats.lifetimeAccuracy}% accuracy
-                </span>
-              ) : "Ready for your next challenge?"}
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <Link href="/insights">
-              <Button size="lg" variant="outline" className="gap-2">
-                <BarChart3 className="h-4 w-4" /> View Insights
-              </Button>
-            </Link>
+    <div className="space-y-0">
+      {/* Hero Section */}
+      <section className="min-h-[60svh] flex flex-col justify-center" style={{ padding: "clamp(5rem, 12vh, 8rem) var(--pad) 4rem" }}>
+        <p className="text-xs uppercase tracking-[0.2em] text-[var(--ink-soft)] mb-6 flex items-center gap-4 reveal">
+          <span className="block w-12 h-px bg-[var(--accent)]" />
+          For students who want clarity, not clutter
+        </p>
+        <h1 className="font-[family-name:var(--font-display)] font-[380] text-[clamp(3rem,9.5vw,8.5rem)] leading-[1.02] tracking-[-0.02em]">
+          <span className="line"><span>Master <em>JEE</em>,</span></span>
+          <span className="line"><span>own the <em className="text-[var(--accent)]">rank</em>.</span></span>
+        </h1>
+        <div className="flex items-end justify-between gap-8 mt-12 flex-wrap">
+          <p className="max-w-[38ch] text-[var(--ink-soft)] text-lg reveal">
+            Testify is a minimal test platform for JEE/NEET aspirants.
+            Take real exams, see exactly where you stand, and turn every
+            result into a plan — without the noise.
+          </p>
+          <div className="flex items-center gap-8 flex-wrap reveal">
             <Link href="/tests">
-              <Button size="lg" className="gap-2">
-                <BookOpen className="h-4 w-4" /> Browse Tests <ArrowRight className="h-4 w-4" />
-              </Button>
+              <span className="btn btn--primary" data-magnetic>
+                <span>Take a test</span>
+                <ArrowRight className="h-4 w-4" />
+              </span>
             </Link>
+            <Link href="/insights" className="link-arrow" data-magnetic>View insights</Link>
           </div>
+        </div>
+
+        <div className="flex gap-[clamp(2rem,6vw,5rem)] mt-[clamp(3rem,7vh,5rem)] pt-8 border-t border-[var(--line)] flex-wrap reveal">
+          <div className="stat">
+            <span>
+              <span className="stat__num">{insights?.totalSessions ?? 0}</span>
+              <span className="stat__suffix">+</span>
+            </span>
+            <p>tests taken</p>
+          </div>
+          <div className="stat">
+            <span>
+              <span className="stat__num">{insights?.lifetimeAccuracy ?? 0}</span>
+              <span className="stat__suffix">%</span>
+            </span>
+            <p>lifetime accuracy</p>
+          </div>
+          <div className="stat">
+            <span>
+              <span className="stat__num">{myBatches.length}</span>
+              <span className="stat__suffix">batch</span>
+            </span>
+            <p>{myBatches.length === 1 ? "enrollment" : "enrollments"}</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Marquee */}
+      <div className="marquee" aria-hidden="true">
+        <div className="marquee__track">
+          <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
+          <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
+          <span>Focus</span><i>✶</i><span>Test</span><i>✶</i><span>Analyse</span><i>✶</i><span>Improve</span><i>✶</i>
         </div>
       </div>
 
-      {/* Quick stats */}
-      {insights && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Accuracy</p>
-                  <p className="text-2xl font-bold font-mono text-foreground">{insights.lifetimeAccuracy}%</p>
-                </div>
-                <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
-                  <Target className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Tests</p>
-                  <p className="text-2xl font-bold font-mono text-foreground">{insights.totalSessions}</p>
-                </div>
-                <div className="h-10 w-10 rounded-xl bg-info/10 text-info flex items-center justify-center">
-                  <BookOpen className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Best Score</p>
-                  <p className="text-2xl font-bold font-mono text-foreground">{insights.bestScore}</p>
-                </div>
-                <div className="h-10 w-10 rounded-xl bg-success/10 text-success flex items-center justify-center">
-                  <Award className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-5">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Avg %</p>
-                  <p className="text-2xl font-bold font-mono text-foreground">{insights.avgPercent}%</p>
-                </div>
-                <div className="h-10 w-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center">
-                  <TrendingUp className="h-5 w-5" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Features */}
+      <section className="section">
+        <div className="section__head">
+          <span className="section__index reveal">01</span>
+          <h2 className="section__title reveal">Built for the way<br/>you actually <em>learn</em></h2>
         </div>
-      )}
+        <div className="features-grid">
+          <article className="feature-card reveal">
+            <span className="feature-card__num">a.</span>
+            <h3>Focused tests</h3>
+            <p>One question at a time. No scrolling walls, no distraction — just pure exam simulation.</p>
+          </article>
+          <article className="feature-card reveal">
+            <span className="feature-card__num">b.</span>
+            <h3>Instant analysis</h3>
+            <p>Accuracy, pace, strongest and weakest topics — rendered the second you finish, not buried in a PDF.</p>
+          </article>
+          <article className="feature-card reveal">
+            <span className="feature-card__num">c.</span>
+            <h3>Batch proctoring</h3>
+            <p>Live monitoring, tab-switch detection, schedule-based tests, leaderboards — institute-grade discipline.</p>
+          </article>
+        </div>
+      </section>
 
-      {/* Resume Exams */}
+      {/* In Progress */}
       {incompleteSessions.length > 0 && (
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4 text-warning" /> In Progress
-              </CardTitle>
-              <Badge variant="warning">{incompleteSessions.length} active</Badge>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {incompleteSessions.map((s) => (
-                <div key={s.id} onClick={() => router.push(`/exam?sessionId=${s.id}`)}
-                  className="flex items-center justify-between p-4 rounded-xl border-2 border-border bg-card hover:border-primary hover:bg-accent/30 cursor-pointer transition-all">
-                  <div>
-                    <p className="font-semibold text-sm text-foreground">{s.setName}</p>
-                    <p className="text-xs text-muted-foreground">{s.subject} · Started {new Date(s.startTime).toLocaleTimeString()}</p>
-                  </div>
-                  <Button size="sm">Resume <ArrowRight className="h-3.5 w-3.5 ml-1" /></Button>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <section className="section section--dark">
+          <div className="section__head">
+            <span className="section__index reveal">02</span>
+            <h2 className="section__title reveal">Resume where<br/><em>you left off</em></h2>
+          </div>
+          <div className="flex flex-col gap-0">
+            {incompleteSessions.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => router.push(`/exam?sessionId=${s.id}`)}
+                className="subject-row"
+              >
+                <span className="subject-row__index">{String(i + 1).padStart(2, "0")}</span>
+                <span className="subject-row__name">{s.setName}</span>
+                <span className="subject-row__meta">{s.subject} · {new Date(s.startTime).toLocaleTimeString()}</span>
+                <span className="subject-row__arrow">
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
-
-      {/* Streak */}
-      <StreakCard streak={stats?.streak ?? 0} bestStreak={stats?.bestStreak ?? 0} />
-
-      {/* Daily Challenge */}
-      <Card>
-        <CardContent className="pt-6">
-          <DailyChallenge />
-        </CardContent>
-      </Card>
 
       {/* Performance History */}
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold tracking-tight text-foreground">Performance History</h2>
-          <Badge variant="muted">Last 7 days</Badge>
+      <section className="section">
+        <div className="section__head">
+          <span className="section__index reveal">03</span>
+          <h2 className="section__title reveal">Your <em>performance</em></h2>
         </div>
-        <Card>
-          <CardContent className="pt-6">
-            <AnalyticsChart weekly={stats?.weekly ?? []} heatmap={stats?.heatmap ?? []} />
-          </CardContent>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Card className="p-6">
+            <StreakCard streak={stats?.streak ?? 0} bestStreak={stats?.bestStreak ?? 0} />
+          </Card>
+          <Card className="p-6">
+            <DailyChallenge />
+          </Card>
+        </div>
+        <Card className="mt-6 p-6">
+          <AnalyticsChart weekly={stats?.weekly ?? []} heatmap={stats?.heatmap ?? []} />
         </Card>
-      </div>
+      </section>
+
+      {/* CTA */}
+      <section className="min-h-[60svh] flex flex-col items-center justify-center gap-12 text-center py-24 px-[--pad] bg-[var(--paper-2)] border-t border-[var(--line)]">
+        <h2 className="font-[family-name:var(--font-display)] font-[380] text-[clamp(3rem,10vw,8rem)] leading-[1.02] tracking-[-0.02em]">
+          <span className="line"><span>Ready when</span></span>
+          <span className="line"><span><em className="text-[var(--accent)]">you</em> are.</span></span>
+        </h2>
+        <Link href="/tests">
+          <span className="btn btn--primary btn--big" data-magnetic>
+            <span>Start studying</span>
+            <ArrowRight className="h-5 w-5" />
+          </span>
+        </Link>
+      </section>
     </div>
   );
 }

@@ -27,12 +27,12 @@ function getStatus(id: number, answers: Record<number, string>, visited: Set<num
 }
 
 const STATUS_CLASSES: Record<string, string> = {
-  "answered": "bg-success text-white border-success",
-  "visited": "bg-amber text-white border-amber",
-  "not-visited": "bg-background text-muted-foreground border-border",
-  "review": "bg-warning text-white border-warning",
-  "answered-review": "bg-info text-white border-info",
-  "not-answered": "bg-destructive text-white border-destructive",
+  "answered": "bg-[var(--good)] text-[var(--paper)] border-[var(--good)]",
+  "visited": "bg-[#B45309] text-[var(--paper)] border-[#B45309]",
+  "not-visited": "bg-[var(--paper)] text-[var(--ink-soft)] border-[var(--line)]",
+  "review": "bg-[#B45309] text-[var(--paper)] border-[#B45309]",
+  "answered-review": "bg-[#0369A1] text-[var(--paper)] border-[#0369A1]",
+  "not-answered": "bg-[var(--bad)] text-[var(--paper)] border-[var(--bad)]",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -45,18 +45,18 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const LEGEND = [
-  { label: "Answered", className: "bg-success" },
-  { label: "Visited", className: "bg-amber" },
-  { label: "Not Visited", className: "bg-border" },
-  { label: "Mark for Review", className: "bg-warning" },
-  { label: "Save + Review", className: "bg-info" },
-  { label: "Not Answered", className: "bg-destructive" },
+  { label: "Answered", className: "bg-[var(--good)]" },
+  { label: "Visited", className: "bg-[#B45309]" },
+  { label: "Not Visited", className: "bg-[var(--line)]" },
+  { label: "Mark for Review", className: "bg-[#B45309]" },
+  { label: "Save + Review", className: "bg-[#0369A1]" },
+  { label: "Not Answered", className: "bg-[var(--bad)]" },
 ];
 
 export function QuestionPalette({ total, answers, visited, review, skipped, activeIndex, onQuestionClick }: QuestionPaletteProps) {
   return (
-    <div className="w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto bg-elevated border-l border-border">
-      <div className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground">Question Palette</div>
+    <div className="w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto">
+      <div className="text-[11px] uppercase tracking-[0.15em] text-[var(--ink-soft)]">Question Palette</div>
 
       <div className="grid grid-cols-5 gap-2" role="group" aria-label="Question navigation">
         {Array.from({ length: total }, (_, i) => {
@@ -71,9 +71,9 @@ export function QuestionPalette({ total, answers, visited, review, skipped, acti
               aria-label={`Question ${qNum}, ${STATUS_LABELS[status]}${isActive ? ", current" : ""}`}
               aria-current={isActive ? "true" : undefined}
               className={cn(
-                "aspect-square rounded-full flex items-center justify-center text-[11px] font-mono transition-all hover:scale-105 border",
+                "aspect-square rounded-full flex items-center justify-center text-[11px] transition-all hover:scale-105 border",
                 STATUS_CLASSES[status],
-                isActive && "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+                isActive && "ring-2 ring-[var(--ink)] ring-offset-2 ring-offset-[var(--paper)]"
               )}
             >
               {qNum}
@@ -86,7 +86,7 @@ export function QuestionPalette({ total, answers, visited, review, skipped, acti
         {LEGEND.map((item) => (
           <div key={item.label} className="flex items-center gap-2" role="listitem">
             <div className={cn("w-3 h-3 rounded-full", item.className)} />
-            <span className="text-[10px] font-mono text-muted-foreground">{item.label}</span>
+            <span className="text-[10px] text-[var(--ink-soft)]">{item.label}</span>
           </div>
         ))}
       </div>

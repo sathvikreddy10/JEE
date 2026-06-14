@@ -1,7 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* ─── Legacy Card (drop-in replacement for old <Card hover style onClick>) ─── */
 interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   hover?: boolean;
   style?: React.CSSProperties;
@@ -13,8 +12,8 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
       ref={ref}
       onClick={onClick}
       className={cn(
-        "rounded-xl border bg-card text-card-foreground shadow-sm",
-        (hover || onClick) && "hover:border-ring/50 hover:bg-accent/30 cursor-pointer transition-all duration-200",
+        "rounded-[14px] border border-[var(--line)] bg-[var(--paper)] text-[var(--ink)]",
+        (hover || onClick) && "cursor-pointer hover:border-[var(--ink)] transition-colors duration-300",
         className
       )}
       style={style}
@@ -26,8 +25,6 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
 );
 Card.displayName = "Card";
 
-/* ─── Shadcn Card sub-components ─── */
-
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col space-y-1.5 p-6", className)} {...props} />
@@ -37,14 +34,18 @@ CardHeader.displayName = "CardHeader";
 
 const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("font-semibold leading-none tracking-tight", className)} {...props} />
+    <div
+      ref={ref}
+      className={cn("font-[family-name:var(--font-display)] font-medium text-xl leading-tight", className)}
+      {...props}
+    />
   )
 );
 CardTitle.displayName = "CardTitle";
 
 const CardDescription = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("text-sm text-muted-foreground", className)} {...props} />
+    <div ref={ref} className={cn("text-sm text-[var(--ink-soft)]", className)} {...props} />
   )
 );
 CardDescription.displayName = "CardDescription";

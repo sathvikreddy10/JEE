@@ -49,19 +49,13 @@ function LoginPageInner() {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-6"
-      style={{ background: "var(--bg-base)" }}
-    >
-      <div
-        className="w-full max-w-[420px] rounded-[14px] p-10 flex flex-col gap-6"
-        style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
-      >
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--paper)]">
+      <div className="w-full max-w-[420px] rounded-[14px] p-10 flex flex-col gap-6 border border-[var(--line)] bg-[var(--paper)]">
         <div className="text-center">
-          <h1 className="text-3xl font-extrabold mb-2" style={{ fontFamily: "var(--font-brand)", letterSpacing: "-0.02em", color: "var(--text-primary)" }}>
-            TESTIFY
+          <h1 className="text-4xl font-[family-name:var(--font-display)] font-normal italic mb-2 text-[var(--ink)]">
+            <span className="text-[var(--accent)] not-italic font-semibold">T.</span>estify
           </h1>
-          <p className="text-sm" style={{ color: "var(--text-secondary)" }}>Config-driven JEE test platform</p>
+          <p className="text-sm text-[var(--ink-soft)]">Learn. Test. Analyse.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -96,7 +90,7 @@ function LoginPageInner() {
           />
           {mode === "register" && (
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-foreground">Target Exam</label>
+              <label className="text-sm font-medium text-[var(--ink)]">Target Exam</label>
               <Select defaultValue="JEE Main 2026">
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -110,61 +104,31 @@ function LoginPageInner() {
             </div>
           )}
           {error && (
-            <div
-              className="text-xs px-3 py-2 rounded"
-              style={{ background: "rgba(220,38,38,0.08)", color: "var(--crimson)", border: "1px solid rgba(220,38,38,0.2)" }}
-            >
+            <div className="text-xs px-3 py-2 rounded-[14px] bg-[var(--accent-soft)] text-[var(--bad)] border border-[var(--bad)]">
               {error}
             </div>
           )}
-          <Button type="submit" variant="default" className="w-full py-3" disabled={submitting}>
+          <Button type="submit" variant="primary" className="w-full py-3" disabled={submitting}>
             {submitting ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Button>
         </form>
 
         {mode === "login" && (
-          <div
-            className="text-xs px-3 py-2 rounded"
-            style={{ background: "var(--bg-input)", color: "var(--text-secondary)", border: "1px solid var(--border-subtle)" }}
-          >
-            <div className="font-semibold mb-1" style={{ color: "var(--text-primary)" }}>Demo accounts</div>
-            <div className="font-mono">sathvik@testify.app / password123</div>
-            <div className="font-mono">arjun@testify.app / password123</div>
-            <div className="font-mono">priya@testify.app / password123</div>
+          <div className="text-xs px-3 py-2 rounded-[14px] bg-[var(--paper-2)] text-[var(--ink-soft)] border border-[var(--line)]">
+            <div className="font-semibold mb-1 text-[var(--ink)]">Demo accounts</div>
+            <div>sathvik@testify.app / password123</div>
+            <div>arjun@testify.app / password123</div>
+            <div>priya@testify.app / password123</div>
           </div>
         )}
 
-        <p className="text-center text-sm" style={{ color: "var(--text-secondary)" }}>
+        <p className="text-center text-sm text-[var(--ink-soft)]">
           {mode === "login" ? (
-            <>No account? <button type="button" onClick={() => { setMode("register"); setError(null); }} className="hover:underline" style={{ color: "var(--cyan)" }}>Create one</button></>
+            <>No account? <button type="button" onClick={() => { setMode("register"); setError(null); }} className="hover:underline text-[var(--accent)]">Create one</button></>
           ) : (
-            <>Already registered? <button type="button" onClick={() => { setMode("login"); setError(null); }} className="hover:underline" style={{ color: "var(--cyan)" }}>Sign in</button></>
+            <>Already registered? <button type="button" onClick={() => { setMode("login"); setError(null); }} className="hover:underline text-[var(--accent)]">Sign in</button></>
           )}
         </p>
-
-        {mode === "login" && (
-          <div className="text-center">
-            <button
-              type="button"
-              onClick={async () => {
-                try { await fetch("/api/auth/logout", { method: "POST" }); } catch { /* ignore */ }
-                const cookies = document.cookie.split(";");
-                for (const c of cookies) {
-                  const name = c.split("=")[0].trim();
-                  if (name) {
-                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-                    document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; domain=${window.location.hostname}`;
-                  }
-                }
-                window.location.reload();
-              }}
-              className="text-[11px] hover:underline font-mono"
-              style={{ color: "var(--text-tertiary)" }}
-            >
-              Stuck? Clear cookies and reload
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -172,7 +136,7 @@ function LoginPageInner() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading…</div>}>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-[var(--ink-soft)]">Loading…</div>}>
       <LoginPageInner />
     </Suspense>
   );

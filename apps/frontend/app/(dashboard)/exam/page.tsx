@@ -776,41 +776,41 @@ function ExamPageInner() {
   const isLastQuestion = activeIndex === totalQuestions - 1;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)]">
+    <div className="fixed inset-0 z-[500] flex flex-col bg-[var(--paper)]">
       {/* Practice Mode Banner */}
       {isPractice && (
-        <div className="w-full py-2 px-4 sm:px-6 text-center bg-primary/10 border-b border-primary" role="alert">
-          <div className="font-bold text-xs text-primary">
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-[var(--accent-soft)] border-b border-[var(--accent)]" role="alert">
+          <div className="font-bold text-xs text-[var(--accent)]">
             PRACTICE MODE — This session is not recorded. No backend updates, no proctoring.
           </div>
         </div>
       )}
       {/* Tab Switch Warning / Red Flag Banner */}
       {isTerminated && (
-        <div className="w-full py-3 px-4 sm:px-6 text-center bg-destructive text-white" role="alert">
+        <div className="w-full py-3 px-4 sm:px-6 text-center bg-[var(--bad)] text-[var(--paper)]" role="alert">
           <div className="font-bold text-sm">EXAM TERMINATED</div>
           <div className="text-xs mt-1">Your exam was terminated due to excessive tab switching. You have been red-flagged.</div>
         </div>
       )}
       {!isTerminated && isRedFlagged && (
-        <div className="w-full py-2 px-4 sm:px-6 text-center bg-destructive/10 border-b border-destructive" role="alert">
-          <div className="font-bold text-xs text-destructive">
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-[var(--accent-soft)] border-b border-[var(--bad)]" role="alert">
+          <div className="font-bold text-xs text-[var(--bad)]">
             RED FLAGGED — You have been flagged for suspicious activity
           </div>
         </div>
       )}
       {!isTerminated && !isRedFlagged && tabWarning && (
-        <div className="w-full py-2 px-4 sm:px-6 text-center bg-warning/10 border-b border-warning" role="alert">
-          <div className="font-bold text-xs text-warning">{tabWarning}</div>
+        <div className="w-full py-2 px-4 sm:px-6 text-center bg-[rgba(181,83,9,0.1)] border-b border-[#B45309]" role="alert">
+          <div className="font-bold text-xs text-[#B45309]">{tabWarning}</div>
         </div>
       )}
       {/* Top Belt */}
       <div
-        className="h-[56px] flex items-center justify-between px-4 sm:px-6 bg-card border-b border-border"
+        className="h-[56px] flex items-center justify-between px-4 sm:px-[--pad] border-b border-[var(--line)]"
       >
         <div className="flex items-center gap-6">
-          <span className="font-semibold text-sm text-foreground">Practice Session</span>
-          <span className="text-xs font-mono text-muted-foreground">
+          <span className="font-[family-name:var(--font-display)] italic text-sm text-[var(--ink)]">{questions[0]?.setName || "Exam"}</span>
+          <span className="text-xs text-[var(--ink-soft)]">
             {questions[0]?.topic || "Mixed"} • {totalQuestions} Questions
           </span>
         </div>
@@ -863,9 +863,9 @@ function ExamPageInner() {
           <div className="max-w-[720px] mx-auto p-4 sm:p-8 flex flex-col gap-6">
             {/* Question Card */}
             <div
-              className="bg-card border border-border rounded-[10px] p-8"
+              className="border border-[var(--line)] rounded-[14px] p-8"
             >
-              <div className="text-[11px] uppercase tracking-wider mb-5 font-mono text-muted-foreground">
+              <div className="text-[11px] uppercase tracking-[0.15em] mb-5 text-[var(--ink-soft)]">
                 Question {activeIndex + 1} of {totalQuestions} — {currentQuestion.topic}
               </div>
 
@@ -891,20 +891,13 @@ function ExamPageInner() {
                         onClick={() => handleOptionSelect(letter)}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOptionSelect(letter); } }}
                         className={cn(
-                          "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
-                          isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
+                          "quiz-option",
+                          isSelected && "border-[var(--ink)] bg-[var(--accent-soft)]"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "w-8 h-8 rounded-full border flex items-center justify-center text-xs font-mono shrink-0",
-                            isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-transparent border-border text-muted-foreground"
-                          )}
-                        >
-                          {letter}
-                        </div>
+                        <kbd>{String(i + 1)}</kbd>
                         <span
-                          className="text-sm text-foreground"
+                          className="text-sm text-[var(--ink)]"
                           dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
                         />
                       </button>
@@ -942,20 +935,13 @@ function ExamPageInner() {
                         onClick={toggle}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
                         className={cn(
-                          "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
-                          isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
+                          "quiz-option",
+                          isSelected && "border-[var(--ink)] bg-[var(--accent-soft)]"
                         )}
                       >
-                        <div
-                          className={cn(
-                            "w-8 h-8 rounded border flex items-center justify-center text-xs font-mono shrink-0",
-                            isSelected ? "bg-primary border-primary text-primary-foreground" : "bg-transparent border-border text-muted-foreground"
-                          )}
-                        >
-                          {isSelected ? "✓" : letter}
-                        </div>
+                        <kbd>{isSelected ? "✓" : String(i + 1)}</kbd>
                         <span
-                          className="text-sm text-foreground"
+                          className="text-sm text-[var(--ink)]"
                           dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
                         />
                       </button>
@@ -967,10 +953,8 @@ function ExamPageInner() {
               {/* Numerical Input */}
               {currentQuestion.type === "numeric" && (
                 <div className="mt-6">
-                  <div
-                    className="p-5 rounded border border-border bg-input text-center text-2xl font-mono mb-5 min-h-16"
-                  >
-                    <span className="text-muted-foreground">
+                  <div className="p-5 rounded-[14px] border border-[var(--line)] bg-[var(--paper-2)] text-center text-2xl mb-5 min-h-16 text-[var(--ink-soft)]">
+                    <span>
                       {answers[currentQuestion.id] || "Enter numerical answer"}
                     </span>
                   </div>
@@ -1001,7 +985,6 @@ function ExamPageInner() {
                             await saveAnswer(currentQuestion.id, val, t);
                             handleNext();
                           } else {
-                            // Fix #2: Replace Unicode minus with ASCII hyphen
                             const key = k === "−" ? "-" : k;
                             const val = (answers[currentQuestion.id] || "") + key;
                             setAnswers((prev) => ({ ...prev, [currentQuestion.id]: val }));
@@ -1009,12 +992,12 @@ function ExamPageInner() {
                           }
                         }}
                         className={cn(
-                          "py-4 rounded text-base font-mono transition-all",
+                          "py-4 rounded-[14px] text-base transition-all",
                           k === "↵"
-                            ? "bg-primary text-primary-foreground border-none"
+                            ? "bg-[var(--accent)] text-[var(--paper)]"
                             : k === "CLR"
-                            ? "bg-input border border-border text-destructive"
-                            : "bg-input border border-border text-foreground"
+                            ? "border border-[var(--line)] text-[var(--bad)]"
+                            : "border border-[var(--line)] text-[var(--ink)]"
                         )}
                       >
                         {k}
@@ -1038,7 +1021,7 @@ function ExamPageInner() {
                     }}
                     placeholder="Type your answer..."
                     aria-label="Your answer"
-                    className="w-full p-4 rounded border border-border bg-input text-base text-foreground outline-none focus:ring-2 focus:ring-ring"
+                    className="input-studia"
                   />
                 </div>
               )}
@@ -1046,19 +1029,19 @@ function ExamPageInner() {
 
             {/* Action Row */}
             <div className="flex justify-between items-center gap-4">
-              <Button variant="outline" onClick={handlePrev} disabled={activeIndex === 0}>
+              <button className="btn btn--small" onClick={handlePrev} disabled={activeIndex === 0}>
                 Previous
-              </Button>
+              </button>
               <div className="flex gap-3">
-                <Button variant="outline" onClick={skipQuestion}>
+                <button className="btn btn--small" onClick={skipQuestion}>
                   Skip
-                </Button>
-                <Button variant="outline" onClick={markForReview}>
+                </button>
+                <button className="btn btn--small" onClick={markForReview}>
                   {review.has(currentQuestion.id) ? "Unmark Review" : "Mark for Review"}
-                </Button>
-                <Button variant="default" onClick={handleNext}>
+                </button>
+                <button className="btn btn--primary btn--small" onClick={handleNext}>
                   {isLastQuestion ? "Submit" : "Save & Next"}
-                </Button>
+                </button>
               </div>
             </div>
           </div>
@@ -1067,7 +1050,7 @@ function ExamPageInner() {
         {/* Mobile Palette Toggle */}
         <button
           type="button"
-          className="md:hidden fixed bottom-20 right-4 z-40 bg-primary text-primary-foreground w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-lg"
+          className="md:hidden fixed bottom-20 right-4 z-40 bg-[var(--accent)] text-[var(--paper)] w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-lg"
           onClick={() => setShowPalette((p) => !p)}
           aria-label={showPalette ? "Hide question palette" : "Show question palette"}
         >
@@ -1078,7 +1061,7 @@ function ExamPageInner() {
         {showPalette && (
           <div className={cn(
             "fixed md:static inset-y-0 right-0 z-30 md:z-auto",
-            "w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto bg-elevated border-l border-border"
+            "w-[260px] flex flex-col gap-4 p-4 shrink-0 overflow-y-auto border-l border-[var(--line)] bg-[var(--paper-2)]"
           )}>
             <button
               type="button"
@@ -1103,20 +1086,20 @@ function ExamPageInner() {
 
       {/* End Test Bar */}
       <div
-        className="min-h-[56px] flex flex-wrap items-center justify-between gap-2 px-4 sm:px-6 bg-card border-t border-border"
+        className="min-h-[56px] flex flex-wrap items-center justify-between gap-2 px-4 sm:px-[--pad] border-t border-[var(--line)]"
       >
-        <span className="text-xs font-mono text-muted-foreground">
+        <span className="text-xs text-[var(--ink-soft)]">
           {Object.keys(answers).filter(k => answers[Number(k)]).length} of {totalQuestions} answered
         </span>
-        <Button variant="default" onClick={() => { setConfirmType("end"); setShowConfirmModal(true); }} disabled={ending}>
+        <button className="btn" onClick={() => { setConfirmType("end"); setShowConfirmModal(true); }} disabled={ending}>
           {ending ? "Ending..." : "End Test"}
-        </Button>
+        </button>
       </div>
 
       {/* Confirm Modal (Submit or End Test) */}
       {showConfirmModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-50 bg-overlay"
+          className="fixed inset-0 flex items-center justify-center z-50 bg-[rgba(20,18,16,0.55)]"
           onClick={(e) => e.target === e.currentTarget && setShowConfirmModal(false)}
           role="dialog"
           aria-modal="true"
@@ -1124,24 +1107,24 @@ function ExamPageInner() {
         >
           <div
             ref={confirmModalRef}
-            className="w-full max-w-[420px] rounded-[14px] p-8 flex flex-col gap-6 bg-card border border-border"
+            className="w-full max-w-[420px] rounded-[14px] p-8 flex flex-col gap-6 border border-[var(--line)] bg-[var(--paper)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-xl font-bold text-center font-[family-name:var(--font-brand)] text-foreground">
+            <h2 className="text-xl font-[family-name:var(--font-display)] font-medium text-center text-[var(--ink)]">
               {confirmType === "submit" ? "Submit Exam?" : "End Test Early?"}
             </h2>
-            <p className="text-sm text-center text-muted-foreground">
+            <p className="text-sm text-center text-[var(--ink-soft)]">
               {confirmType === "submit"
                 ? "You are on the last question. Would you like to submit the exam now?"
                 : "You have not reached the last question yet. Are you sure you want to end the test?"}
             </p>
             <div className="flex gap-3">
-              <Button variant="outline" className="flex-1" onClick={() => setShowConfirmModal(false)}>
+              <button className="btn flex-1" onClick={() => setShowConfirmModal(false)}>
                 No, Go Back
-              </Button>
-              <Button className="flex-1" onClick={() => { setShowConfirmModal(false); endExam(); }}>
+              </button>
+              <button className="btn btn--primary flex-1" onClick={() => { setShowConfirmModal(false); endExam(); }}>
                 {confirmType === "submit" ? "Yes, Submit" : "Yes, End Test"}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -1150,24 +1133,24 @@ function ExamPageInner() {
       {/* Fullscreen Tab Switch Warning Modal (1st switch only) */}
       {showTabSwitchModal && (
         <div
-          className="fixed inset-0 flex items-center justify-center z-[60] bg-black/85"
+          className="fixed inset-0 flex items-center justify-center z-[60] bg-[rgba(20,18,16,0.85)]"
         >
           <div
-            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6 bg-card border-2 border-warning"
+            className="w-full max-w-[480px] rounded-[14px] p-8 flex flex-col gap-6 border-2 border-[#B45309] bg-[var(--paper)]"
           >
             <div className="text-center">
               <div className="text-5xl mb-4">⚠️</div>
-              <h2 className="text-xl font-bold font-[family-name:var(--font-brand)] text-warning">
+              <h2 className="text-xl font-[family-name:var(--font-display)] font-medium text-[#B45309]">
                 Do not switch tabs
               </h2>
             </div>
-            <p className="text-sm text-center text-muted-foreground">
+            <p className="text-sm text-center text-[var(--ink-soft)]">
               Each tab switch is logged and monitored. Switching tabs repeatedly will result in a red flag and possible exam termination.
             </p>
             <div className="flex justify-center">
-              <Button variant="default" onClick={() => setShowTabSwitchModal(false)}>
+              <button className="btn btn--primary" onClick={() => setShowTabSwitchModal(false)}>
                 I understand — Stay on this page
-              </Button>
+              </button>
             </div>
           </div>
         </div>

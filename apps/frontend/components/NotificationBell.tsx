@@ -97,27 +97,31 @@ export function NotificationBell() {
         aria-label="Notifications"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={`relative w-11 h-11 flex items-center justify-center rounded-lg border-2 transition-colors ${open ? "bg-primary text-primary-foreground border-primary" : "bg-background text-foreground border-border hover:border-primary hover:text-primary"}`}
+        className={`relative w-9 h-9 flex items-center justify-center rounded-full border transition-colors ${
+          open
+            ? "bg-[var(--accent)] text-[var(--paper)] border-[var(--accent)]"
+            : "text-[var(--ink-soft)] border-[var(--line)] hover:border-[var(--ink)] hover:text-[var(--ink)]"
+        }`}
       >
-        <Bell className="h-5 w-5" />
+        <Bell className="h-4 w-4" />
         {data.unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold bg-destructive text-destructive-foreground border-2 border-card">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1.5 rounded-full flex items-center justify-center text-[10px] font-bold bg-[var(--bad)] text-[var(--paper)] border-2 border-[var(--paper)]">
             {data.unreadCount > 9 ? "9+" : data.unreadCount}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-[52px] w-[380px] max-h-[520px] overflow-auto rounded-xl shadow-2xl z-50 bg-card border-2 border-border">
-          <div className="sticky top-0 px-5 py-4 flex items-center justify-between bg-card border-b border-border">
-            <span className="text-xs font-mono uppercase tracking-wider font-semibold text-foreground">
+        <div className="absolute right-0 top-[52px] w-[380px] max-h-[520px] overflow-auto rounded-[14px] shadow-2xl z-50 bg-[var(--paper)] border border-[var(--line)]">
+          <div className="sticky top-0 px-5 py-4 flex items-center justify-between bg-[var(--paper)] border-b border-[var(--line)]">
+            <span className="text-xs uppercase tracking-[0.12em] font-semibold text-[var(--ink)]">
               Notifications
             </span>
             {data.unreadCount > 0 && (
               <button
                 onClick={markAll}
                 disabled={loading}
-                className="text-xs font-semibold text-primary hover:underline"
+                className="text-xs font-semibold text-[var(--accent)] hover:underline"
               >
                 Mark all read
               </button>
@@ -125,7 +129,7 @@ export function NotificationBell() {
           </div>
 
           {data.notifications.length === 0 ? (
-            <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+            <div className="px-5 py-10 text-center text-sm text-[var(--ink-soft)]">
               No notifications yet
             </div>
           ) : (
@@ -134,20 +138,22 @@ export function NotificationBell() {
                 <button
                   key={n.id}
                   onClick={() => handleClick(n)}
-                  className={`text-left px-5 py-4 flex flex-col gap-1.5 transition-colors border-b border-border last:border-b-0 hover:bg-accent ${n.readAt ? "" : "bg-primary/5"}`}
+                  className={`text-left px-5 py-4 flex flex-col gap-1.5 transition-colors border-b border-[var(--line)] last:border-b-0 hover:bg-[var(--accent-soft)] ${
+                    n.readAt ? "" : "bg-[var(--accent-soft)]"
+                  }`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-foreground">
+                    <span className="text-sm font-semibold text-[var(--ink)]">
                       {n.title}
                     </span>
                     {!n.readAt && (
-                      <span className="w-2 h-2 rounded-full shrink-0 bg-primary" />
+                      <span className="w-2 h-2 rounded-full shrink-0 bg-[var(--accent)]" />
                     )}
                   </div>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-xs text-[var(--ink-soft)]">
                     {n.body}
                   </span>
-                  <span className="text-[11px] font-mono text-muted-foreground/70">
+                  <span className="text-[11px] text-[var(--ink-soft)]">
                     {timeAgo(n.createdAt)}
                   </span>
                 </button>

@@ -174,7 +174,7 @@ export default function BatchAnalyticsPage() {
                               );
                             }
                             const pct = pp.bestPercent ?? 0;
-                            const color = pct >= 75 ? "var(--mint)" : pct >= 50 ? "var(--cyan)" : pct >= 25 ? "var(--amber)" : "var(--crimson)";
+                            const color = pct >= 75 ? "var(--good)" : pct >= 50 ? "var(--accent)" : pct >= 25 ? "#B45309" : "var(--bad)";
                             const bg = pct >= 75 ? "rgba(94,243,140,0.10)" : pct >= 50 ? "rgba(72,190,255,0.10)" : pct >= 25 ? "rgba(210,153,34,0.10)" : "rgba(220,38,38,0.10)";
                             return (
                               <span
