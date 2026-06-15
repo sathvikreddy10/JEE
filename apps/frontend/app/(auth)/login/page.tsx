@@ -18,30 +18,39 @@ function LoginPageInner() {
   const searchParams = useSearchParams();
   const nextPath = searchParams.get("next") || "/";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
+    e?.preventDefault?.();
+    if (submitting) return;
     setSubmitting(true);
     setError(null);
     const endpoint = mode === "login" ? "/api/auth/login" : "/api/auth/register";
     const body = mode === "login" ? { email, password } : { email, name, password };
-    cli.api(mode === "login" ? "POST" : "POST", endpoint, { email });
+    cli.api("POST", endpoint, { email });
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
       const res = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
+        credentials: "include",
+        signal: controller.signal,
       });
-      const data = await res.json();
+      clearTimeout(timeoutId);
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error || "Something went wrong");
-        cli.warn(`Auth failed: ${data.error}`);
+        setError((data as { error?: string }).error || `HTTP ${res.status}`);
+        cli.warn(`Auth failed: ${(data as { error?: string }).error || res.status}`);
         return;
       }
-      cli.success(`Auth success: ${data.user.email} → ${nextPath}`);
+      cli.success(`Auth success: ${(data as { user: { email: string } }).user.email} → ${nextPath}`);
       router.push(nextPath);
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      const msg = (err as Error).name === "AbortError"
+        ? "Request timed out — backend not reachable. Make sure the backend is running."
+        : (err as Error).message;
+      setError(msg);
       cli.err("auth submit", err);
     } finally {
       setSubmitting(false);
@@ -117,7 +126,13 @@ function LoginPageInner() {
               {error}
             </div>
           )}
-          <Button type="submit" variant="default" className="w-full py-3" disabled={submitting}>
+          <Button
+            type="submit"
+            variant="default"
+            className="w-full py-3"
+            disabled={submitting}
+            onClick={(e) => { e.preventDefault(); handleSubmit(e); }}
+          >
             {submitting ? "Please wait..." : mode === "login" ? "Sign In" : "Create Account"}
           </Button>
         </form>
