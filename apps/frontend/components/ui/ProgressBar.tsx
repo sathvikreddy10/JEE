@@ -2,7 +2,7 @@
 
 interface ProgressBarProps {
   value: number;
-  variant?: "accent" | "good" | "bad" | "destructive" | "warning";
+  variant?: "accent" | "good" | "bad" | "destructive" | "warning" | "cyan" | "mint" | "forest" | "info" | "success";
   className?: string;
 }
 
@@ -13,6 +13,11 @@ export function ProgressBar({ value, variant = "accent", className = "" }: Progr
     bad: "var(--bad)",
     destructive: "var(--bad)",
     warning: "#B45309",
+    cyan: "var(--accent)",
+    mint: "var(--good)",
+    forest: "var(--good)",
+    info: "#0369A1",
+    success: "var(--good)",
   };
 
   return (
