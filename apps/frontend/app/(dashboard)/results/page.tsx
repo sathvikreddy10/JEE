@@ -163,6 +163,8 @@ function SessionCard({ s, timeTaken, percent, b, onClick }: { s: SessionRow; tim
   );
 }
 
+const loadingFallback = <div className="p-8 flex flex-col gap-4"><Skeleton className="h-8 w-32 rounded-[14px]" /><Skeleton className="h-4 w-64 rounded-[14px]" /><Skeleton className="h-24 w-full rounded-[14px]" /></div>;
+
 export default function ResultsPage() {
-  return <Suspense fallback={<div className="p-8 flex flex-col gap-4"><Skeleton className="h-8 w-32 rounded-[14px]" /><Skeleton className="h-4 w-64 rounded-[14px]" /><Skeleton className="h-24 w-full rounded-[14px]" /></Suspense>}><ResultsPageInner /></Suspense>;
+  return <Suspense fallback={loadingFallback}><ResultsPageInner /></Suspense>;
 }
