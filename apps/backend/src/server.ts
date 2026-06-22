@@ -146,7 +146,7 @@ server.on("error", (err: any) => {
 
 // Ensure Prisma is connected before accepting requests
 prisma.$connect().then(() => {
-  log.info("Prisma connected to SQLite");
+  log.info("Prisma connected to PostgreSQL");
   server.listen(PORT, "0.0.0.0", () => {
     log.success(`Backend listening on http://localhost:${PORT}`);
     log.info(`CORS origin: ${FRONTEND_URL}`);
