@@ -36,6 +36,16 @@ export function Topbar({ streak = 0, currentScreen }: { streak?: number; current
 
   useEffect(() => { setMobileOpen(false); }, [pathname]);
 
+  // Prevent body scroll when drawer is open
+  useEffect(() => {
+    if (mobileOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [mobileOpen]);
+
   const handleLogout = async () => {
     try { await fetch("/api/auth/logout", { method: "POST" }) } catch {}
     router.push("/login");
@@ -90,42 +100,86 @@ export function Topbar({ streak = 0, currentScreen }: { streak?: number; current
         </button>
       </div>
 
+      {/* Mobile slide-in drawer */}
       {mobileOpen && (
-        <div className="absolute top-full left-0 right-0 bg-card border-b shadow-lg sm:hidden z-40 animate-slide-up">
-          <nav className="flex flex-col p-4 gap-1" aria-label="Student navigation">
-            {NAV_ITEMS.map((s) => {
-              const isActive = activeScreen === s.id;
-              return (
-                <Link key={s.id} href={s.path}
-                  className={cn("flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors",
-                    isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50")}>
-                  <s.icon className="h-4 w-4" />
-                  {s.label}
-                </Link>
-              );
-            })}
-            {streak > 0 && (
-              <Badge variant="warning" className="sm:hidden gap-1.5 px-2.5 py-1 self-start mt-2">
-                <Flame className="h-3 w-3" /> {streak}d streak
-              </Badge>
-            )}
-            {user ? (
-              <div className="flex items-center justify-between mt-2 pt-3 border-t border-border/50">
-                <div className="flex items-center gap-3">
-                  <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-xs font-bold text-primary">{user.name?.charAt(0)?.toUpperCase() || "U"}</span>
-                  </div>
-                  <span className="text-sm font-medium">{user.name}</span>
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/40 z-40 sm:hidden animate-fade-in"
+            onClick={() => setMobileOpen(false)}
+          />
+          {/* Drawer */}
+          <div className="fixed top-0 right-0 bottom-0 w-[280px] bg-card z-50 sm:hidden flex flex-col animate-slide-in-right shadow-2xl">
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 h-14 border-b shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-primary flex items-center justify-center">
+                  <span className="text-primary-foreground text-[10px] font-bold">●</span>
                 </div>
-                <Button variant="ghost" size="icon" onClick={handleLogout} aria-label="Sign out">
-                  <LogOut className="h-3.5 w-3.5" />
-                </Button>
+                <span className="text-sm font-bold tracking-tight font-[family-name:var(--font-brand)]">TESTIFY</span>
               </div>
-            ) : (
-              <Link href="/login" className="mt-2"><Button variant="outline" size="sm" className="w-full">Sign In</Button></Link>
+              <button onClick={() => setMobileOpen(false)} className="h-8 w-8 rounded-lg hover:bg-muted flex items-center justify-center" aria-label="Close menu">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* User info */}
+            {user && (
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border/50">
+                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-primary">{user.name?.charAt(0)?.toUpperCase() || "U"}</span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                </div>
+              </div>
             )}
-          </nav>
-        </div>
+
+            {/* Nav items */}
+            <nav className="flex-1 overflow-y-auto py-4 px-3" aria-label="Mobile navigation">
+              <div className="space-y-1">
+                {NAV_ITEMS.map((s) => {
+                  const isActive = activeScreen === s.id;
+                  return (
+                    <Link key={s.id} href={s.path}
+                      className={cn("flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                        isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent/50 hover:text-foreground")}>
+                      <s.icon className="h-4 w-4" />
+                      <span>{s.label}</span>
+                      {isActive && <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" />}
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {streak > 0 && (
+                <div className="mt-4 px-4">
+                  <Badge variant="warning" className="gap-1.5 px-2.5 py-1">
+                    <Flame className="h-3 w-3" /> {streak}d streak
+                  </Badge>
+                </div>
+              )}
+            </nav>
+
+            {/* Bottom actions */}
+            <div className="border-t border-border/50 p-4 shrink-0">
+              {user ? (
+                <button
+                  onClick={handleLogout}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-all duration-200"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>Sign Out</span>
+                </button>
+              ) : (
+                <Link href="/login" onClick={() => setMobileOpen(false)}>
+                  <Button variant="default" className="w-full">Sign In</Button>
+                </Link>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </header>
   );

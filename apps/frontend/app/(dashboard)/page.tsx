@@ -68,42 +68,49 @@ export default function DashboardPage() {
   return (
     <div className="space-y-8 max-w-[1400px] mx-auto">
       {/* Hero Header */}
-      <div className="rounded-2xl border-2 border-border bg-card p-8 md:p-10 shadow-sm">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2 flex-wrap">
-              <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">
-                Welcome back{studentName !== "there" ? `, ${studentName}` : ""}
-              </h1>
-              {myBatches.length > 0 && (
-                <Badge variant="info">
-                  {myBatches.length === 1 ? myBatches[0].name : `${myBatches.length} batches`}
-                </Badge>
-              )}
+      <div className="rounded-2xl border border-border/60 bg-card p-6 sm:p-8 md:p-10 shadow-sm relative overflow-hidden">
+        {/* Subtle gradient decoration */}
+        <div className="absolute top-0 right-0 w-64 h-64 opacity-[0.03] pointer-events-none rounded-full"
+          style={{ background: "radial-gradient(circle, var(--cyan) 0%, transparent 70%)", transform: "translate(30%, -30%)" }} />
+        <div className="absolute bottom-0 left-0 w-48 h-48 opacity-[0.02] pointer-events-none rounded-full"
+          style={{ background: "radial-gradient(circle, var(--forest) 0%, transparent 70%)", transform: "translate(-20%, 20%)" }} />
+        <div className="relative">
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <div className="flex items-center gap-3 mb-2 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-foreground">
+                  Welcome back{studentName !== "there" ? `, ${studentName}` : ""}
+                </h1>
+                {myBatches.length > 0 && (
+                  <Badge variant="info">
+                    {myBatches.length === 1 ? myBatches[0].name : `${myBatches.length} batches`}
+                  </Badge>
+                )}
+              </div>
+              <p className="text-muted-foreground">
+                {stats ? (
+                  <span className="flex items-center gap-2 flex-wrap text-sm">
+                    <Flame className="h-4 w-4 text-warning" /> {stats.streak}-day streak
+                    <span className="text-border">·</span>
+                    <Trophy className="h-4 w-4 text-info" /> {stats.totalSessions} sessions
+                    <span className="text-border">·</span>
+                    <Zap className="h-4 w-4 text-success" /> {stats.lifetimeAccuracy}% accuracy
+                  </span>
+                ) : "Ready for your next challenge?"}
+              </p>
             </div>
-            <p className="text-muted-foreground">
-              {stats ? (
-                <span className="flex items-center gap-2 flex-wrap text-sm">
-                  <Flame className="h-4 w-4 text-warning" /> {stats.streak}-day streak
-                  <span className="text-border">·</span>
-                  <Trophy className="h-4 w-4 text-info" /> {stats.totalSessions} sessions
-                  <span className="text-border">·</span>
-                  <Zap className="h-4 w-4 text-success" /> {stats.lifetimeAccuracy}% accuracy
-                </span>
-              ) : "Ready for your next challenge?"}
-            </p>
-          </div>
-          <div className="flex gap-3 w-full sm:w-auto flex-col sm:flex-row">
-            <Link href="/insights" className="w-full sm:w-auto">
-              <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
-                <BarChart3 className="h-4 w-4" /> View Insights
-              </Button>
-            </Link>
-            <Link href="/tests" className="w-full sm:w-auto">
-              <Button size="lg" className="gap-2 w-full sm:w-auto">
-                <BookOpen className="h-4 w-4" /> Browse Tests <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+            <div className="flex gap-3 w-full sm:w-auto flex-col sm:flex-row">
+              <Link href="/insights" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
+                  <BarChart3 className="h-4 w-4" /> View Insights
+                </Button>
+              </Link>
+              <Link href="/tests" className="w-full sm:w-auto">
+                <Button size="lg" className="gap-2 w-full sm:w-auto">
+                  <BookOpen className="h-4 w-4" /> Browse Tests <ArrowRight className="h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
