@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {isFullBleed ? (
         <main className="flex-1 flex flex-col overflow-hidden">{children}</main>
       ) : (
-        <main className="flex-1 max-w-[1320px] mx-auto w-full px-4 sm:px-8 py-6 sm:py-12">
+        <main className="flex-1 max-w-[1320px] mx-auto w-full px-4 sm:px-8 py-6 sm:py-12 overflow-x-hidden">
           {children}
         </main>
       )}

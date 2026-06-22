@@ -486,7 +486,7 @@ export default function InsightsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-lg border overflow-hidden">
+                <div className="rounded-lg border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b-2 border-border bg-muted/30">

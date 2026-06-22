@@ -157,12 +157,12 @@ function ResultsPageInner() {
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
-      <div className="flex justify-between items-center flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold font-brand tracking-tight text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold font-brand tracking-tight text-foreground">
             Results
           </h1>
-          <p className="mt-2 text-muted-foreground text-[15px]">
+          <p className="mt-1 sm:mt-2 text-sm sm:text-[15px] text-muted-foreground">
             Your recent attempts, full history, and performance analytics.
           </p>
         </div>
@@ -171,14 +171,14 @@ function ResultsPageInner() {
             <TabsTrigger value="recent">
               Recent
               {typeof recent.length === "number" && (
-                <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/20 text-primary">
                   {recent.length}
                 </span>
               )}
             </TabsTrigger>
             <TabsTrigger value="history">
-              All History
-              <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+              All
+              <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
                 {sessions.length}
               </span>
             </TabsTrigger>
@@ -341,13 +341,13 @@ function SessionCard({
 }) {
   return (
     <Card onClick={onClick} className="p-0 cursor-pointer">
-      <div className="flex items-center gap-6 p-6">
-        <div className="w-12 h-12 rounded-lg flex items-center justify-center text-sm font-mono font-bold shrink-0 bg-primary/10 text-primary">
+      <div className="flex items-center gap-3 sm:gap-6 p-4 sm:p-6">
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg flex items-center justify-center text-xs sm:text-sm font-mono font-bold shrink-0 bg-primary/10 text-primary">
           {subjectIcon(s.subject)}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-semibold text-base truncate text-foreground">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-semibold text-sm sm:text-base truncate text-foreground">
               {s.setName}
             </h3>
             {s.kind === "daily-challenge" ? (
@@ -357,32 +357,32 @@ function SessionCard({
             )}
             {b && <Badge variant={bandVariant(b)}>{bandLabel(b)}</Badge>}
           </div>
-          <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+          <div className="flex items-center gap-2 text-[11px] sm:text-xs font-mono text-muted-foreground flex-wrap">
             <span>{s.subject}</span>
             <span>•</span>
             <span>{timeAgo(s.startTime)}</span>
-            <span>•</span>
-            <span>
+            <span className="hidden sm:inline">•</span>
+            <span className="hidden sm:inline">
               {new Date(s.startTime).toLocaleString(undefined, {
                 month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
               })}
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-8 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           {s.completed && percent != null && s.score != null && s.total != null ? (
             <div className="text-right">
-              <div className={cn("font-mono font-semibold text-lg leading-none", scoreColorClass(percent))}>
+              <div className={cn("font-mono font-semibold text-sm sm:text-lg leading-none", scoreColorClass(percent))}>
                 {s.score}<span className="text-xs text-muted-foreground">/{s.total}</span>
               </div>
-              <div className={cn("text-xs font-mono mt-1", scoreColorClass(percent))}>
+              <div className={cn("text-[10px] sm:text-xs font-mono mt-0.5 sm:mt-1 text-right", scoreColorClass(percent))}>
                 {percent}%
               </div>
             </div>
           ) : (
             <Badge variant="warning">Incomplete</Badge>
           )}
-          <div className="text-right min-w-[60px]">
+          <div className="text-right hidden sm:block">
             <div className="text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
               Time
             </div>
@@ -390,8 +390,8 @@ function SessionCard({
               {timeTaken != null ? formatTime(timeTaken) : "—"}
             </div>
           </div>
-          <span className="text-sm font-medium text-primary min-w-[70px] text-right">
-            {s.completed ? "View →" : "Resume →"}
+          <span className="text-xs sm:text-sm font-medium text-primary text-right whitespace-nowrap">
+            {s.completed ? "View" : "Resume"}
           </span>
         </div>
       </div>

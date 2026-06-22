@@ -373,26 +373,26 @@ export default function SessionResultPage() {
               const accentBg = topic.accuracy >= 70 ? "bg-success" : topic.accuracy >= 40 ? "bg-warning" : "bg-destructive";
               return (
                 <Card key={topic.name} className="p-0 overflow-hidden">
-                  <div className={cn("flex items-center p-5 px-7 bg-input border-b border-border-subtle border-l-4", topic.accuracy >= 70 ? "border-l-success" : topic.accuracy >= 40 ? "border-l-warning" : "border-l-destructive")}>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-[17px] font-bold text-foreground">
+                  <div className={cn("flex items-center p-4 sm:p-5 sm:px-7 bg-input border-b border-border-subtle border-l-4", topic.accuracy >= 70 ? "border-l-success" : topic.accuracy >= 40 ? "border-l-warning" : "border-l-destructive")}>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
+                        <h3 className="text-[15px] sm:text-[17px] font-bold text-foreground truncate max-w-[160px] sm:max-w-none">
                           {topic.name}
                         </h3>
                         <Badge variant={topic.accuracy >= 70 ? "success" : topic.accuracy >= 40 ? "warning" : "destructive"}>
-                          {topic.accuracy}% accuracy
+                          {topic.accuracy}%
                         </Badge>
-                        <span className="text-xs font-mono text-muted-foreground">
-                          {topic.correct} / {topic.total} correct
+                        <span className="text-[11px] sm:text-xs font-mono text-muted-foreground">
+                          {topic.correct}/{topic.total}
                         </span>
                       </div>
-                      <div className="flex items-center gap-5 text-xs font-mono text-muted-foreground">
-                        <span className="text-success">✓ {topic.correct}</span>
-                        <span className="text-destructive">✗ {topic.incorrect}</span>
-                        {topic.skipped > 0 && <span>— {topic.skipped} skipped</span>}
-                        <span className="text-primary">⏱ {formatTime(topic.timeSpent)}</span>
-                        <span className="ml-auto text-muted-foreground/70">
-                          {topic.questions.length} question{topic.questions.length !== 1 ? "s" : ""}
+                      <div className="flex items-center gap-3 sm:gap-5 text-[11px] sm:text-xs font-mono text-muted-foreground flex-wrap">
+                        <span className="text-success">✓{topic.correct}</span>
+                        <span className="text-destructive">✗{topic.incorrect}</span>
+                        {topic.skipped > 0 && <span>—{topic.skipped}</span>}
+                        <span className="text-primary">⏱{formatTime(topic.timeSpent)}</span>
+                        <span className="sm:ml-auto text-muted-foreground/70">
+                          {topic.questions.length} Q
                         </span>
                       </div>
                       <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-border-subtle">
@@ -418,49 +418,51 @@ export default function SessionResultPage() {
                           key={q.id}
                           onClick={() => router.push(`/review/${data.sessionId}/${q.id}`)}
                           className={cn(
-                            "w-full flex items-center text-left cursor-pointer transition-colors hover:bg-muted/30 p-5 px-7 border-b border-border-muted",
+                            "w-full flex flex-col sm:flex-row sm:items-center text-left cursor-pointer transition-colors hover:bg-muted/30 p-4 sm:p-5 sm:px-7 border-b border-border-muted",
                             statusBorder,
                             i % 2 === 0 ? "bg-card" : "bg-white/[0.01]"
                           )}
                         >
-                          <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-input border border-border-subtle text-primary min-w-[40px] text-center">
-                            Q{q.order}
-                          </span>
-                          <div
-                            className="flex-1 mx-4 line-clamp-1 text-sm text-foreground"
-                            dangerouslySetInnerHTML={{ __html: renderMath(q.text) }}
-                          />
-                          <div className="flex items-center gap-4 text-xs font-mono">
+                          <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto min-w-0">
+                            <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded bg-input border border-border-subtle text-primary shrink-0 text-center w-[36px]">
+                              Q{q.order}
+                            </span>
+                            <div
+                              className="flex-1 min-w-0 sm:mx-4 line-clamp-1 text-sm text-foreground"
+                              dangerouslySetInnerHTML={{ __html: renderMath(q.text) }}
+                            />
+                          </div>
+                          <div className="flex items-center gap-2 sm:gap-4 text-[11px] sm:text-xs font-mono mt-2 sm:mt-0 sm:ml-auto shrink-0">
                             <span className="text-muted-foreground">
-                              Yours:{" "}
+                              <span className="hidden sm:inline">Yours: </span>
                               <span className={cn("font-semibold", isAnswered ? (status === "correct" ? "text-success" : status === "incorrect" ? "text-destructive" : "text-primary") : "text-muted-foreground/70")}>
                                 {q.yourAnswer || "—"}
                               </span>
                             </span>
-                            <span className="text-muted-foreground">
-                              Correct:{" "}
+                            <span className="text-muted-foreground hidden sm:inline">
+                              <span className="hidden sm:inline">Correct: </span>
                               <span className="text-success font-semibold">{q.correctAnswer}</span>
                             </span>
                             {typeof q.marks === "number" && (
                               <span
                                 className={cn(
-                                  "font-semibold min-w-[40px] text-center",
+                                  "font-semibold text-center",
                                   q.marks > 0 ? "text-success" : q.marks < 0 ? "text-destructive" : "text-muted-foreground"
                                 )}
                               >
                                 {q.marks > 0 ? "+" : ""}{q.marks}
                               </span>
                             )}
-                            <span className="min-w-[24px] text-center">
+                            <span className="text-center w-[18px]">
                               {status === "correct" ? <span className="text-success">✓</span> :
                                status === "incorrect" ? <span className="text-destructive">✗</span> :
                                status === "reviewed" ? <span className="text-primary">R</span> :
                                <span className="text-muted-foreground">—</span>}
                             </span>
-                            <span className="text-muted-foreground/70 min-w-[36px] text-right">
+                            <span className="text-muted-foreground/70 text-right hidden sm:inline-block w-[32px]">
                               {q.timeSpent > 0 ? `${q.timeSpent}s` : "—"}
                             </span>
-                            <span className="text-primary min-w-[24px] text-right">→</span>
+                            <span className="text-primary hidden sm:inline">→</span>
                           </div>
                         </button>
                       );
