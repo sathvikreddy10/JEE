@@ -90,8 +90,15 @@ Password: password123
 
 --- DEMO TIPS ---
 
-- Database: SQLite (no external service needed, no connection limits)
+- Database: PostgreSQL (port 5515, db: testify)
 - Works on LAN and Tailscale out of the box
 - 1 test set with 15 JEE Main questions seeded
-- 3 test users in batch "JEE Main 2026 Batch"
+- 3 demo users + 41 load test users (loadtest0-40@testify.app) in batch
+- All accounts password: password123
 - Session cookies last 365 days
+
+--- LOAD TESTING ---
+
+# Run the load test (41 concurrent students)
+cd C:\Users\sathv\Desktop\testify
+npx tsx load-test.mjs

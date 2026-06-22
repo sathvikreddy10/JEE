@@ -40,6 +40,7 @@ interface PendingSave {
   selectedOption: string;
   timeSpent: number;
   attempts: number;
+  markedForReview?: boolean;
 }
 
 async function apiCall<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -141,31 +142,21 @@ function ExamPageInner() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  // Retry queue: try to flush every 3 seconds
+  // Retry queue: try to flush as a batch every 3 seconds
   useEffect(() => {
     if (!currentSessionId) return;
     if (pendingQueue.length === 0) return;
 
     cli.queue(pendingQueue.length);
     const timer = setTimeout(async () => {
-      const stillPending: PendingSave[] = [];
-      for (const item of pendingQueue) {
-        try {
-          await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
-            questionId: item.questionId,
-            selectedOption: item.selectedOption,
-            timeSpent: item.timeSpent,
-          });
-        } catch {
-          cli.warn(`Retry failed for q=${item.questionId}, attempt ${item.attempts + 1}`);
-          stillPending.push({ ...item, attempts: item.attempts + 1 });
-        }
-      }
-      if (stillPending.length === 0) {
-        cli.success("All pending saves flushed");
+      try {
+        const batch = pendingQueue.slice();
+        await apiCall("POST", `/api/exam/${currentSessionId}/answers`, { answers: batch });
+        cli.success(`Batch flushed: ${batch.length} answers`);
         setPendingQueue([]);
-      } else {
-        setPendingQueue(stillPending);
+      } catch {
+        cli.warn(`Batch flush failed (${pendingQueue.length} items), will retry`);
+        // items stay in queue for next tick
       }
     }, 3000);
     return () => clearTimeout(timer);
@@ -475,19 +466,14 @@ function ExamPageInner() {
     }
 
     if (currentSessionId) {
-      // Flush any pending saves first
+      // Flush any pending saves first — single batch call instead of N individual POSTs
       if (pendingQueue.length > 0) {
         cli.warn(`Flushing ${pendingQueue.length} pending saves before ending`);
-        for (const item of pendingQueue) {
-          try {
-            await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
-              questionId: item.questionId,
-              selectedOption: item.selectedOption,
-              timeSpent: item.timeSpent,
-            });
-          } catch {
-            /* swallow */
-          }
+        try {
+          await apiCall("POST", `/api/exam/${currentSessionId}/answers`, { answers: pendingQueue });
+          cli.success(`Batch flushed ${pendingQueue.length} answers before end`);
+        } catch {
+          cli.warn("Final batch flush failed, proceeding to end exam anyway");
         }
       }
 
@@ -541,7 +527,7 @@ function ExamPageInner() {
     return () => clearInterval(timer);
   }, [timeLeft, loading]);
 
-  // Save answer to backend instantly, with retry fallback
+  // Save answer: queue it locally — the periodic batch flush sends it to the server
   const saveAnswer = useCallback(async (questionId: number, option: string, timeSpent: number, markedForReview?: boolean) => {
     if (isPractice) {
       // Practice mode: no backend calls, just log
@@ -549,34 +535,26 @@ function ExamPageInner() {
       return;
     }
     if (!currentSessionId) return;
-    try {
-      await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
-        questionId,
-        selectedOption: option,
-        timeSpent,
-        markedForReview,
-      });
-      cli.success(`Saved: q=${questionId} → ${option === "" ? "(skipped)" : option} (${timeSpent}s)${markedForReview ? " [review]" : ""}`);
-    } catch {
-      cli.warn(`Instant save failed for q=${questionId}, queuing for retry`);
-      setPendingQueue((prev) => [...prev, { questionId, selectedOption: option, timeSpent, attempts: 1 }]);
-    }
+    setPendingQueue((prev) => {
+      // Replace any existing entry for the same question to keep the queue size bounded
+      const filtered = prev.filter((p) => p.questionId !== questionId);
+      return [...filtered, { questionId, selectedOption: option, timeSpent, attempts: 1 }];
+    });
   }, [currentSessionId, isPractice]);
 
-  // Save marked-for-review state independently
+  // Save marked-for-review state independently — queue it in the same batch
   const saveMarkedForReview = useCallback(async (questionId: number, marked: boolean) => {
     if (!currentSessionId) return;
-    try {
-      await apiCall("POST", `/api/exam/${currentSessionId}/answer`, {
+    setPendingQueue((prev) => {
+      const filtered = prev.filter((p) => p.questionId !== questionId);
+      return [...filtered, {
         questionId,
         selectedOption: answers[questionId] ?? "",
         timeSpent: 0,
+        attempts: 1,
         markedForReview: marked,
-      });
-      cli.info(`Mark-for-review: q=${questionId} → ${marked}`);
-    } catch {
-      cli.warn(`Failed to persist mark-for-review for q=${questionId}`);
-    }
+      }];
+    });
   }, [currentSessionId, answers]);
 
   const goToQuestion = useCallback((index: number) => {
@@ -863,7 +841,7 @@ function ExamPageInner() {
           <div className="max-w-[720px] mx-auto p-4 sm:p-8 flex flex-col gap-6">
             {/* Question Card */}
             <div
-              className="bg-card border border-border rounded-[10px] p-8"
+              className="bg-card border border-border rounded-[10px] p-4 sm:p-8"
             >
               <div className="text-[11px] uppercase tracking-wider mb-5 font-mono text-muted-foreground">
                 Question {activeIndex + 1} of {totalQuestions} — {currentQuestion.topic}
@@ -1045,18 +1023,18 @@ function ExamPageInner() {
             </div>
 
             {/* Action Row */}
-            <div className="flex justify-between items-center gap-4">
-              <Button variant="outline" onClick={handlePrev} disabled={activeIndex === 0}>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+              <Button variant="outline" onClick={handlePrev} disabled={activeIndex === 0} className="w-full sm:w-auto">
                 Previous
               </Button>
-              <div className="flex gap-3">
-                <Button variant="outline" onClick={skipQuestion}>
+              <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+                <Button variant="outline" onClick={skipQuestion} className="flex-1 sm:flex-initial">
                   Skip
                 </Button>
-                <Button variant="outline" onClick={markForReview}>
+                <Button variant="outline" onClick={markForReview} className="flex-1 sm:flex-initial">
                   {review.has(currentQuestion.id) ? "Unmark Review" : "Mark for Review"}
                 </Button>
-                <Button variant="default" onClick={handleNext}>
+                <Button variant="default" onClick={handleNext} className="flex-1 sm:flex-initial">
                   {isLastQuestion ? "Submit" : "Save & Next"}
                 </Button>
               </div>

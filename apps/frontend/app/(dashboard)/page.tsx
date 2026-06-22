@@ -93,14 +93,14 @@ export default function DashboardPage() {
               ) : "Ready for your next challenge?"}
             </p>
           </div>
-          <div className="flex gap-3">
-            <Link href="/insights">
-              <Button size="lg" variant="outline" className="gap-2">
+          <div className="flex gap-3 w-full sm:w-auto flex-col sm:flex-row">
+            <Link href="/insights" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="gap-2 w-full sm:w-auto">
                 <BarChart3 className="h-4 w-4" /> View Insights
               </Button>
             </Link>
-            <Link href="/tests">
-              <Button size="lg" className="gap-2">
+            <Link href="/tests" className="w-full sm:w-auto">
+              <Button size="lg" className="gap-2 w-full sm:w-auto">
                 <BookOpen className="h-4 w-4" /> Browse Tests <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>

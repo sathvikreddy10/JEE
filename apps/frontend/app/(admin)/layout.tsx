@@ -153,6 +153,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         aria-label="Admin navigation"
         className={cn(
           "fixed left-0 top-0 bottom-0 border-r bg-card flex flex-col z-30 shadow-sm transition-all duration-300 ease-in-out",
+          "hidden md:flex",
           collapsed ? "w-[68px]" : "w-60"
         )}
       >
@@ -264,13 +265,45 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
       </aside>
 
+      {/* Mobile bottom nav */}
+      <nav
+        aria-label="Admin navigation"
+        className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-card border-t flex justify-around items-center py-2 px-1"
+      >
+        {NAV.slice(0, 5).map((item) => {
+          const isActive = pathname === item.path || pathname.startsWith(item.path + "/");
+          return (
+            <Link
+              key={item.path}
+              href={item.path}
+              className={cn(
+                "flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-md text-[10px] font-medium min-w-0 flex-1",
+                isActive ? "text-primary" : "text-muted-foreground"
+              )}
+              aria-label={item.label}
+            >
+              <item.icon className="h-5 w-5" />
+              <span className="truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          onClick={handleLogout}
+          aria-label="Logout"
+          className="flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-md text-[10px] font-medium text-muted-foreground"
+        >
+          <LogOut className="h-5 w-5" />
+          <span>Logout</span>
+        </button>
+      </nav>
+
       {/* Main content area */}
       <div
-        className="flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out"
+        className="flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out md:ml-0"
         style={{ marginLeft: collapsed ? SIDEBAR_COLLAPSED_W : SIDEBAR_W }}
       >
         {/* Top bar */}
-        <header className="h-20 flex items-center justify-between px-10 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-20 shrink-0">
+        <header className="h-14 sm:h-20 flex items-center justify-between px-4 sm:px-10 border-b bg-card/80 backdrop-blur-sm sticky top-0 z-20 shrink-0">
           <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
             <span className="h-2 w-2 rounded-full bg-success animate-pulse" />
             <span>System online</span>
@@ -279,7 +312,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <NotificationBell />
           </div>
         </header>
-        <main className="flex-1 overflow-auto p-0">{children}</main>
+        <main className="flex-1 overflow-auto p-0 pb-16 md:pb-0">{children}</main>
       </div>
       </div>
     </div>

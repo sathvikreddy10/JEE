@@ -151,3 +151,19 @@ img { max-width: 100%; display: block; }
   overflow-x: auto;
   overflow-y: hidden;
 }
+
+/* Mobile-friendly table wrapper */
+.table-mobile-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.table-mobile-scroll table {
+  min-width: 480px;
+}
+
+/* Prevent iOS input zoom — 16px font-size on focus */
+@media (max-width: 640px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}

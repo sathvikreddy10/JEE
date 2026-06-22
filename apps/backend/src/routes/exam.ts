@@ -4,6 +4,7 @@ import { log } from "../lib/logger";
 import { getShuffledQuestionIds, todayIST } from "../lib/student";
 import { userOr401 } from "../lib/auth";
 import { computeExamScore, buildSessionAnalytics } from "../lib/marking";
+import { writeQueue, cpuQueue } from "../lib/queue";
 
 export const examRouter = Router();
 
@@ -14,6 +15,7 @@ examRouter.post("/start", async (req, res) => {
   const { setId, kind } = req.body ?? {};
   log.api("POST", "/exam/start", { setId, kind });
   try {
+    await writeQueue.add(async () => {
     const user = userOr401(req);
     const set = await prisma.questionSet.findUnique({
       where: { id: Number(setId) },
@@ -170,6 +172,7 @@ examRouter.post("/start", async (req, res) => {
         options: q.options ? JSON.parse(q.options) : null,
         images: q.images ? JSON.parse(q.images) : null,
       })),
+    });
     });
   } catch (e) {
     log.err("POST /exam/start", e);
@@ -340,6 +343,7 @@ examRouter.post("/:id/answer", async (req, res) => {
     markedForReview: markedForReview ?? false,
   });
   try {
+    await writeQueue.add(async () => {
     const user = userOr401(req);
     const session = await prisma.examSession.findUnique({
       where: { id: Number(id) },
@@ -401,8 +405,82 @@ examRouter.post("/:id/answer", async (req, res) => {
     });
     log.success(`Answer saved: session=${id} q=${questionId} → ${result.selectedOption ?? "skipped"}`);
     return res.json({ saved: true, id: result.id, timeSpent: result.timeSpent });
+    });
   } catch (e) {
     log.err(`POST /exam/${id}/answer`, e);
+    return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
+  }
+});
+
+// POST /exam/:id/answers  —  Batch answer save (frontend sends queued answers every ~3s)
+// Body: { answers: [{ questionId, selectedOption, timeSpent, markedForReview? }] }
+examRouter.post("/:id/answers", async (req, res) => {
+  const { id } = req.params;
+  const { answers } = req.body ?? {};
+  log.api("POST", `/exam/${id}/answers`, { count: answers?.length ?? 0 });
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return res.status(400).json({ error: "answers must be a non-empty array" });
+  }
+  try {
+    await writeQueue.add(async () => {
+    const user = userOr401(req);
+    const session = await prisma.examSession.findUnique({
+      where: { id: Number(id) },
+      include: { set: { include: { questions: { select: { id: true } } } } },
+    });
+    if (!session) {
+      log.warn(`Session ${id} not found (bulk)`);
+      return res.status(404).json({ error: "Not found" });
+    }
+    if (session.userId !== user.id) {
+      return res.status(403).json({ error: "Not your session" });
+    }
+    if (session.completed || session.autoEndedAt) {
+      return res.status(409).json({ error: "Exam already ended" });
+    }
+
+    // Server-side time limit enforcement
+    const elapsedMs = Date.now() - session.startTime.getTime();
+    const limitMs = session.timeLimit * 1000;
+    if (elapsedMs > limitMs + 5000) {
+      return res.status(410).json({ error: "Exam time has expired" });
+    }
+
+    // Validate all questionIds belong to this set
+    const validIds = new Set(session.set.questions.map((q) => q.id));
+    for (const a of answers) {
+      if (!validIds.has(a.questionId)) {
+        return res.status(400).json({ error: `Invalid questionId ${a.questionId} for this exam` });
+      }
+    }
+
+    // Bulk-upsert in a single transaction
+    await prisma.$transaction(
+      answers.map((a: { questionId: number; selectedOption?: string; timeSpent?: number; markedForReview?: boolean }) =>
+        prisma.studentAnswer.upsert({
+          where: { sessionId_questionId: { sessionId: Number(id), questionId: a.questionId } },
+          update: {
+            selectedOption: a.selectedOption === "" ? null : (a.selectedOption ?? undefined),
+            timeSpent: a.timeSpent ?? 0,
+            ...(a.markedForReview !== undefined ? { markedForReview: !!a.markedForReview } : {}),
+          },
+          create: {
+            sessionId: Number(id),
+            questionId: a.questionId,
+            selectedOption: a.selectedOption === "" ? null : (a.selectedOption ?? null),
+            timeSpent: a.timeSpent ?? 0,
+            markedForReview: a.markedForReview ?? false,
+          },
+        })
+      )
+    );
+
+    log.db("BULK_UPSERT", "StudentAnswer", { sessionId: Number(id), count: answers.length });
+    log.success(`Bulk answers saved: session=${id} count=${answers.length}`);
+    return res.json({ saved: true, count: answers.length });
+    });
+  } catch (e) {
+    log.err(`POST /exam/${id}/answers`, e);
     return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
   }
 });
@@ -413,6 +491,7 @@ examRouter.post("/:id/end", async (req, res) => {
   const sessionIdNum = Number(id);
   log.api("POST", `/exam/${id}/end`);
   try {
+    await writeQueue.add(async () => {
     const user = userOr401(req);
     const session = await prisma.examSession.findUnique({
       where: { id: sessionIdNum },
@@ -509,6 +588,7 @@ examRouter.post("/:id/end", async (req, res) => {
     });
 
     return res.json(analytics);
+    });
   } catch (e) {
     log.err(`POST /exam/${id}/end`, e);
     return res.status((e as Error & { status?: number }).status || 500).json({ error: (e as Error).message });
@@ -613,6 +693,7 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
   const { type } = req.body ?? {};
   log.api("POST", `/exam/${sessionId}/suspicious-event`, { type });
   try {
+    await writeQueue.add(async () => {
     const user = userOr401(req);
     const session = await prisma.examSession.findUnique({
       where: { id: sessionId },
@@ -738,6 +819,7 @@ examRouter.post("/:id/suspicious-event", async (req, res) => {
       autoEndedAt,
       warning,
       ended,
+    });
     });
   } catch (e) {
     log.err(`POST /exam/${sessionId}/suspicious-event`, e);

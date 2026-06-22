@@ -62,10 +62,10 @@ app.use(cors({
   credentials: true,
 }));
 
-// Rate limiting: general API
+// Rate limiting: general API (bumped for load testing)
 const generalLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minute
-  max: 120,
+  max: 10000,
   standardHeaders: true,
   legacyHeaders: false,
 });
