@@ -55,3 +55,4 @@ apps/backend/data/
 login.json
 register_student.json
 start_exam.json
+.vercel
