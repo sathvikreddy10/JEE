@@ -15,7 +15,9 @@ async function handle401() {
     return;
   }
   isLoggingOut = true;
-  cli.warn("401 received — clearing session and redirecting to /login");
+  const isAdmin = typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
+  const loginPath = isAdmin ? "/admin/login" : "/login";
+  cli.warn(`401 received — clearing session and redirecting to ${loginPath}`);
   try {
     await fetch("/api/auth/logout", { method: "POST" });
   } catch {
@@ -23,7 +25,7 @@ async function handle401() {
   }
   if (typeof window !== "undefined") {
     const next = window.location.pathname + window.location.search;
-    window.location.href = "/login?next=" + encodeURIComponent(next);
+    window.location.href = `${loginPath}?next=${encodeURIComponent(next)}`;
   }
 }
 
