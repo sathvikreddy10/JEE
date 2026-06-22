@@ -30,4 +30,4 @@ if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
-log.info("Prisma client initialized", { provider: "sqlite" });
+log.info("Prisma client initialized", { provider: "postgresql" });
