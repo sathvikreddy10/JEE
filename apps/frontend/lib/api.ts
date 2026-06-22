@@ -7,28 +7,6 @@ export class AuthError extends Error {
   }
 }
 
-let isLoggingOut = false;
-
-async function handle401() {
-  if (isLoggingOut) return;
-  if (typeof window !== "undefined" && window.location.pathname.startsWith("/login")) {
-    return;
-  }
-  isLoggingOut = true;
-  const isAdmin = typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
-  const loginPath = isAdmin ? "/admin/login" : "/login";
-  cli.warn(`401 received — clearing session and redirecting to ${loginPath}`);
-  try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } catch {
-    /* ignore */
-  }
-  if (typeof window !== "undefined") {
-    const next = window.location.pathname + window.location.search;
-    window.location.href = `${loginPath}?next=${encodeURIComponent(next)}`;
-  }
-}
-
 export async function fetchJSON<T = unknown>(
   path: string,
   init?: Omit<RequestInit, 'body'> & { body?: BodyInit | Record<string, unknown> | null }
@@ -37,8 +15,6 @@ export async function fetchJSON<T = unknown>(
   cli.api(method, path, init?.body ? safeParseBody(init.body) : undefined);
 
   // Auto-stringify object bodies + set Content-Type so Express.json() actually parses them.
-  // Without this, passing `body: { ... }` would be coerced to the string "[object Object]"
-  // with Content-Type text/plain — and the backend's req.body would be undefined.
   const headers = new Headers(init?.headers);
   let body = init?.body;
   if (body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) {
@@ -52,16 +28,20 @@ export async function fetchJSON<T = unknown>(
     body: body as BodyInit | null,
     cache: "no-store",
   });
+
+  // 401 — just throw AuthError, let the caller decide how to handle it
   if (res.status === 401) {
-    cli.res(method, path, 401, { error: "redirect-to-login" });
-    handle401();
+    cli.res(method, path, 401, { error: "not-authenticated" });
     throw new AuthError();
   }
+
   let data: unknown = null;
   const text = await res.text();
   if (text) {
     try { data = JSON.parse(text); } catch { data = text; }
   }
+
+  // 409 — conflict (e.g. exam already in progress, attempt limit reached)
   if (res.status === 409) {
     const body = data as { error?: string; inProgressSessionId?: number; attemptsUsed?: number; attemptsAllowed?: number };
     const err = new Error(body.error || `HTTP ${res.status}`);
@@ -69,6 +49,7 @@ export async function fetchJSON<T = unknown>(
     (err as any).data = body;
     throw err;
   }
+
   cli.res(method, path, res.status, data);
   if (!res.ok) {
     const errMsg = (data && typeof data === "object" && "error" in data)
