@@ -70,24 +70,18 @@ export function sessionTtlMs(): number {
 
 /**
  * Creates an AuthSession row for the user and returns the token + expiry.
- * If the user already has other active sessions, those are flagged as
- * "Concurrent login from another device" so the user (and admin) can see
- * something fishy is going on. The flagged sessions are NOT invalidated —
- * the user can keep using the older device, they just see a warning.
+ * Destroys all prior sessions (forces logout on old devices) and logs the count.
+ * No banner shown on frontend — just audit trail.
  */
 export async function createSession(userId: number): Promise<{ token: string; expiresAt: Date }> {
   const token = newSessionToken();
   const expiresAt = new Date(Date.now() + sessionTtlMs());
 
-  const flagged = await prisma.authSession.updateMany({
-    where: { userId, flaggedAt: null },
-    data: {
-      flaggedAt: new Date(),
-      flagReason: "Concurrent login from another device",
-    },
+  const deleted = await prisma.authSession.deleteMany({
+    where: { userId },
   });
-  if (flagged.count > 0) {
-    log.warn(`Flagged ${flagged.count} prior session(s) for user ${userId} as concurrent-login`);
+  if (deleted.count > 0) {
+    log.warn(`Destroyed ${deleted.count} prior session(s) for user ${userId} (new login)`);
   }
 
   await prisma.authSession.create({ data: { token, userId, expiresAt } });
@@ -210,8 +204,7 @@ export function clearSessionCookie(res: Response) {
 /**
  * Creates an AdminAuthSession row. Lazily creates the Admin DB row from
  * the CSV (which is the source of truth for admin credentials).
- * If the admin already has other active sessions, those are flagged as
- * "Concurrent admin login from another device".
+ * Destroys all prior admin sessions (forces logout on old devices).
  */
 export async function createAdminSession(email: string): Promise<{ token: string; expiresAt: Date; admin: CurrentAdmin } | null> {
   const cred = await findAdminByEmail(email);
@@ -225,15 +218,11 @@ export async function createAdminSession(email: string): Promise<{ token: string
     update: { name: cred.name },
   });
 
-  const flagged = await prisma.adminAuthSession.updateMany({
-    where: { adminId: admin.id, flaggedAt: null },
-    data: {
-      flaggedAt: new Date(),
-      flagReason: "Concurrent admin login from another device",
-    },
+  const deleted = await prisma.adminAuthSession.deleteMany({
+    where: { adminId: admin.id },
   });
-  if (flagged.count > 0) {
-    log.warn(`Flagged ${flagged.count} prior admin session(s) for ${email} as concurrent-login`);
+  if (deleted.count > 0) {
+    log.warn(`Destroyed ${deleted.count} prior admin session(s) for ${email} (new login)`);
   }
 
   const token = newSessionToken();

@@ -897,14 +897,19 @@ adminRouter.post("/questions", requireAdmin, async (req, res) => {
     if (!body.setId || !body.text || body.correctAnswer === undefined || !body.topic) {
       return res.status(400).json({ error: "setId, text, correctAnswer, topic are required" });
     }
+    const qType = body.type || "mcq";
+    const validTypes = ["mcq", "mcq-multiple", "numeric", "fill-in-the-blanks"];
+    if (!validTypes.includes(qType)) {
+      return res.status(400).json({ error: `type must be one of ${validTypes.join(", ")}` });
+    }
     const setExists = await prisma.questionSet.findUnique({ where: { id: body.setId } });
     if (!setExists) {
       return res.status(400).json({ error: `QuestionSet with id=${body.setId} not found` });
     }
-    if ((body.type === "mcq" || body.type === "mcq-multiple") && (!body.options || body.options.length < 2)) {
+    if ((qType === "mcq" || qType === "mcq-multiple") && (!body.options || body.options.length < 2)) {
       return res.status(400).json({ error: "MCQ needs at least 2 options" });
     }
-    if (body.type === "numeric" && isNaN(Number(body.correctAnswer))) {
+    if (qType === "numeric" && Number.isNaN(Number(body.correctAnswer))) {
       return res.status(400).json({ error: "Numeric answer must be a number" });
     }
 
@@ -924,7 +929,7 @@ adminRouter.post("/questions", requireAdmin, async (req, res) => {
     const created = await prisma.question.create({
       data: {
         setId: body.setId,
-        type: body.type,
+        type: qType,
         text: body.text,
         options: body.options ? JSON.stringify(body.options) : null,
         correctAnswer: String(body.correctAnswer),
