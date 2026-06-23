@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/bg_paper"
+    android:padding="24dp"
+    tools:context=".HomeActivity">
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="AUREX EDGE"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/gold"
+        android:letterSpacing="0.25"
+        android:layout_gravity="center" />
+
+    <TextView
+        android:id="@+id/greeting_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Hi, Neeraj 👋"
+        android:textSize="32sp"
+        android:textStyle="bold"
+        android:textColor="@color/ink"
+        android:layout_gravity="center"
+        android:layout_marginTop="10dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Ready to sharpen your edge?"
+        android:textSize="15sp"
+        android:textColor="@color/muted"
+        android:layout_gravity="center"
+        android:layout_marginTop="4dp"
+        android:layout_marginBottom="40dp" />
+
+    <Button
+        android:id="@+id/btn_tests"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Tests"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:background="@drawable/btn_primary"
+        android:textColor="@color/btn_primary_text"
+        android:stateListAnimator="@null" />
+
+    <Button
+        android:id="@+id/btn_analysis"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Analysis"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:background="@drawable/btn_secondary"
+        android:textColor="@color/ink"
+        android:stateListAnimator="@null"
+        android:layout_marginTop="12dp" />
+
+    <Button
+        android:id="@+id/btn_settings"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Settings"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:background="@drawable/btn_outline"
+        android:textColor="@color/ink"
+        android:stateListAnimator="@null"
+        android:layout_marginTop="12dp" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Aurex Edge — offline JEE practice"
+        android:textSize="12sp"
+        android:textColor="@color/muted"
+        android:gravity="center" />
+</LinearLayout>

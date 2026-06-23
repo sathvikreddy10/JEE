@@ -1,658 +1,261 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/test_content"
+    android:id="@+id/test_container"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_white"
+    android:orientation="vertical"
     tools:context=".TestTakingActivity">
 
-    <!-- Fixed dot grid - viewport locked, behind everything -->
-    <View
-        android:id="@+id/dot_grid_test"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/dot_grid" />
-
-    <!-- Main content area -->
+    <!-- Floating glass header -->
     <LinearLayout
-        android:id="@+id/test_wrapper"
+        android:id="@+id/test_header"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="0dp">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:background="@drawable/bg_glass_card"
+        android:padding="16dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginTop="14dp">
 
-        <!-- Tab Switch Warning / Red Flag Banner -->
         <LinearLayout
-            android:id="@+id/tab_warning_banner"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:id="@+id/red_flag_banner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@color/crimson"
-                android:padding="6px 12px"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/red_flag_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="EXAM TERMINATED"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/bg_white" />
-
-                <TextView
-                    android:id="@+id/red_flag_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Your exam was terminated due to excessive tab switching. You have been red-flagged."
-                    android:textSize="10sp"
-                    android:textColor="@color/bg_white"
-                    android:layout_marginTop="2dp" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/amber_flag_banner"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:background="@color/amber"
-                android:padding="4px 8px"
-                android:gravity="center">
-
-                <TextView
-                    android:id="@+id/amber_flag_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Tab switch detected — please don't switch tabs"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/fg_black" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Top Belt -->
-        <LinearLayout
-            android:id="@+id/top_belt"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:orientation="horizontal"
-            android:background="@color/surface_white"
-            android:strokeBottomWidth="1dp"
-            android:strokeBottomColor="@color/border_subtle"
-            android:gravity="center_vertical"
-            android:paddingHorizontal="12dp">
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:spacing="12dp">
-
-                <TextView
-                    android:id="@+id/session_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Practice Session"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/fg_black" />
-
-                <TextView
-                    android:id="@+id/session_info"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Mathematics • 25 Questions"
-                    android:textSize="12sp"
-                    android:textColor="@color/muted_gray"
-                    android:fontFamily="monospace" />
-            </LinearLayout>
-
-            <LinearLayout
-                android:id="@+id/top_belt_right"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:spacing="8dp">
-
-                <!-- Tab switch counter -->
-                <TextView
-                    android:id="@+id/tab_switch_counter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/badge_bg"
-                    android:textColor="@color/fg_black"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:padding="4px 8px"
-                    android:visibility="gone"
-                    android:text="🔄 0" />
-
-                <!-- Pending saves indicator -->
-                <TextView
-                    android:id="@+id/pending_saves_indicator"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/amber"
-                    android:textColor="@color/fg_black"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:padding="4px 8px"
-                    android:visibility="gone"
-                    android:text="0 pending" />
-
-                <!-- Question counter -->
-                <TextView
-                    android:id="@+id/question_counter"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/badge_bg"
-                    android:textColor="@color/fg_black"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:padding="4px 8px"
-                    android:text="1/25" />
-
-                <!-- Question type badge -->
-                <TextView
-                    android:id="@+id/question_type_badge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/badge_bg"
-                    android:textColor="@color/fg_black"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:padding="4px 8px"
-                    android:text="MCQ" />
-
-                <!-- Keyboard shortcuts hint -->
-                <TextView
-                    android:id="@+id/keyboard_hint"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="10sp"
-                    android:textColor="@color/muted_gray"
-                    android:fontFamily="monospace"
-                    android:visibility="gone"
-                    android:text="Tab/→/Enter: Next" />
-
-                <!-- Timer -->
-                <TextView
-                    android:id="@+id/timer_display"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:fontFamily="monospace"
-                    android:textColor="@color/fg_black"
-                    android:text="60:00" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Main Area -->
-        <LinearLayout
-            android:id="@+id/main_area"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
+            android:layout_weight="1"
             android:orientation="vertical">
 
-            <!-- Question Canvas (Scrollable) -->
-            <ScrollView
-                android:id="@+id/question_canvas"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:fillViewport="true"
-                android:padding="16dp">
-
-                <LinearLayout
-                    android:id="@+id/question_content_container"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="24dp"
-                    android:background="@color/surface_white"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_subtle"
-                    android:layout_margin="16dp">
-
-                    <!-- Question Header -->
-                    <LinearLayout
-                        android:id="@+id/question_header"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:gravity="center"
-                        android:layout_marginBottom="16dp">
-
-                        <TextView
-                            android:id="@+id/question_number_text"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Question"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/muted_gray"
-                            android:fontFamily="monospace"
-                            android:textAllCaps="true"
-                            android:letterSpacing="0.1" />
-
-                        <TextView
-                            android:id="@+id/question_number"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="1"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg_black"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="of"
-                            android:textSize="12sp"
-                            android:textColor="@color/muted_gray"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:id="@+id/total_questions"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="25"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg_black"
-                            android:fontFamily="monospace" />
-
-                        <TextView
-                            android:id="@+id/question_topic"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="Mathematics"
-                            android:textSize="12sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/muted_gray"
-                            android:fontFamily="monospace"
-                            android:layout_marginLeft="8dp" />
-                    </LinearLayout>
-
-                    <!-- Question Text -->
-                    <TextView
-                        android:id="@+id/question_text"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="What is the derivative of x²?"
-                        android:textSize="18sp"
-                        android:textColor="@color/fg_black"
-                        android:layout_marginBottom="16dp"
-                        android:lineSpacingExtra="4dp" />
-
-                    <!-- Options Container -->
-                    <LinearLayout
-                        android:id="@+id/options_container"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:spacing="12dp">
-
-                        <!-- Option A -->
-                        <LinearLayout
-                            android:id="@+id/option_a_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:background="@color/surface_white"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_subtle"
-                            android:padding="16dp">
-
-                            <RadioButton
-                                android:id="@+id/option_a_radio"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:layout_gravity="center_vertical"
-                                android:layout_marginEnd="12dp" />
-
-                            <TextView
-                                android:id="@+id/option_a_text"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="2x"
-                                android:textSize="16sp"
-                                android:textColor="@color/fg_black"
-                                android:layout_gravity="center_vertical" />
-                        </LinearLayout>
-
-                        <!-- Option B -->
-                        <LinearLayout
-                            android:id="@+id/option_b_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:background="@color/surface_white"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_subtle"
-                            android:padding="16dp">
-
-                            <RadioButton
-                                android:id="@+id/option_b_radio"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:layout_gravity="center_vertical"
-                                android:layout_marginEnd="12dp" />
-
-                            <TextView
-                                android:id="@+id/option_b_text"
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                  android:layout_weight="1"
-                                android:text="x"
-                                android:textSize="16sp"
-                                android:textColor="@color/fg_black"
-                                android:layout_gravity="center_vertical" />
-                        </LinearLayout>
-
-                        <!-- Option C -->
-                        <LinearLayout
-                            android:id="@+id/option_c_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:background="@color/surface_white"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_subtle"
-                            android:padding="16dp">
-
-                            <RadioButton
-                                android:id="@+id/option_c_radio"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:layout_gravity="center_vertical"
-                                android:layout_marginEnd="12dp" />
-
-                            <TextView
-                                android:id="@+id/option_c_text"
-                                android:layout_width="0dp"
-                  android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="x²"
-                                android:textSize="16sp"
-                                android:textColor="@color/fg_black"
-                                android:layout_gravity="center_vertical" />
-                        </LinearLayout>
-
-                        <!-- Option D -->
-                        <LinearLayout
-                            android:id="@+id/option_d_container"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:orientation="horizontal"
-                            android:background="@color/surface_white"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_subtle"
-                            android:padding="16dp">
-
-                            <RadioButton
-                                android:id="@+id/option_d_radio"
-                                android:layout_width="24dp"
-                                android:layout_height="24dp"
-                                android:layout_gravity="center_vertical"
-                                android:layout_marginEnd="12dp" />
-
-                            <TextView
-                                android:id="@+id/option_d_text"
-                                android:layout_width="0dp"
-                  android:layout_height="wrap_content"
-                                android:layout_weight="1"
-                                android:text="2"
-                                android:textSize="16sp"
-                                android:textColor="@color/fg_black"
-                                android:layout_gravity="center_vertical" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <!-- Mark for Review Button -->
-                    <Button
-                        android:id="@+id/btn_mark_review"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:padding="12px"
-                        android:text="Mark for Review"
-                        android:textSize="14sp"
-                        android:textColor="@color/fg_black"
-                        android:backgroundTint="@color/transparent"
-                        android:strokeWidth="2dp"
-                        android:strokeColor="@color/border_subtle" />
-                </LinearLayout>
-            </ScrollView>
-
-            <!-- Bottom Navigation -->
-            <LinearLayout
-                android:id="@+id/bottom_navigation"
-                android:layout_width="match_parent"
+            <TextView
+                android:id="@+id/test_title_display"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:background="@color/surface_white"
-                android:strokeTopWidth="1dp"
-                android:strokeTopColor="@color/border_subtle"
-                android:padding="16dp"
-                android:gravity="center"
-                android:spacing="12dp">
+                android:text="Calculus I"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:textColor="@color/ink"
+                android:letterSpacing="-0.02"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
-                <!-- Previous Button -->
-                <Button
-                    android:id="@+id/btn_previous"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Previous"
-                    android:textSize="14sp"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/transparent"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_subtle" />
-
-                <!-- Skip Button -->
-                <Button
-                    android:id="@+id/btn_skip"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Skip"
-                    android:textSize="14sp"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/transparent"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_subtle" />
-
-                <!-- Next/Submit Button -->
-                <Button
-                    android:id="@+id/btn_next_submit"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Next"
-                    android:textSize="14sp"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/transparent"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_subtle" />
-            </LinearLayout>
+            <TextView
+                android:id="@+id/test_subtitle_display"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Mathematics"
+                android:textSize="12sp"
+                android:textColor="@color/muted" />
         </LinearLayout>
 
-        <!-- Confirm Modal (Submit or End Test) -->
+        <TextView
+            android:id="@+id/question_counter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1/25"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/gold_text"
+            android:background="@drawable/bg_chip"
+            android:paddingStart="12dp"
+            android:paddingEnd="12dp"
+            android:paddingTop="6dp"
+            android:paddingBottom="6dp" />
+
+        <TextView
+            android:id="@+id/timer_display"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="60:00"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="#FFFFFF"
+            android:fontFamily="monospace"
+            android:background="@drawable/bg_dock"
+            android:paddingStart="14dp"
+            android:paddingEnd="14dp"
+            android:paddingTop="7dp"
+            android:paddingBottom="7dp"
+            android:layout_marginStart="10dp" />
+    </LinearLayout>
+
+    <!-- Progress -->
+    <ProgressBar
+        android:id="@+id/question_progress"
+        style="@android:style/Widget.ProgressBar.Horizontal"
+        android:layout_width="match_parent"
+        android:layout_height="6dp"
+        android:progressDrawable="@drawable/progress_gold"
+        android:progress="1"
+        android:max="25"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginTop="12dp" />
+
+    <!-- Question area -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:overScrollMode="never"
+        android:scrollbars="none"
+        android:padding="16dp">
+
         <LinearLayout
-            android:id="@+id/confirm_modal"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/overlay_bg"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:id="@+id/confirm_dialog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxWidth="420dp"
-                android:orientation="vertical"
-                android:background="@color/surface_white"
-                android:strokeWidth="1dp"
-                android:strokeColor="@color/border_subtle"
-                android:padding="24dp"
-                android:layout_margin="24dp">
-
-                <TextView
-                    android:id="@+id/confirm_title"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Submit Exam?"
-                    android:textSize="20sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/fg_black"
-                    android:gravity="center"
-                    android:layout_marginBottom="16dp" />
-
-                <TextView
-                    android:id="@+id/confirm_message"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="You are on the last question. Would you like to submit the exam now?"
-                    android:textSize="14sp"
-                    android:textColor="@color/muted_gray"
-                    android:gravity="center"
-                    android:layout_marginBottom="24dp" />
-
-                <LinearLayout
-                    android:id="@+id/confirm_buttons"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:spacing="12dp">
-
-                    <Button
-                        android:id="@+id/btn_confirm_no"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="No, Go Back"
-                        android:textSize="14sp"
-                        android:textColor="@color/fg_black"
-                        android:backgroundTint="@color/transparent"
-                        android:strokeWidth="2dp"
-                        android:strokeColor="@color/border_subtle" />
-
-                    <Button
-                        android:id="@+id/btn_confirm_yes"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Yes, Submit"
-                        android:textSize="14sp"
-                        android:textColor="@color/fg_black"
-                        android:backgroundTint="@color/accent_yellow"
-                        android:strokeWidth="2dp"
-                        android:strokeColor="@color/border_subtle" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Fullscreen Tab Switch Warning Modal (1st switch only) -->
-        <LinearLayout
-            android:id="@+id/tab_switch_modal"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@color/overlay_bg"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:visibility="gone">
-
-            <LinearLayout
-                android:id="@+id/tab_switch_dialog"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:maxWidth="480dp"
-                android:orientation="vertical"
-                android:background="@color/surface_white"
-                android:strokeWidth="2dp"
-                android:strokeColor="@color/amber"
-                android:padding="24dp"
-                android:layout_margin="24dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center"
-                    android:layout_marginBottom="16dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="⚠️"
-                        android:textSize="40sp"
-                        android:layout_marginEnd="12dp" />
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Do not switch tabs"
-                        android:textSize="20sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/amber"
-                        android:fontFamily="monospace" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tab_switch_message"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Each tab switch is logged and monitored. Switching tabs repeatedly will result in a red flag and possible exam termination."
-                    android:textSize="14sp"
-                    android:textColor="@color/muted_gray"
-                    android:gravity="center"
-                    android:layout_marginBottom="24dp" />
-
-                <Button
-                    android:id="@+id/btn_tab_switch_understood"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="I understand — Stay on this page"
-                    android:textSize="14sp"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/transparent"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_subtle" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Toast Container -->
-        <LinearLayout
-            android:id="@+id/toast_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="top|center_horizontal"
-            android:layout_marginTop="16dp"
-            android:padding="8dp" />
+            android:orientation="vertical">
+
+            <!-- Question glass card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_glass_card"
+                android:padding="22dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="QUESTION"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/gold"
+                    android:letterSpacing="0.2"
+                    android:layout_marginBottom="10dp" />
+
+                <TextView
+                    android:id="@+id/question_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="What is the derivative of x²?"
+                    android:textSize="20sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ink"
+                    android:letterSpacing="-0.02"
+                    android:lineSpacingExtra="4dp"
+                    android:layout_marginBottom="22dp" />
+
+                <RadioGroup
+                    android:id="@+id/options_container"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/option_a_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="2x"
+                        android:textSize="15sp"
+                        android:padding="17dp"
+                        android:background="@drawable/btn_option"
+                        android:textColor="@color/ink"
+                        android:button="@null"
+                        android:layout_marginBottom="10dp" />
+
+                    <RadioButton
+                        android:id="@+id/option_b_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="x"
+                        android:textSize="15sp"
+                        android:padding="17dp"
+                        android:background="@drawable/btn_option"
+                        android:textColor="@color/ink"
+                        android:button="@null"
+                        android:layout_marginBottom="10dp" />
+
+                    <RadioButton
+                        android:id="@+id/option_c_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="x²"
+                        android:textSize="15sp"
+                        android:padding="17dp"
+                        android:background="@drawable/btn_option"
+                        android:textColor="@color/ink"
+                        android:button="@null"
+                        android:layout_marginBottom="10dp" />
+
+                    <RadioButton
+                        android:id="@+id/option_d_radio"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="2"
+                        android:textSize="15sp"
+                        android:padding="17dp"
+                        android:background="@drawable/btn_option"
+                        android:textColor="@color/ink"
+                        android:button="@null" />
+                </RadioGroup>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Floating dark dock -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/bg_dock"
+        android:padding="12dp"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp">
+
+        <Button
+            android:id="@+id/btn_mark_review"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Mark"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/btn_glass_pill"
+            android:textColor="#FFFFFF"
+            android:stateListAnimator="@null"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btn_previous"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Prev"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/btn_glass_pill"
+            android:textColor="#FFFFFF"
+            android:stateListAnimator="@null"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btn_skip"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:text="Skip"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/btn_glass_pill"
+            android:textColor="#FFFFFF"
+            android:stateListAnimator="@null"
+            android:layout_marginEnd="6dp" />
+
+        <Button
+            android:id="@+id/btn_next_submit"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1.4"
+            android:text="Next"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textAllCaps="false"
+            android:background="@drawable/btn_gold"
+            android:textColor="@color/ink"
+            android:stateListAnimator="@null" />
     </LinearLayout>
-</FrameLayout>
+</LinearLayout>

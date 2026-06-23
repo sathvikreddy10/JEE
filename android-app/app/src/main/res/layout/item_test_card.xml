@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_glass_card"
+    android:padding="20dp"
+    android:layout_marginBottom="14dp">
+
+    <!-- Subject chip -->
+    <TextView
+        android:id="@+id/tag_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Mathematics"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/gold_text"
+        android:background="@drawable/bg_chip"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp"
+        android:paddingTop="4dp"
+        android:paddingBottom="4dp"
+        android:letterSpacing="0.05" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/title_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Calculus I — Midterm Practice"
+        android:textSize="17sp"
+        android:textStyle="bold"
+        android:textColor="@color/ink"
+        android:layout_marginTop="12dp" />
+
+    <!-- Description -->
+    <TextView
+        android:id="@+id/desc_text"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Limits, derivatives, applications"
+        android:textSize="13sp"
+        android:textColor="@color/muted"
+        android:layout_marginTop="4dp" />
+
+    <!-- Meta row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:layout_marginTop="12dp">
+
+        <TextView
+            android:id="@+id/questions_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="25 Questions"
+            android:textSize="12sp"
+            android:textColor="@color/muted" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="·"
+            android:textSize="12sp"
+            android:textColor="@color/muted"
+            android:layout_marginHorizontal="6dp" />
+
+        <TextView
+            android:id="@+id/time_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="60 Min"
+            android:textSize="12sp"
+            android:textColor="@color/muted" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="·"
+            android:textSize="12sp"
+            android:textColor="@color/muted"
+            android:layout_marginHorizontal="6dp" />
+
+        <TextView
+            android:id="@+id/attempts_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="1,234 Attempts"
+            android:textSize="12sp"
+            android:textColor="@color/muted" />
+    </LinearLayout>
+
+    <!-- Begin button -->
+    <Button
+        android:id="@+id/btn_begin"
+        android:layout_width="match_parent"
+        android:layout_height="50dp"
+        android:text="Begin test  →"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:background="@drawable/btn_primary"
+        android:textColor="@color/btn_primary_text"
+        android:stateListAnimator="@animator/press_scale"
+        android:layout_marginTop="16dp" />
+</LinearLayout>

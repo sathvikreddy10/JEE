@@ -1,0 +1,38 @@
+# Android / Gradle
+.gradle/
+build/
+app/build/
+local.properties
+*.iml
+.idea/
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+*.log
+*.hprof
+
+# NDK / CMake
+.cxx/
+cmake-build-*/
+*.so
+*.o
+*.a
+
+# IDE
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Screenshots
+Screenshot*.png
+screenshots/
+
+# Misc
+*.symbols.txt

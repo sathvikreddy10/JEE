@@ -1,745 +1,157 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/main_content"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg_white"
+    android:fillViewport="true"
+    android:overScrollMode="never"
+    android:scrollbars="none"
     tools:context=".MainActivity">
 
-    <!-- Fixed dot grid - viewport locked, behind everything -->
-    <View
-        android:id="@+id/dot_grid"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@drawable/dot_grid" />
-
     <LinearLayout
-        android:id="@+id/main_wrapper"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:padding="40dp">
-
-        <!-- Navbar - solid white strip with black bottom edge -->
-        <LinearLayout
-            android:id="@+id/navbar"
-            android:layout_width="match_parent"
-            android:layout_height="70dp"
-            android:orientation="horizontal"
-            android:background="@color/surface_white"
-            android:gravity="center_vertical">
-
-            <TextView
-                android:id="@+id/nav_logo"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="TestLab"
-                android:textSize="20sp"
-                android:textStyle="bold"
-                android:textColor="@color/fg_black"
-                android:letterSpacing="-0.02" />
-
-            <View
-                android:layout_width="0dp"
-                android:layout_height="match_parent"
-                android:layout_weight="1" />
-
-            <LinearLayout
-                android:id="@+id/nav_actions"
-                android:layout_width="wrap_content"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:spacing="12dp">
-
-                <Button
-                    android:id="@+id/btn_sign_in"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:text="Sign In"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/surface_white"
-                    android:strokeColor="@color/border_black"
-                    android:strokeWidth="2dp" />
-
-                <Button
-                    android:id="@+id/btn_get_started"
-                    style="@style/Widget.MaterialComponents.Button"
-                    android:layout_width="wrap_content"
-                    android:layout_height="match_parent"
-                    android:text="Get Started"
-                    android:textColor="@color/fg_black"
-                    android:backgroundTint="@color/accent_yellow"
-                    android:strokeColor="@color/border_black"
-                    android:strokeWidth="2dp" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- Announcement banner - yellow strip -->
-        <LinearLayout
-            android:id="@+id/announcement"
-            android:layout_width="match_parent"
-            android:layout_height="44dp"
-            android:orientation="horizontal"
-            android:background="@color/accent_yellow"
-            android:gravity="center_vertical"
-            android:layout_marginTop="-2dp">
-
-            <LinearLayout
-                android:id="@+id/announcement_inner"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:orientation="horizontal"
-                android:gravity="center_vertical"
-                android:paddingLeft="40dp"
-                android:paddingRight="40dp"
-                android:spacing="16dp">
-
-                <TextView
-                    android:id="@+id/badge_new"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/border_black"
-                    android:textColor="@color/bg_white"
-                    android:textSize="11sp"
-                    android:textStyle="bold"
-                    android:padding="4px 12px"
-                    android:text="NEW"
-                    android:letterSpacing="0.1" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Timed practice sessions now available — simulate real exam conditions"
-                    android:textSize="14sp"
-                    android:textColor="@color/fg_black"
-                    android:letterSpacing="0.05" />
-
-                <Button
-                    android:id="@+id/announce_close"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:background="@color/transparent"
-                    android:text="×"
-                    android:textSize="20sp"
-                    android:textColor="@color/fg_black"
-                    android:alpha="0.6" />
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- HERO AREA WITH WINDOWS-STYLE WINDOW -->
-        <LinearLayout
-            android:id="@+id/hero_area"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:paddingTop="40dp"
-            android:paddingBottom="40dp">
-
-            <LinearLayout
-                android:id="@+id/stats_badge"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:marginBottom="30dp"
-                android:padding="8px 16px"
-                android:background="@color/badge_bg"
-                android:spacing="4dp">
-
-                <TextView
-                    android:id="@+id/tests_completed"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="247"
-                    android:textSize="14sp"
-                    android:textStyle="bold"
-                    android:textColor="@color/fg_black" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="/"
-                    android:textSize="14sp"
-                    android:textColor="@color/muted_gray" />
-
-                <TextView
-                    android:id="@+id/tests_total"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="500"
-                    android:textSize="14sp"
-                    android:textColor="@color/muted_gray"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="tests completed today"
-                    android:textSize="12sp"
-                    android:textColor="@color/muted_gray" />
-            </LinearLayout>
-
-            <!-- WINDOWS-STYLE WINDOW -->
-            <LinearLayout
-                android:id="@+id/hero_window"
-                android:layout_width="match_parent"
-                android:layout_height="0dp"
-                android:layout_weight="1"
-                android:maxWidth="800dp"
-                android:orientation="vertical"
-                android:background="@color/surface_white"
-                android:strokeWidth="2dp"
-                android:strokeColor="@color/border_black">
-
-                <!-- Window Titlebar -->
-                <LinearLayout
-                    android:id="@+id/window_titlebar"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:background="@color/accent_yellow"
-                    android:strokeBottomWidth="2dp"
-                    android:strokeBottomColor="@color/border_black"
-                    android:padding="8px 16px"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:id="@+id/window_title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="testlab.exe"
-                        android:textSize="14sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="match_parent"
-                        android:layout_weight="1" />
-
-                    <LinearLayout
-                        android:id="@+id/window_controls"
-                        android:layout_width="wrap_content"
-                        android:layout_height="match_parent"
-                        android:orientation="horizontal"
-                        android:spacing="6dp">
-
-                        <Button
-                            android:id="@+id/btn_minimize"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:background="@color/transparent"
-                            android:text="−"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg_black"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_black" />
-
-                        <Button
-                            android:id="@+id/btn_maximize"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:background="@color/transparent"
-                            android:text="□"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg_black"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_black" />
-
-                        <Button
-                            android:id="@+id/btn_close"
-                            android:layout_width="28dp"
-                            android:layout_height="28dp"
-                            android:background="@color/transparent"
-                            android:text="×"
-                            android:textSize="14sp"
-                            android:textStyle="bold"
-                            android:textColor="@color/fg_black"
-                            android:strokeWidth="2dp"
-                            android:strokeColor="@color/border_black" />
-                    </LinearLayout>
-                </LinearLayout>
-
-                <!-- Window Body -->
-                <LinearLayout
-                    android:id="@+id/window_body"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:orientation="vertical"
-                    android:gravity="center"
-                    android:padding="30dp"
-                    android:spacing="8dp">
-
-                    <TextView
-                        android:id="@+id/hero_h1_1"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Take Tests."
-                        android:textSize="42sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black" />
-
-                    <TextView
-                        android:id="@+id/hero_h1_2"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Get Real Analysis."
-                        android:textSize="42sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black" />
-
-                    <TextView
-                        android:id="@+id/hero_subtitle"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Brutalist-minimal test engine for students"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black" />
-
-                    <TextView
-                        android:id="@+id/hero_description"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Multiple choice. Timed sessions. Instant scoring. Deep reports."
-                        android:textSize="16sp"
-                        android:textColor="@color/muted_gray" />
-
-                    <Button
-                        android:id="@+id/btn_start_test"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:padding="14px 32px"
-                        android:text="Start a Test →"
-                        android:textSize="16sp"
-                        android:textColor="@color/fg_black"
-                        android:backgroundTint="@color/accent_yellow"
-                        android:strokeWidth="2dp"
-                        android:strokeColor="@color/border_black" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- YELLOW SECTION BAR - covers dots -->
-        <LinearLayout
-            android:id="@+id/section_bar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            android:background="@color/accent_yellow"
-            android:strokeTopWidth="2dp"
-            android:strokeTopColor="@color/border_black"
-            android:strokeBottomWidth="2dp"
-            android:strokeBottomColor="@color/border_black"
-            android:padding="16px 40dp"
-            android:layout_marginLeft="-40dp"
-            android:layout_marginRight="-40dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Available Tests"
-                android:textSize="14sp"
-                android:textStyle="bold"
-                android:textColor="@color/fg_black"
-                android:letterSpacing="0.05" />
-        </LinearLayout>
-
-        <!-- TEST CARDS SECTION - gray bg covers dots -->
-        <LinearLayout
-            android:id="@+id/content_section"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@color/section_bg"
-            android:padding="60px 40dp"
-            android:layout_marginLeft="-40dp"
-            android:layout_marginRight="-40dp">
-
-            <TextView
-                android:id="@+id/tests_heading"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Available Tests"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="@color/fg_black"
-                android:layout_marginBottom="8dp" />
-
-            <TextView
-                android:id="@+id/tests_subtext"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Each session is timed, scored instantly, and feeds your analysis dashboard."
-                android:textSize="15sp"
-                android:textColor="@color/muted_gray"
-                android:layout_marginBottom="40dp" />
-
-            <!-- Test Grid -->
-            <LinearLayout
-                android:id="@+id/test_grid"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:spacing="24dp">
-
-                <!-- Mathematics Test Card -->
-                <LinearLayout
-                    android:id="@+id/test_card_math"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:background="@color/surface_white"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_black"
-                    android:padding="32dp">
-
-                    <TextView
-                        android:id="@+id/math_tag"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Mathematics"
-                        android:textSize="11sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/muted_gray"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.1"
-                        android:layout_marginBottom="12dp" />
-
-                    <TextView
-                        android:id="@+id/math_title"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Calculus I — Midterm Practice"
-                        android:textSize="18sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black"
-                        android:layout_marginBottom="8dp" />
-
-                    <TextView
-                        android:id="@+id/math_description"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Limits, derivatives, applications. 25 questions. 60 minutes."
-                        android:textSize="14sp"
-                        android:textColor="@color/muted_gray"
-                        android:layout_marginBottom="20dp" />
-
-                    <LinearLayout
-                        android:id="@+id/math_meta"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="horizontal"
-                        android:layout_marginBottom="24dp"
-                        android:spacing="24dp">
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/math_questions"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="25"
-                                android:textSize="18sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/fg_black" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Questions"
-                                android:textSize="12sp"
-                                android:textColor="@color/muted_gray"
-                                android:textAllCaps="true"
-                                android:letterSpacing="0.1" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/math_minutes"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="60"
-                                android:textSize="18sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/fg_black" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Min"
-                                android:textSize="12sp"
-                                android:textColor="@color/muted_gray"
-                                android:textAllCaps="true"
-                                android:letterSpacing="0.1" />
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="0dp"
-                            android:layout_height="wrap_content"
-                            android:layout_weight="1"
-                            android:orientation="vertical">
-
-                            <TextView
-                                android:id="@+id/math_attempts"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="1,234"
-                                android:textSize="18sp"
-                                android:textStyle="bold"
-                                android:textColor="@color/fg_black" />
-
-                            <TextView
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:text="Attempts"
-                                android:textSize="12sp"
-                                android:textColor="@color/muted_gray"
-                                android:textAllCaps="true"
-                                android:letterSpacing="0.1" />
-                        </LinearLayout>
-                    </LinearLayout>
-
-                    <Button
-                        android:id="@+id/btn_begin_math_test"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:padding="10px 24px"
-                        android:text="Begin Test"
-                        android:textSize="14sp"
-                        android:textColor="@color/fg_black"
-                        android:backgroundTint="@color/transparent"
-                        android:strokeWidth="2dp"
-                        android:strokeColor="@color/border_black" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-
-        <!-- PROGRESS SECTION - gray bg covers dots -->
-        <LinearLayout
-            android:id="@+id/stats_section"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:background="@color/section_bg"
-            android:padding="80px 40dp"
-            android:layout_marginLeft="-40dp"
-            android:layout_marginRight="-40dp">
-
-            <TextView
-                android:id="@+id/stats_heading"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Your Progress Preview"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:textColor="@color/fg_black"
-                android:gravity="center"
-                android:layout_marginBottom="8dp" />
-
-            <TextView
-                android:id="@+id/stats_subtext"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Sign in to track every attempt, see topic breakdowns, and watch improvement over time."
-                android:textSize="15sp"
-                android:textColor="@color/muted_gray"
-                android:gravity="center"
-                android:layout_marginBottom="32dp" />
-
-            <!-- Stats Grid -->
-            <LinearLayout
-                android:id="@+id/stats_grid"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:gravity="center"
-                android:spacing="24dp">
-
-                <!-- Questions Answered Stat -->
-                <LinearLayout
-                    android:id="@+id/stat_questions"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@color/surface_white"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_black"
-                    android:padding="40px 24px">
-
-                    <TextView
-                        android:id="@+id/stat_value_questions"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="247"
-                        android:textSize="48sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black"
-                        android:letterSpacing="-0.02" />
-
-                    <TextView
-                        android:id="@+id/stat_label_questions"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Questions Answered"
-                        android:textSize="13sp"
-                        android:textColor="@color/muted_gray"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.1"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Average Score Stat -->
-                <LinearLayout
-                    android:id="@+id/stat_score"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@color/surface_white"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_black"
-                    android:padding="40px 24px">
-
-                    <TextView
-                        android:id="@+id/stat_value_score"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="84"
-                        android:textSize="48sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black"
-                        android:letterSpacing="-0.02" />
-
-                    <TextView
-                        android:id="@+id/stat_label_score"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Average Score %"
-                        android:textSize="13sp"
-                        android:textColor="@color/muted_gray"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.1"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-
-                <!-- Tests Completed Stat -->
-                <LinearLayout
-                    android:id="@+id/stat_tests"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:orientation="vertical"
-                    android:background="@color/surface_white"
-                    android:strokeWidth="2dp"
-                    android:strokeColor="@color/border_black"
-                    android:padding="40px 24px">
-
-                    <TextView
-                        android:id="@+id/stat_value_tests"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="12"
-                        android:textSize="48sp"
-                        android:textStyle="bold"
-                        android:textColor="@color/fg_black"
-                        android:letterSpacing="-0.02" />
-
-                    <TextView
-                        android:id="@+id/stat_label_tests"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="Tests Completed"
-                        android:textSize="13sp"
-                        android:textColor="@color/muted_gray"
-                        android:textAllCaps="true"
-                        android:letterSpacing="0.1"
-                        android:layout_marginTop="8dp" />
-                </LinearLayout>
-            </LinearLayout>
-        </LinearLayout>
-    </LinearLayout>
-
-    <!-- Footer - dots visible again (no bg) -->
-    <LinearLayout
-        android:id="@+id/footer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:gravity="center"
-        android:paddingTop="100dp"
-        android:paddingBottom="60dp"
-        android:strokeTopWidth="1dp"
-        android:strokeTopColor="@color/border_black">
-
-        <TextView
-            android:id="@+id/footer_text"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="TestLab — Brutalist test engine for serious students."
-            android:textSize="13sp"
-            android:textColor="@color/muted_gray"
-            android:gravity="center" />
+        android:layoutAnimation="@anim/layout_fall_in"
+        android:padding="20dp">
 
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="horizontal"
-            android:gravity="center"
-            android:layout_marginTop="8dp"
-            android:spacing="8dp">
+            android:gravity="center_vertical"
+            android:layout_marginTop="10dp">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Privacy"
-                android:textSize="13sp"
-                android:textColor="@color/muted_gray" />
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:background="@drawable/bg_glass_card"
+                android:paddingStart="6dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp">
+
+                <TextView
+                    android:id="@+id/top_initial"
+                    android:layout_width="34dp"
+                    android:layout_height="34dp"
+                    android:text="N"
+                    android:textSize="15sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/gold_text"
+                    android:gravity="center"
+                    android:background="@drawable/bg_chip" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="aurex edge"
+                    android:textSize="14sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/ink"
+                    android:letterSpacing="-0.02"
+                    android:layout_marginStart="10dp" />
+            </LinearLayout>
+
+            <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
 
             <TextView
+                android:id="@+id/streak_text"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="·"
-                android:textSize="13sp"
-                android:textColor="@color/muted_gray" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Terms"
-                android:textSize="13sp"
-                android:textColor="@color/muted_gray" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="·"
-                android:textSize="13sp"
-                android:textColor="@color/muted_gray" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Contact"
-                android:textSize="13sp"
-                android:textColor="@color/muted_gray" />
+                android:text="🔥 1-day streak"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:textColor="@color/blush_deep"
+                android:background="@drawable/bg_chip_blush"
+                android:paddingStart="12dp"
+                android:paddingEnd="12dp"
+                android:paddingTop="7dp"
+                android:paddingBottom="7dp" />
         </LinearLayout>
+
+        <TextView
+            android:id="@+id/greeting_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Hi,"
+            android:textSize="42sp"
+            android:textStyle="bold"
+            android:textColor="@color/ink"
+            android:letterSpacing="-0.04"
+            android:layout_marginTop="30dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="let's sharpen your edge today."
+            android:textSize="20sp"
+            android:textColor="@color/muted"
+            android:letterSpacing="-0.02"
+            android:layout_marginTop="2dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card_dark"
+            android:padding="24dp"
+            android:layout_marginTop="26dp">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="⚡ 25 questions" android:textSize="12sp" android:textStyle="bold" android:textColor="#EDEBE4" android:background="@drawable/bg_glass_chip" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="7dp" android:paddingBottom="7dp" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="60 min" android:textSize="12sp" android:textStyle="bold" android:textColor="#EDEBE4" android:background="@drawable/bg_glass_chip" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="7dp" android:paddingBottom="7dp" android:layout_marginStart="8dp" />
+            </LinearLayout>
+
+            <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="Today's mock,\ndecoded by you." android:textSize="28sp" android:textStyle="bold" android:textColor="#FFFFFF" android:lineSpacingMultiplier="1.05" android:letterSpacing="-0.03" android:layout_marginTop="18dp" />
+
+            <Button
+                android:id="@+id/btn_start_test"
+                android:layout_width="match_parent"
+                android:layout_height="58dp"
+                android:text="Start practicing  →"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textAllCaps="false"
+                android:background="@drawable/btn_gold"
+                android:textColor="@color/ink"
+                android:stateListAnimator="@animator/press_scale"
+                android:layout_marginTop="22dp" />
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="14dp">
+            <LinearLayout android:id="@+id/btn_tests" android:layout_width="0dp" android:layout_height="150dp" android:layout_weight="1" android:orientation="vertical" android:background="@drawable/bg_bento_butter" android:foreground="?android:attr/selectableItemBackground" android:stateListAnimator="@animator/press_scale" android:clickable="true" android:focusable="true" android:padding="18dp" android:layout_marginEnd="7dp">
+                <TextView android:layout_width="42dp" android:layout_height="42dp" android:text="📝" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_icon_circle" />
+                <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Tests" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink" android:letterSpacing="-0.02" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="8 papers ready" android:textSize="12sp" android:textColor="@color/butter_deep" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/btn_analysis" android:layout_width="0dp" android:layout_height="150dp" android:layout_weight="1" android:orientation="vertical" android:background="@drawable/bg_bento_mint" android:foreground="?android:attr/selectableItemBackground" android:stateListAnimator="@animator/press_scale" android:clickable="true" android:focusable="true" android:padding="18dp" android:layout_marginStart="7dp">
+                <TextView android:layout_width="42dp" android:layout_height="42dp" android:text="📊" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_icon_circle" />
+                <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="Analysis" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink" android:letterSpacing="-0.02" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="trending up ↗" android:textSize="12sp" android:textColor="@color/mint_deep" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:layout_marginTop="14dp">
+            <LinearLayout android:layout_width="0dp" android:layout_height="150dp" android:layout_weight="1.4" android:orientation="vertical" android:background="@drawable/bg_glass_card" android:padding="18dp" android:layout_marginEnd="7dp">
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AVG SCORE" android:textSize="10sp" android:textStyle="bold" android:textColor="@color/muted" android:letterSpacing="0.18" />
+                <TextView android:id="@+id/avg_score_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0%" android:textSize="44sp" android:textStyle="bold" android:textColor="@color/ink" android:letterSpacing="-0.04" android:layout_marginTop="2dp" />
+                <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+                <ProgressBar android:id="@+id/score_progress" style="@android:style/Widget.ProgressBar.Horizontal" android:layout_width="match_parent" android:layout_height="8dp" android:progressDrawable="@drawable/progress_gold" android:progress="0" android:max="100" />
+                <TextView android:id="@+id/stats_text" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="0 tests · 0 questions" android:textSize="11sp" android:textColor="@color/muted" android:layout_marginTop="8dp" />
+            </LinearLayout>
+            <LinearLayout android:id="@+id/btn_ai_chat" android:layout_width="0dp" android:layout_height="150dp" android:layout_weight="1" android:orientation="vertical" android:background="@drawable/bg_bento_lavender" android:foreground="?android:attr/selectableItemBackground" android:stateListAnimator="@animator/press_scale" android:clickable="true" android:focusable="true" android:padding="18dp" android:layout_marginStart="7dp">
+                <TextView android:layout_width="42dp" android:layout_height="42dp" android:text="🤖" android:textSize="19sp" android:gravity="center" android:background="@drawable/bg_icon_circle" />
+                <View android:layout_width="1dp" android:layout_height="0dp" android:layout_weight="1" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="AI Buddy" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink" android:letterSpacing="-0.02" />
+                <TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="study assistant" android:textSize="12sp" android:textColor="@color/lavender_deep" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="made for JEE · works fully offline" android:textSize="12sp" android:textColor="@color/muted" android:gravity="center" android:layout_marginTop="28dp" android:layout_marginBottom="10dp" />
     </LinearLayout>
-</FrameLayout>
+</ScrollView>

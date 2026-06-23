@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ivory canvas with a soft warm gold aura glowing from the top -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="@color/bg_paper" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.85"
+                android:centerY="0.0"
+                android:gradientRadius="420dp"
+                android:startColor="#59E8C96A"
+                android:endColor="#00E8C96A" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:type="radial"
+                android:centerX="0.0"
+                android:centerY="0.25"
+                android:gradientRadius="300dp"
+                android:startColor="#26B9AEE3"
+                android:endColor="#00B9AEE3" />
+        </shape>
+    </item>
+</layer-list>

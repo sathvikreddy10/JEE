@@ -1,0 +1,218 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    tools:context=".AnalysisActivity">
+
+    <!-- Header -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="16dp"
+        android:paddingBottom="8dp">
+
+        <ImageView
+            android:id="@+id/btn_back"
+            android:layout_width="42dp"
+            android:layout_height="42dp"
+            android:src="@drawable/ic_arrow_back"
+            android:background="@drawable/bg_win_btn"
+            android:scaleType="center"
+            android:contentDescription="Back" />
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Analysis"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:textColor="@color/ink"
+            android:letterSpacing="-0.03"
+            android:layout_marginStart="16dp" />
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:overScrollMode="never">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:layoutAnimation="@anim/layout_fall_in"
+            android:paddingStart="20dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="24dp">
+
+            <!-- Big-numeral glass summary card -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:background="@drawable/bg_glass_card"
+                android:padding="24dp"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="AVERAGE SCORE"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/muted"
+                    android:letterSpacing="0.18" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="bottom"
+                    android:layout_marginTop="4dp">
+
+                    <TextView
+                        android:id="@+id/avg_score_value"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="84%"
+                        android:textSize="58sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/ink"
+                        android:letterSpacing="-0.04" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="↗ trending up"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:textColor="@color/mint_deep"
+                        android:background="@drawable/bg_chip_mint"
+                        android:paddingStart="12dp"
+                        android:paddingEnd="12dp"
+                        android:paddingTop="7dp"
+                        android:paddingBottom="7dp"
+                        android:layout_marginStart="14dp"
+                        android:layout_marginBottom="14dp" />
+                </LinearLayout>
+
+                <ProgressBar
+                    android:id="@+id/score_progress_bar"
+                    style="@android:style/Widget.ProgressBar.Horizontal"
+                    android:layout_width="match_parent"
+                    android:layout_height="8dp"
+                    android:progressDrawable="@drawable/progress_gold"
+                    android:progress="84"
+                    android:max="100"
+                    android:layout_marginTop="6dp" />
+
+                <!-- inline stats -->
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:layout_marginTop="20dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/total_tests_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="12"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/ink"
+                            android:letterSpacing="-0.02" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="tests"
+                            android:textSize="12sp"
+                            android:textColor="@color/muted" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/total_questions_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="347"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/ink"
+                            android:letterSpacing="-0.02" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="questions"
+                            android:textSize="12sp"
+                            android:textColor="@color/muted" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:id="@+id/study_time_value"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="8h 32m"
+                            android:textSize="22sp"
+                            android:textStyle="bold"
+                            android:textColor="@color/ink"
+                            android:letterSpacing="-0.02" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="studied"
+                            android:textSize="12sp"
+                            android:textColor="@color/muted" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- History section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="History"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                android:textColor="@color/ink"
+                android:letterSpacing="-0.02"
+                android:layout_marginTop="26dp"
+                android:layout_marginBottom="12dp" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/history_recycler_view"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

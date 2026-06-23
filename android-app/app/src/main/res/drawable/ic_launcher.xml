@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Ink rounded square -->
+    <path
+        android:fillColor="#15171A"
+        android:pathData="M30,10 L78,10 A20,20 0 0,1 98,30 L98,78 A20,20 0 0,1 78,98 L30,98 A20,20 0 0,1 10,78 L10,30 A20,20 0 0,1 30,10 Z" />
+    <!-- Gold 'A' peak -->
+    <path
+        android:fillColor="#C9971C"
+        android:pathData="M54,28 L76,76 L63,76 L54,54 L45,76 L32,76 Z" />
+    <!-- Edge underline -->
+    <path
+        android:fillColor="#F7EFD9"
+        android:pathData="M32,82 L76,82 L76,87 L32,87 Z" />
+</vector>

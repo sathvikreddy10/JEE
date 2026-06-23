@@ -1,13 +1,17 @@
 package com.testlab.offline;
 
+import android.app.ActivityManager;
+import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
+import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -23,176 +27,232 @@ public class TestTakingActivity extends AppCompatActivity {
 
     // UI Elements
     private TextView timerDisplay;
-    private TextView questionNumberText;
     private TextView questionText;
     private RadioGroup optionsGroup;
     private RadioButton optionARadio, optionBRadio, optionCRadio, optionDRadio;
-    private TextView optionAText, optionBText, optionCText, optionDText;
     private Button btnMarkReview, btnPrevious, btnSkip, btnNextSubmit;
     private TextView questionCounter;
-    private TextView questionTypeBadge;
-    private View tabWarningBanner;
-    private View redFlagBanner;
-    private View amberFlagBanner;
-    private TextView tabSwitchCounter;
-    private TextView pendingSavesIndicator;
-    private TextView amberFlagMessage;
-    private TextView redFlagTitle;
-    private TextView redFlagMessage;
-    private View confirmModal;
-    private TextView confirmTitle;
-    private TextView confirmMessage;
-    private Button btnConfirmNo, btnConfirmYes;
-    private View tabSwitchModal;
-    private TextView tabSwitchMessage;
-    private Button btnTabSwitchUnderstood;
-    private View toastContainer;
+    private TextView testTitleDisplay, testSubtitleDisplay;
+    private ProgressBar questionProgress;
+    
+    // Anti-cheat variables
+    private boolean isInForeground = true;
+    private Handler foregroundCheckHandler;
+    private Runnable foregroundCheckRunnable;
+    private static final long FOREGROUND_CHECK_INTERVAL = 500;
 
     // Test data
     private List<Question> questions = new ArrayList<>();
     private int currentQuestionIndex = 0;
-    private int timeLeftInSeconds = 3600; // 60 minutes default
+    private int timeLeftInSeconds = 3600;
+    private int totalQuestions = 25;
+    private String testTitle = "Calculus I";
+    private String testSubject = "Mathematics";
     private Handler timerHandler = new Handler(Looper.getMainLooper());
     private Runnable timerRunnable;
     private boolean isTimerRunning = false;
     private boolean isExamEnded = false;
-    private int tabSwitchCount = 0;
-    private boolean isRedFlagged = false;
-    private boolean isTabSwitchModalShown = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_test_taking);
         
-        // Make the activity fullscreen to hide status bar and navigation
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        
         getWindow().addFlags(
                 WindowManager.LayoutParams.FLAG_FULLSCREEN |
                         WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON |
                         WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
         );
+
+        // Load extras from intent
+        Intent intent = getIntent();
+        if (intent.hasExtra("test_title")) {
+            testTitle = intent.getStringExtra("test_title");
+        }
+        if (intent.hasExtra("test_subject")) {
+            testSubject = intent.getStringExtra("test_subject");
+        }
+        if (intent.hasExtra("question_count")) {
+            totalQuestions = intent.getIntExtra("question_count", 25);
+        }
+        if (intent.hasExtra("time_minutes")) {
+            timeLeftInSeconds = intent.getIntExtra("time_minutes", 60) * 60;
+        }
         
-        // Initialize UI components
         initializeUI();
-        
-        // Load test data (offline math test)
         loadTestData();
-        
-        // Set up timer
         setupTimer();
-        
-        // Set up tab switch detection (simplified for Android)
-        setupTabSwitchDetection();
-        
-        // Load first question
+        setupAntiCheatDetection();
         loadQuestion(0);
     }
 
     private void initializeUI() {
-        // Timer and header
         timerDisplay = findViewById(R.id.timer_display);
-        questionNumberText = findViewById(R.id.question_number);
         questionText = findViewById(R.id.question_text);
         optionsGroup = findViewById(R.id.options_container);
         optionARadio = findViewById(R.id.option_a_radio);
         optionBRadio = findViewById(R.id.option_b_radio);
         optionCRadio = findViewById(R.id.option_c_radio);
         optionDRadio = findViewById(R.id.option_d_radio);
-        optionAText = findViewById(R.id.option_a_text);
-        optionBText = findViewById(R.id.option_b_text);
-        optionCText = findViewById(R.id.option_c_text);
-        optionDText = findViewById(R.id.option_d_text);
         btnMarkReview = findViewById(R.id.btn_mark_review);
         btnPrevious = findViewById(R.id.btn_previous);
         btnSkip = findViewById(R.id.btn_skip);
         btnNextSubmit = findViewById(R.id.btn_next_submit);
         questionCounter = findViewById(R.id.question_counter);
-        questionTypeBadge = findViewById(R.id.question_type_badge);
+        testTitleDisplay = findViewById(R.id.test_title_display);
+        testSubtitleDisplay = findViewById(R.id.test_subtitle_display);
+        questionProgress = findViewById(R.id.question_progress);
         
-        // Warning banners
-        tabWarningBanner = findViewById(R.id.tab_warning_banner);
-        redFlagBanner = findViewById(R.id.red_flag_banner);
-        amberFlagBanner = findViewById(R.id.amber_flag_banner);
-        tabSwitchCounter = findViewById(R.id.tab_switch_counter);
-        pendingSavesIndicator = findViewById(R.id.pending_saves_indicator);
-        amberFlagMessage = findViewById(R.id.amber_flag_message);
-        redFlagTitle = findViewById(R.id.red_flag_title);
-        redFlagMessage = findViewById(R.id.red_flag_message);
+        testTitleDisplay.setText(testTitle);
+        testSubtitleDisplay.setText(testSubject);
         
-        // Modals
-        confirmModal = findViewById(R.id.confirm_modal);
-        confirmTitle = findViewById(R.id.confirm_title);
-        confirmMessage = findViewById(R.id.confirm_message);
-        btnConfirmNo = findViewById(R.id.btn_confirm_no);
-        btnConfirmYes = findViewById(R.id.btn_confirm_yes);
-        tabSwitchModal = findViewById(R.id.tab_switch_modal);
-        tabSwitchMessage = findViewById(R.id.tab_switch_message);
-        btnTabSwitchUnderstood = findViewById(R.id.btn_tab_switch_understood);
-        toastContainer = findViewById(R.id.toast_container);
-        
-        // Set up button click listeners
         btnMarkReview.setOnClickListener(v -> toggleReview());
         btnPrevious.setOnClickListener(v -> previousQuestion());
         btnSkip.setOnClickListener(v -> skipQuestion());
         btnNextSubmit.setOnClickListener(v -> nextOrSubmit());
-        
-        btnConfirmNo.setOnClickListener(v -> hideConfirmModal());
-        btnConfirmYes.setOnClickListener(v -> confirmAction());
-        
-        btnTabSwitchUnderstood.setOnClickListener(v -> hideTabSwitchModal());
+    }
+
+    private void setupAntiCheatDetection() {
+        // Check if app is in foreground periodically
+        foregroundCheckHandler = new Handler(Looper.getMainLooper());
+        foregroundCheckRunnable = new Runnable() {
+            @Override
+            public void run() {
+                boolean currentlyInForeground = isAppInForeground(TestTakingActivity.this);
+                if (!currentlyInForeground && isInForeground) {
+                    // App just went to background
+                    handleAppBackground();
+                }
+                isInForeground = currentlyInForeground;
+                foregroundCheckHandler.postDelayed(this, FOREGROUND_CHECK_INTERVAL);
+            }
+        };
+        // Start checking
+        foregroundCheckHandler.postDelayed(foregroundCheckRunnable, FOREGROUND_CHECK_INTERVAL);
+    }
+
+    private boolean isAppInForeground(Context context) {
+        ActivityManager activityManager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningAppProcessInfo> appProcesses = activityManager.getRunningAppProcesses();
+        if (appProcesses == null) {
+            return false;
+        }
+        for (ActivityManager.RunningAppProcessInfo appProcess : appProcesses) {
+            if (appProcess.processName.equals(context.getPackageName())) {
+                return appProcess.importance == ActivityManager.RunningAppProcessInfo.IMPORTANCE_FOREGROUND;
+            }
+        }
+        return false;
+    }
+
+    private void handleAppBackground() {
+        if (!isExamEnded) {
+            // Show warning and terminate exam if user tries to cheat
+            runOnUiThread(() -> {
+                showConfirmModal(
+                        "Exam Terminated",
+                        "Exam has been terminated due to attempting to leave the test window.\n" +
+                                "This action has been logged and reported."
+                );
+                // Create a custom dialog that forces the user to acknowledge
+                new AlertDialog.Builder(this)
+                        .setTitle("Exam Terminated")
+                        .setMessage("Exam has been terminated due to attempting to leave the test window.\n" +
+                                "This action has been logged and reported.")
+                        .setPositiveButton("OK", (dialog, which) -> {
+                            // Force finish the activity
+                            finishAndRemoveTask();
+                        })
+                        .setCancelable(false)
+                        .show();
+                
+                // Disable all interaction
+                btnMarkReview.setEnabled(false);
+                btnPrevious.setEnabled(false);
+                btnSkip.setEnabled(false);
+                btnNextSubmit.setEnabled(false);
+                optionARadio.setEnabled(false);
+                optionBRadio.setEnabled(false);
+                optionCRadio.setEnabled(false);
+                optionDRadio.setEnabled(false);
+                
+                isExamEnded = true;
+                isTimerRunning = false;
+                
+                // Stop timers
+                if (timerHandler != null && timerRunnable != null) {
+                    timerHandler.removeCallbacks(timerRunnable);
+                }
+                if (foregroundCheckHandler != null && foregroundCheckRunnable != null) {
+                    foregroundCheckHandler.removeCallbacks(foregroundCheckRunnable);
+                }
+                
+                showToast("Exam terminated for security reasons");
+            });
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // App came back to foreground - restart checking
+        if (foregroundCheckHandler != null && foregroundCheckRunnable != null) {
+            foregroundCheckHandler.postDelayed(foregroundCheckRunnable, FOREGROUND_CHECK_INTERVAL);
+        }
+        isInForeground = true;
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        // App going to background - handled by our checker
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Clean up handlers
+        if (timerHandler != null && timerRunnable != null) {
+            timerHandler.removeCallbacks(timerRunnable);
+        }
+        if (foregroundCheckHandler != null && foregroundCheckRunnable != null) {
+            foregroundCheckHandler.removeCallbacks(foregroundCheckRunnable);
+        }
     }
 
     private void loadTestData() {
-        // Create a simple math test for offline use
         questions.add(new Question(
                 "What is the derivative of x²?",
                 new String[]{"2x", "x", "x²", "2"},
-                0, // Correct answer index
-                "Calculus",
-                false
-        ));
-        
+                0, "Calculus", false));
+
         questions.add(new Question(
                 "What is the integral of 2x dx?",
                 new String[]{"x²", "2x", "x² + C", "2"},
-                2, // Correct answer index
-                "Calculus",
-                false
-        ));
-        
+                2, "Calculus", false));
+
         questions.add(new Question(
                 "What is the value of π (pi) approximately?",
                 new String[]{"3.14", "3.14159", "22/7", "All of the above"},
-                3, // Correct answer index
-                "Mathematics",
-                false
-        ));
-        
+                3, "Mathematics", false));
+
         questions.add(new Question(
                 "What is the quadratic formula?",
                 new String[]{"x = -b ± √(b²-4ac)/2a", "x = b ± √(b²-4ac)/2a", "x = -b ± √(b²+4ac)/2a", "x = -b ± √(b²-4ac)/a"},
-                0, // Correct answer index
-                "Algebra",
-                false
-        ));
-        
+                0, "Algebra", false));
+
         questions.add(new Question(
                 "What is the area of a circle with radius r?",
                 new String[]{"2πr", "πr²", "πd", "2πr²"},
-                1, // Correct answer index
-                "Geometry",
-                false
-        ));
-        
-        // Add more questions to make it 25 total
-        for (int i = 5; i < 25; i++) {
+                1, "Geometry", false));
+
+        for (int i = 5; i < totalQuestions; i++) {
             questions.add(new Question(
                     String.format("Sample Question %d", i + 1),
                     new String[]{"" + (i + 1), "" + (i + 2), "" + (i + 3), "" + (i + 4)},
-                    0,
-                    "Mathematics",
-                    false
-            ));
+                    0, testSubject, false));
         }
     }
 
@@ -220,23 +280,12 @@ public class TestTakingActivity extends AppCompatActivity {
         int minutes = timeLeftInSeconds / 60;
         int seconds = timeLeftInSeconds % 60;
         timerDisplay.setText(String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds));
-        
-        // Change color based on time remaining
-        if (timeLeftInSeconds < 60) { // Less than 1 minute
-            timerDisplay.setTextColor(getResources().getColor(R.color.crimson));
-        } else if (timeLeftInSeconds < 300) { // Less than 5 minutes
-            timerDisplay.setTextColor(getResources().getColor(R.color.amber));
-        } else {
-            timerDisplay.setTextColor(getResources().getColor(R.color.fg_black));
-        }
     }
 
     private void timeUp() {
         isTimerRunning = false;
         isExamEnded = true;
         showConfirmModal("Time's Up!", "Your time has expired. Submit your test?");
-        btnConfirmYes.setText("Submit");
-        btnConfirmNo.setVisibility(View.GONE);
     }
 
     private void loadQuestion(int index) {
@@ -245,29 +294,33 @@ public class TestTakingActivity extends AppCompatActivity {
         currentQuestionIndex = index;
         Question currentQuestion = questions.get(index);
         
-        // Update question number
-        questionNumberText.setText(String.valueOf(index + 1));
-        
-        // Update question text
         questionText.setText(currentQuestion.getText());
         
-        // Update options
         String[] options = currentQuestion.getOptions();
-        optionAText.setText(options[0]);
-        optionBText.setText(options[1]);
-        optionCText.setText(options[2]);
-        optionDText.setText(options[3]);
+        optionARadio.setText(options[0]);
+        optionBRadio.setText(options[1]);
+        optionCRadio.setText(options[2]);
+        optionDRadio.setText(options[3]);
         
-        // Clear previous selection
         optionsGroup.clearCheck();
         
-        // Update UI elements
         questionCounter.setText(String.format(Locale.getDefault(), "%d/%d", index + 1, questions.size()));
-        questionTypeBadge.setText("MCQ");
-        questionTypeBadge.setBackgroundColor(getResources().getColor(R.color.badge_bg));
+
+        if (questionProgress != null) {
+            questionProgress.setMax(questions.size());
+            if (android.os.Build.VERSION.SDK_INT >= 24) {
+                questionProgress.setProgress(index + 1, true);
+            } else {
+                questionProgress.setProgress(index + 1);
+            }
+        }
         
-        // Update topic in header (would need to find the topic text view)
-        // For simplicity, we'll skip this for now as it's not critical
+        // Update button text for last question
+        if (index == questions.size() - 1) {
+            btnNextSubmit.setText("Submit");
+        } else {
+            btnNextSubmit.setText("Next");
+        }
     }
 
     private void nextOrSubmit() {
@@ -278,12 +331,9 @@ public class TestTakingActivity extends AppCompatActivity {
         } else {
             // On last question - show submit confirmation
             showConfirmModal(
-                    getString(R.string.confirm_submit_title),
-                    getString(R.string.confirm_submit_message)
+                    "Submit Test",
+                    "Are you sure you want to submit your test?"
             );
-            btnConfirmYes.setText(getString(R.string.yes));
-            btnConfirmNo.setText(getString(R.string.no));
-            btnConfirmNo.setVisibility(View.VISIBLE);
         }
     }
 
@@ -294,7 +344,6 @@ public class TestTakingActivity extends AppCompatActivity {
             RadioButton selectedRadioButton = findViewById(selectedId);
             String answer = selectedRadioButton.getText().toString();
             questions.get(currentQuestionIndex).setSelectedAnswer(answer);
-            // In a real app, you would save this to SharedPreferences or a local database
             showToast("Answer saved");
         }
     }
@@ -321,28 +370,39 @@ public class TestTakingActivity extends AppCompatActivity {
         boolean isMarked = !questions.get(currentQuestionIndex).isMarkedForReview();
         questions.get(currentQuestionIndex).setMarkedForReview(isMarked);
         if (isMarked) {
-            btnMarkReview.setText(getString(R.string.unmark_review));
+            btnMarkReview.setText("UNMARK");
             showToast("Marked for review");
         } else {
-            btnMarkReview.setText(getString(R.string.mark_review));
+            btnMarkReview.setText("MARK");
             showToast("Unmarked from review");
         }
     }
 
     private void showConfirmModal(String title, String message) {
-        confirmTitle.setText(title);
-        confirmMessage.setText(message);
-        confirmModal.setVisibility(View.VISIBLE);
-    }
-
-    private void hideConfirmModal() {
-        confirmModal.setVisibility(View.GONE);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        if (title.equals("Time's Up!") || title.equals("Submit Test")) {
+                            showResults();
+                        } else {
+                            finish(); // Exit the test
+                        }
+                    }
+                })
+                .setNegativeButton("No", null)
+                .setCancelable(false)
+                .show();
     }
 
     private void confirmAction() {
-        hideConfirmModal();
-        // In a real app, you would save all answers and show results
-        showResults();
+        // This method is no longer used with AlertDialog approach
+    }
+
+    private void hideConfirmModal() {
+        // This method is no longer needed with AlertDialog
     }
 
     private void showResults() {
@@ -363,134 +423,46 @@ public class TestTakingActivity extends AppCompatActivity {
         // Simple scoring for demo
         correctAnswers = answeredQuestions; // Assume all answered are correct for demo
         
+        final int finalCorrect = correctAnswers;
+        final int finalAnswered = answeredQuestions;
+        final String testTitleLocal = testTitle;
+        final String testSubjectLocal = testSubject;
+        final int totalQuestionsLocal = totalQuestions;
+        final int timeLeftSec = timeLeftInSeconds;
+        final int totalMinutes = timeLeftInSeconds > 0 ? 
+            (getIntent().getIntExtra("time_minutes", 60)) : 60;
+        final int totalSecs = (totalMinutes * 60) - timeLeftSec;
+
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle(getString(R.string.test_submitted))
-                .setMessage(String.format(Locale.getDefault(),
-                        "%s: %d/%s: %d\n%s: %d",
-                        getString(R.string.score),
-                        correctAnswers,
-                        getString(R.string.out_of),
+        builder.setTitle("Test Submitted")
+                .setMessage(String.format(java.util.Locale.getDefault(),
+                        "Score: %d/%d\nQuestions Answered: %d\n\nView your full analysis?",
+                        finalCorrect,
                         questions.size(),
-                        getString(R.string.questions_answered),
-                        answeredQuestions))
-                .setPositiveButton(getString(R.string.yes), new DialogInterface.OnClickListener() {
+                        finalAnswered))
+                .setPositiveButton("View Analysis", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        finish(); // Exit the test
+                        // Save result
+                        int minutesTaken = totalSecs / 60;
+                        int secondsTaken = totalSecs % 60;
+                        new UserPreferences(TestTakingActivity.this)
+                                .saveTestResult(testTitleLocal, testSubjectLocal, finalCorrect, totalQuestionsLocal, minutesTaken, secondsTaken);
+
+                        Intent intent = new Intent(TestTakingActivity.this, AnalysisActivity.class);
+                        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                        startActivity(intent);
+                        finish();
+                    }
+                })
+                .setNegativeButton("Close", new DialogInterface.OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        finish();
                     }
                 })
                 .setCancelable(false)
                 .show();
-    }
-
-    private void setupTabSwitchDetection() {
-        // On Android, we can detect when the app goes to background
-        // This is a simplified version - real tab switching detection is more complex
-        // For this demo, we'll simulate the behavior
-        
-        // In a real app, you would use Activity lifecycle methods
-        // onPause() and onResume() to detect when app goes to background/foreground
-    }
-
-    @Override
-    protected void onPause() {
-        super.onPause();
-        // Simulate tab switch when app goes to background
-        if (!isExamEnded && !isRedFlagged) {
-            handleTabSwitch();
-        }
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        // App came back to foreground
-    }
-
-    private void handleTabSwitch() {
-        tabSwitchCount++;
-        
-        // Update UI based on tab switch count
-        runOnUiThread(() -> {
-            tabSwitchCounter.setText(String.format(Locale.getDefault(), "🔄 %d", tabSwitchCount));
-            tabSwitchCounter.setVisibility(View.VISIBLE);
-            
-            if (tabSwitchCount >= 4) {
-                // Red flagged
-                isRedFlagged = true;
-                redFlagBanner.setVisibility(View.VISIBLE);
-                amberFlagBanner.setVisibility(View.GONE);
-                tabSwitchCounter.setBackgroundColor(getResources().getColor(R.color.crimson));
-                tabSwitchCounter.setTextColor(getResources().getColor(R.color.bg_white));
-                redFlagTitle.setText(getString(R.string.warning));
-                redFlagMessage.setText("RED FLAGGED — suspicious activity detected");
-                
-                if (tabSwitchCount >= 7) {
-                    // Exam terminated
-                    showExamTerminated();
-                }
-            } else if (tabSwitchCount >= 3) {
-                // Amber warning
-                amberFlagBanner.setVisibility(View.VISIBLE);
-                redFlagBanner.setVisibility(View.GONE);
-                tabSwitchCounter.setBackgroundColor(getResources().getColor(R.color.amber));
-                tabSwitchCounter.setTextColor(getResources().getColor(R.color.fg_black));
-                amberFlagMessage.setText("1 more tab switch = RED FLAG");
-            } else {
-                // Normal state
-                tabSwitchCounter.setBackgroundColor(getResources().getColor(R.color.badge_bg));
-                tabSwitchCounter.setTextColor(getResources().getColor(R.color.fg_black));
-                
-                switch (tabSwitchCount) {
-                    case 1:
-                        amberFlagMessage.setText("Tab switch detected (1) — each switch is logged");
-                        break;
-                    case 2:
-                        amberFlagMessage.setText("Tab switch detected (2) — please don't switch tabs");
-                        break;
-                }
-            }
-            
-            // Show tab switch modal on first switch only
-            if (tabSwitchCount == 1 && !isTabSwitchModalShown) {
-                showTabSwitchModal();
-                isTabSwitchModalShown = true;
-            }
-        });
-    }
-
-    private void showTabSwitchModal() {
-        tabSwitchModal.setVisibility(View.VISIBLE);
-        tabSwitchMessage.setText(
-                "Each tab switch is logged and monitored. Switching tabs repeatedly will result in a red flag and possible exam termination."
-        );
-    }
-
-    private void hideTabSwitchModal() {
-        tabSwitchModal.setVisibility(View.GONE);
-    }
-
-    private void showExamTerminated() {
-        isExamEnded = true;
-        isTimerRunning = false;
-        
-        runOnUiThread(() -> {
-            redFlagTitle.setText("EXAM TERMINATED");
-            redFlagMessage.setText("Your exam was terminated due to excessive tab switching. You have been red-flagged.");
-            tabWarningBanner.setVisibility(View.VISIBLE);
-            
-            // Disable further interaction
-            btnMarkReview.setEnabled(false);
-            btnPrevious.setEnabled(false);
-            btnSkip.setEnabled(false);
-            btnNextSubmit.setEnabled(false);
-            
-            showToast("Exam terminated due to excessive tab switching");
-        });
-    }
-
-    private void showToast(String message) {
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -498,30 +470,16 @@ public class TestTakingActivity extends AppCompatActivity {
         // Handle back button press - show exit confirmation
         if (!isExamEnded) {
             showConfirmModal(
-                    getString(R.string.confirm_exit_title),
-                    getString(R.string.confirm_exit_message)
+                    "Exit Test",
+                    "Are you sure you want to exit the test? Your progress will be lost."
             );
-            btnConfirmYes.setText(getString(R.string.yes));
-            btnConfirmNo.setText(getString(R.string.no));
-            btnConfirmNo.setVisibility(View.VISIBLE);
-            
-            // Set confirm action to exit
-            btnConfirmYes.setOnClickListener(v -> {
-                hideConfirmModal();
-                finish();
-            });
-            btnConfirmNo.setOnClickListener(v -> hideConfirmModal());
         } else {
             super.onBackPressed();
         }
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        if (timerHandler != null && timerRunnable != null) {
-            timerHandler.removeCallbacks(timerRunnable);
-        }
+    private void showToast(String message) {
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
     }
 
     // Simple Question class for demo

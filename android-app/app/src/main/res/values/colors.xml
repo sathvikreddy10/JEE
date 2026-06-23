@@ -1,19 +1,67 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Brutalist color scheme matching the HTML UI -->
-    <color name="bg_white">#FFFFFF</color>
-    <color name="fg_black">#000000</color>
-    <color name="muted_gray">#666666</color>
-    <color name="accent_yellow">#FFF9C4</color>
-    <color name="accent_yellow_dark">#FFF200</color>
-    <color name="border_black">#000000</color>
-    <color name="surface_white">#FFFFFF</color>
-    <color name="badge_bg">#F5F5F5</color>
-    <color name="section_bg">#F5F5F5</color>
-    <color name="crimson">#F85149</color>
-    <color name="amber">#FFAA00</color>
-    <color name="forest">#22C55E</color>
-    <color name="cyan">#06B6D4</color>
+    <!-- Aurex Edge design system -->
+    <!-- Core -->
+    <color name="bg_paper">#F6F4EE</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="ink">#141517</color>
+    <color name="muted">#75767B</color>
+    <color name="border">#EAE7DF</color>
+    <color name="border_strong">#DCD9D0</color>
+
+    <!-- Pastel bento tints -->
+    <color name="butter">#F7EDD2</color>
+    <color name="butter_deep">#8A6A10</color>
+    <color name="mint">#E2F0E4</color>
+    <color name="mint_deep">#2E6B43</color>
+    <color name="lavender">#EAE6F8</color>
+    <color name="lavender_deep">#5B4FA8</color>
+    <color name="blush">#FAE8E4</color>
+    <color name="blush_deep">#A8503F</color>
+
+    <!-- Signature gold accent -->
+    <color name="gold">#C9971C</color>
+    <color name="gold_deep">#A87D12</color>
+    <color name="gold_soft">#F7EFD9</color>
+    <color name="gold_text">#8A6A10</color>
+
+    <!-- Status -->
+    <color name="green">#1F9D55</color>
+    <color name="green_soft">#E7F6EC</color>
+    <color name="amber_warm">#C77B1B</color>
+    <color name="amber_soft">#FDF3E0</color>
+    <color name="red">#D64545</color>
+    <color name="red_soft">#FBEAEA</color>
+
     <color name="overlay_bg">#80000000</color>
     <color name="transparent">#00000000</color>
+
+    <!-- Legacy aliases (kept so older references keep compiling) -->
+    <color name="bg_white">#FFFFFF</color>
+    <color name="fg_black">#15171A</color>
+    <color name="muted_gray">#71757D</color>
+    <color name="accent_yellow">#F7EFD9</color>
+    <color name="accent_yellow_dark">#C9971C</color>
+    <color name="border_black">#EDEDF0</color>
+    <color name="surface_white">#FFFFFF</color>
+    <color name="badge_bg">#F5F5F7</color>
+    <color name="section_bg">#F5F5F7</color>
+    <color name="crimson">#D64545</color>
+    <color name="amber">#C77B1B</color>
+    <color name="forest">#1F9D55</color>
+    <color name="cyan">#06B6D4</color>
+
+    <!-- Test taking UI -->
+    <color name="option_bg_unselected">#FFFFFF</color>
+    <color name="option_bg_selected">#F7EFD9</color>
+    <color name="option_text_unselected">#15171A</color>
+    <color name="option_text_selected">#15171A</color>
+    <color name="option_border">#EDEDF0</color>
+    <color name="btn_primary_bg">#15171A</color>
+    <color name="btn_primary_text">#FFFFFF</color>
+    <color name="btn_secondary_bg">#FFFFFF</color>
+    <color name="btn_secondary_text">#15171A</color>
+    <color name="btn_secondary_border">#D8D4C9</color>
+    <color name="header_bg">#FFFFFF</color>
+    <color name="nav_bg">#FFFFFF</color>
 </resources>

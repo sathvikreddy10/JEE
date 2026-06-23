@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_glass_card"
+    android:foreground="?android:attr/selectableItemBackground"
+    android:padding="16dp"
+    android:layout_marginBottom="12dp">
+
+    <!-- Score badge -->
+    <FrameLayout
+        android:id="@+id/score_bg"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:background="@drawable/bg_score_excellent"
+        android:layout_marginEnd="14dp">
+
+        <TextView
+            android:id="@+id/score_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="92%"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="@color/ink" />
+    </FrameLayout>
+
+    <!-- Middle column -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/title_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Calculus I — Midterm Practice"
+            android:textSize="15sp"
+            android:textStyle="bold"
+            android:textColor="@color/ink"
+            android:maxLines="2"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/subject_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Mathematics"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:textColor="@color/gold_text"
+            android:letterSpacing="0.05"
+            android:layout_marginTop="3dp" />
+
+        <TextView
+            android:id="@+id/detail_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="23/25 correct"
+            android:textSize="13sp"
+            android:textColor="@color/muted"
+            android:layout_marginTop="3dp" />
+    </LinearLayout>
+
+    <!-- Right column -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:gravity="end"
+        android:layout_marginStart="10dp">
+
+        <TextView
+            android:id="@+id/time_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="60:00"
+            android:textSize="12sp"
+            android:textColor="@color/muted" />
+
+        <TextView
+            android:id="@+id/date_text"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="2 days ago"
+            android:textSize="12sp"
+            android:textColor="@color/muted"
+            android:layout_marginTop="4dp" />
+    </LinearLayout>
+</LinearLayout>

@@ -1,24 +1,26 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
-    <style name="Theme.TestLabOffline" parent="Theme.MaterialComponents.DayNight.NoActionBar">
-        <!-- Primary brand color. -->
-        <item name="colorPrimary">@color/accent_yellow</item>
-        <item name="colorPrimaryVariant">@color/accent_yellow_dark</item>
-        <item name="colorOnPrimary">@color/fg_black</item>
-        <!-- Secondary brand color. -->
-        <item name="colorSecondary">@color/accent_yellow</item>
-        <item name="colorSecondaryVariant">@color/accent_yellow_dark</item>
-        <item name="colorOnSecondary">@color/fg_black</item>
-        <!-- Status bar color. -->
+    <!-- Aurex Edge base theme -->
+    <style name="Theme.AurexEdge" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/gold</item>
+        <item name="colorPrimaryVariant">@color/gold_deep</item>
+        <item name="colorOnPrimary">@color/ink</item>
+        <item name="colorSecondary">@color/ink</item>
+        <item name="colorSecondaryVariant">@color/ink</item>
+        <item name="colorOnSecondary">@android:color/white</item>
+        <item name="android:colorBackground">@color/bg_paper</item>
+        <item name="android:windowBackground">@drawable/bg_screen</item>
         <item name="android:statusBarColor">@color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowFullscreen">true</item>
-        <!-- Customize your theme here. -->
-        <item name="android:fontFamily">monospace</item>
+        <item name="android:fontFamily">sans-serif</item>
     </style>
-    
-    <style name="Theme.TestLabOffline.Fullscreen" parent="Theme.TestLabOffline">
+
+    <style name="Theme.AurexEdge.Fullscreen" parent="Theme.AurexEdge">
         <item name="android:windowFullscreen">true</item>
         <item name="android:windowContentOverlay">@null</item>
     </style>
+
+    <!-- Legacy aliases so older references keep working -->
+    <style name="Theme.TestLabOffline" parent="Theme.AurexEdge" />
+    <style name="Theme.TestLabOffline.Fullscreen" parent="Theme.AurexEdge.Fullscreen" />
 </resources>

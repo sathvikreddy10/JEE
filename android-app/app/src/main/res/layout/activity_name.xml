@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="@color/bg_paper"
+    android:padding="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="AUREX EDGE"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        android:textColor="@color/gold"
+        android:letterSpacing="0.25" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="👋"
+        android:textSize="48sp"
+        android:layout_marginTop="24dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="What should we call you?"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/ink"
+        android:layout_marginTop="16dp" />
+
+    <EditText
+        android:id="@+id/name_input"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:hint="Your name"
+        android:textSize="18sp"
+        android:textColor="@color/ink"
+        android:textColorHint="@color/muted"
+        android:background="@drawable/bg_glass_card"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:layout_marginTop="24dp"
+        android:maxLines="1"
+        android:inputType="textCapWords|textPersonName" />
+
+    <Button
+        android:id="@+id/btn_continue"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Let's go →"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:background="@drawable/btn_gold"
+        android:textColor="@color/ink"
+        android:stateListAnimator="@null"
+        android:layout_marginTop="16dp" />
+</LinearLayout>
