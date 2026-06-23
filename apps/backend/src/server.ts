@@ -80,11 +80,11 @@ const isLocalhost = (req: express.Request) => {
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: (req) => (isLocalhost(req) ? 1000 : Number(process.env.AUTH_LIMIT || 200)),
+  max: (req: express.Request) => (isLocalhost(req) ? 1000 : Number(process.env.AUTH_LIMIT || 200)),
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many attempts, please try again later." },
-  skip: (req) => isLocalhost(req),
+  skip: (req: express.Request) => isLocalhost(req),
 });
 app.use("/auth", authLimiter);
 app.use("/admin/auth", authLimiter);
