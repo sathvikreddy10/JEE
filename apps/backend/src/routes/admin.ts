@@ -1966,3 +1966,56 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
     return res.status(500).json({ error: "Failed to parse Excel" });
   }
 });
+
+// POST /admin/seed — create demo users, admin CSV, and a practice paper (idempotent)
+adminRouter.post("/seed", async (_req, res) => {
+  try {
+    const bcrypt = (await import("bcryptjs")).default || (await import("bcryptjs"));
+    const { writeFile } = await import("fs/promises");
+    const { resolve, dirname } = await import("path");
+    const { fileURLToPath } = await import("url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const csvPath = resolve(here, "../../data/admins.csv");
+
+    // 1. Demo users
+    const demos = [
+      { email: "sathvik@testify.app", name: "Sathvik" },
+      { email: "arjun@testify.app", name: "Arjun" },
+      { email: "priya@testify.app", name: "Priya" },
+    ];
+    for (const u of demos) {
+      const exists = await prisma.user.findUnique({ where: { email: u.email } });
+      if (!exists) {
+        await prisma.user.create({ data: { ...u, password: "password123" } });
+        log.info(`Seeded user: ${u.email}`);
+      }
+    }
+
+    // 2. Admin CSV
+    try { await import("fs/promises").then(fs => fs.access(csvPath)); }
+    catch {
+      const hash = await bcrypt.hash("password123", 10);
+      await writeFile(csvPath, `email,passwordHash,displayName\nsathvik@testify.app,${hash},Sathvik\n`, "utf8");
+      log.info(`Created admin CSV`);
+    }
+
+    // 3. Demo paper
+    const existing = await prisma.questionSet.findFirst();
+    if (!existing) {
+      const set = await prisma.questionSet.create({
+        data: { name: "JEE Main 2025", subject: "Physics", pattern: "JEE Main", timeLimit: 1800, kind: "PRACTICE", exam: "JEE_MAIN", attemptsAllowed: 99 },
+      });
+      await prisma.question.createMany({
+        data: [
+          { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1 },
+          { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1 },
+          { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1 },
+        ],
+      });
+    }
+    return res.json({ ok: true });
+  } catch (e) {
+    log.err("POST /admin/seed", e);
+    return res.status(500).json({ error: (e as Error).message });
+  }
+});
