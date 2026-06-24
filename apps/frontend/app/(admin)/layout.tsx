@@ -21,6 +21,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  AlertTriangle,
+  X,
 } from "lucide-react";
 
 interface AdminMe {
@@ -52,6 +54,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [admin, setAdmin] = useState<AdminMe | null>(null);
   const [ready, setReady] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [flagBanner, setFlagBanner] = useState<string | null>(null);
 
   useEffect(() => {
     try {
@@ -82,6 +85,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
         } else {
           setAdmin(data.admin);
+          if (data.admin.flagged) {
+            setFlagBanner(
+              data.admin.flagReason || "Your admin account was just signed in from another device."
+            );
+          }
         }
       })
       .catch(() => {
@@ -119,6 +127,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="min-h-screen flex flex-col bg-background overflow-x-hidden">
+      {flagBanner && (
+        <div
+          role="alert"
+          className="w-full px-4 py-2.5 flex items-center gap-3 text-sm shrink-0"
+          style={{ background: "rgba(220,38,38,0.08)", color: "var(--crimson)", borderBottom: "1px solid rgba(220,38,38,0.2)" }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" />
+          <span className="flex-1">
+            <strong>Red flag:</strong> {flagBanner} If this wasn't you, contact another admin.
+          </span>
+          <button
+            type="button"
+            onClick={() => setFlagBanner(null)}
+            aria-label="Dismiss"
+            className="shrink-0 opacity-60 hover:opacity-100"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
       <div className="flex-1 flex bg-background overflow-x-hidden">
       {/* Sidebar */}
       <aside
