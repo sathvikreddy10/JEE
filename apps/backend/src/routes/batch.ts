@@ -2,7 +2,6 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { log } from "../lib/logger";
 import { requireAdmin } from "../lib/auth";
-import { hashPassword } from "../lib/password";
 
 const DEFAULT_INVITE_PASSWORD = "password123";
 
@@ -30,12 +29,11 @@ async function upsertUserByEmail(
   }
   const localPart = cleanEmail.split("@")[0] || "Student";
   const name = localPart.charAt(0).toUpperCase() + localPart.slice(1);
-  const passwordHash = await hashPassword(DEFAULT_INVITE_PASSWORD);
   const user = await prisma.user.create({
     data: {
       email: cleanEmail,
       name,
-      passwordHash,
+      password: DEFAULT_INVITE_PASSWORD,
       credential: {
         create: {
           plainPassword: DEFAULT_INVITE_PASSWORD,

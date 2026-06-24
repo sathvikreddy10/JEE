@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/Button";
-import { fetchJSON } from "@/lib/api";
+import { fetchJSON, AuthError } from "@/lib/api";
 import { log as cli } from "@/lib/logger";
 
 function AdminLoginInner() {
@@ -36,16 +36,16 @@ function AdminLoginInner() {
       router.push(next);
       router.refresh();
     } catch (err) {
-      const e = err as Error & { data?: { debug?: { receivedEmail?: string; receivedPassword?: string } } };
-      const msg = e.message;
+      const e = err as Error & { data?: { error?: string; debug?: { receivedEmail?: string; receivedPassword?: string } } };
+      const backendError = e instanceof AuthError ? (e.data?.error || e.message) : e.message;
       const dbg = e.data?.debug;
-      if (msg.includes("Invalid admin email or password")) {
-        const info = dbg ? ` (backend received: ${dbg.receivedEmail}, pw: ${dbg.receivedPassword})` : "";
-        setError(`Wrong email or password. Please try again.${info}`);
-      } else if (msg.includes("Failed to fetch") || msg.includes("Backend unreachable") || msg.includes("NetworkError")) {
+      if (backendError.toLowerCase().includes("invalid") || backendError.toLowerCase().includes("wrong password") || backendError.toLowerCase().includes("not found")) {
+        const info = dbg ? ` (backend got email "${dbg.receivedEmail}", pw "${dbg.receivedPassword}")` : "";
+        setError(`Wrong email or password.${info}`);
+      } else if (backendError.includes("Failed to fetch") || backendError.includes("NetworkError") || backendError.includes("Backend unreachable")) {
         setError("Cannot reach the server. Make sure the backend is running.");
       } else {
-        setError(dbg ? `${msg} (debug: ${JSON.stringify(dbg)})` : msg);
+        setError(dbg ? `${backendError} — debug: ${JSON.stringify(dbg)}` : backendError);
       }
       cli.err("admin login", err);
     } finally {

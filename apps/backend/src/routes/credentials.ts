@@ -2,7 +2,6 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { log } from "../lib/logger";
 import { requireAdmin } from "../lib/auth";
-import { hashPassword } from "../lib/password";
 
 export const credentialsRouter = Router();
 
@@ -102,14 +101,12 @@ credentialsRouter.put("/:userId", requireAdmin, async (req, res) => {
     if (!user) return res.status(404).json({ error: "User not found" });
 
     const adminId = req.admin?.id ?? null;
-    const passwordHash = await hashPassword(plainPassword);
     const cred = await prisma.userCredential.upsert({
       where: { userId },
       update: { plainPassword, setByAdminId: adminId, setAt: new Date() },
       create: { userId, plainPassword, setByAdminId: adminId },
     });
-    // Also update the bcrypt hash so the user can log in with this new password
-    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await prisma.user.update({ where: { id: userId }, data: { password: plainPassword } });
 
     log.success(`Password updated for user=${userId} (${user.email})`);
     return res.json({
