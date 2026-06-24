@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -22,9 +21,8 @@ async function main() {
   await prisma.user.deleteMany({});
 
   // Demo users (all password: "password123")
-  const passwordHash = await bcrypt.hash("password123", 10);
   for (const u of DEMO_USERS) {
-    await prisma.user.create({ data: { email: u.email, name: u.name, passwordHash, role: u.role } });
+    await prisma.user.create({ data: { email: u.email, name: u.name, password: "password123", role: u.role } });
   }
   console.log(`✅ Seeded ${DEMO_USERS.length} demo users (password: password123)`);
   for (const u of DEMO_USERS) console.log(`   - ${u.email}`);

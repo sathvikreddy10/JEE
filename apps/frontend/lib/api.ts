@@ -28,15 +28,17 @@ export async function fetchJSON<T = unknown>(
     cache: "no-store",
   });
 
-  if (res.status === 401) {
-    cli.res(method, path, 401, { error: "not-authenticated" });
-    throw new AuthError();
-  }
-
   let data: unknown = null;
   const text = await res.text();
   if (text) {
     try { data = JSON.parse(text); } catch { data = text; }
+  }
+
+  if (res.status === 401) {
+    cli.res(method, path, 401, data);
+    const err = new AuthError();
+    (err as any).data = data;
+    throw err;
   }
 
   if (res.status === 409) {

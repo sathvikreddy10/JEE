@@ -1,5 +1,4 @@
 import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
@@ -13,9 +12,8 @@ async function main() {
   for (const u of demos) {
     const exists = await prisma.user.findUnique({ where: { email: u.email } });
     if (!exists) {
-      const hash = await bcrypt.hash("password123", 10);
       await prisma.user.create({
-        data: { email: u.email, name: u.name, passwordHash: hash, role: u.role },
+        data: { email: u.email, name: u.name, password: "password123", role: u.role },
       });
       console.log(`Seeded user: ${u.email} (${u.role})`);
     } else if (u.role === "ADMIN" && exists.role !== "ADMIN") {
