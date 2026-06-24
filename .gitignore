@@ -48,7 +48,7 @@ apps/backend/prisma/dev.db
 apps/backend/prisma/dev.db-journal
 
 # admin credentials (bcrypt hashes — never commit)
-apps/backend/data/
+apps/backend/data/*
 !apps/backend/data/admins.csv
 
 # custom local test files and auth dumps
