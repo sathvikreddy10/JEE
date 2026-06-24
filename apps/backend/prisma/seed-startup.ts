@@ -20,7 +20,7 @@ async function main() {
   for (const u of demos) {
     const exists = await prisma.user.findUnique({ where: { email: u.email } });
     if (!exists) {
-      await prisma.user.create({ data: { ...u, password: "password123" } });
+      await prisma.user.create({ data: { ...u, passwordHash: await bcrypt.hash("password123", 10) } });
       console.log(`Seeded user: ${u.email}`);
     }
   }
