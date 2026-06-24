@@ -14,7 +14,6 @@ export async function fetchJSON<T = unknown>(
   const method = (init?.method ?? "GET").toUpperCase();
   cli.api(method, path, init?.body ? safeParseBody(init.body) : undefined);
 
-  // Auto-stringify object bodies + set Content-Type so Express.json() actually parses them.
   const headers = new Headers(init?.headers);
   let body = init?.body;
   if (body && typeof body === "object" && !(body instanceof FormData) && !(body instanceof Blob) && !(body instanceof ArrayBuffer)) {
@@ -29,7 +28,6 @@ export async function fetchJSON<T = unknown>(
     cache: "no-store",
   });
 
-  // 401 — just throw AuthError, let the caller decide how to handle it
   if (res.status === 401) {
     cli.res(method, path, 401, { error: "not-authenticated" });
     throw new AuthError();
@@ -41,12 +39,11 @@ export async function fetchJSON<T = unknown>(
     try { data = JSON.parse(text); } catch { data = text; }
   }
 
-  // 409 — conflict (e.g. exam already in progress, attempt limit reached)
   if (res.status === 409) {
-    const body = data as { error?: string; inProgressSessionId?: number; attemptsUsed?: number; attemptsAllowed?: number };
-    const err = new Error(body.error || `HTTP ${res.status}`);
+    const b = data as { error?: string; inProgressSessionId?: number; attemptsUsed?: number; attemptsAllowed?: number };
+    const err = new Error(b.error || `HTTP ${res.status}`);
     (err as any).status = 409;
-    (err as any).data = body;
+    (err as any).data = b;
     throw err;
   }
 
