@@ -52,7 +52,10 @@ export async function fetchJSON<T = unknown>(
     const errMsg = (data && typeof data === "object" && "error" in data)
       ? String((data as { error: unknown }).error)
       : `HTTP ${res.status}`;
-    throw new Error(errMsg);
+    const err = new Error(errMsg) as Error & { data: unknown; status: number };
+    err.data = data;
+    err.status = res.status;
+    throw err;
   }
   return data as T;
 }

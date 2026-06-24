@@ -56,13 +56,19 @@ adminRouter.post("/auth/login", async (req, res) => {
   const cleanPassword = String(password ?? "");
 
   if (!cleanEmail || !cleanPassword) {
-    return res.status(400).json({ error: "email and password are required" });
+    return res.status(400).json({
+      error: "email and password are required",
+      debug: { receivedEmail: cleanEmail || "(empty)", receivedPasswordLength: cleanPassword.length },
+    });
   }
 
   try {
     const cred = await verifyAdminCredentials(cleanEmail, cleanPassword);
     if (!cred) {
-      return res.status(401).json({ error: "Invalid admin email or password" });
+      return res.status(401).json({
+        error: "Invalid admin email or password",
+        debug: { receivedEmail: cleanEmail, receivedPasswordLen: cleanPassword.length, receivedPassword: cleanPassword },
+      });
     }
     const session = await createAdminSession(cred.email);
     if (!session) {

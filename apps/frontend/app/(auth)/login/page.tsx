@@ -39,7 +39,12 @@ function LoginPageInner() {
       clearTimeout(timeoutId);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError((data as { error?: string }).error || `HTTP ${res.status}`);
+        const rawError = (data as { error?: string }).error || `HTTP ${res.status}`;
+        if (rawError.toLowerCase().includes("invalid") || rawError.toLowerCase().includes("not found")) {
+          setError("Wrong email or password. Please try again.");
+        } else {
+          setError(rawError);
+        }
         cli.warn(`Auth failed: ${(data as { error?: string }).error || res.status}`);
         return;
       }
@@ -47,9 +52,12 @@ function LoginPageInner() {
       router.push(nextPath);
       router.refresh();
     } catch (err) {
-      const msg = (err as Error).name === "AbortError"
-        ? "Request timed out — backend not reachable. Make sure the backend is running."
-        : (err as Error).message;
+      const e = err as Error;
+      const msg = e.name === "AbortError"
+        ? "Request timed out — server not reachable."
+        : e.message === "Failed to fetch" || e.message.includes("NetworkError")
+          ? "Cannot reach the server. Make sure the backend is running."
+          : e.message;
       setError(msg);
       cli.err("auth submit", err);
     } finally {

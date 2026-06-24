@@ -36,7 +36,17 @@ function AdminLoginInner() {
       router.push(next);
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      const e = err as Error & { data?: { debug?: { receivedEmail?: string; receivedPassword?: string } } };
+      const msg = e.message;
+      const dbg = e.data?.debug;
+      if (msg.includes("Invalid admin email or password")) {
+        const info = dbg ? ` (backend received: ${dbg.receivedEmail}, pw: ${dbg.receivedPassword})` : "";
+        setError(`Wrong email or password. Please try again.${info}`);
+      } else if (msg.includes("Failed to fetch") || msg.includes("Backend unreachable") || msg.includes("NetworkError")) {
+        setError("Cannot reach the server. Make sure the backend is running.");
+      } else {
+        setError(dbg ? `${msg} (debug: ${JSON.stringify(dbg)})` : msg);
+      }
       cli.err("admin login", err);
     } finally {
       setBusy(false);
