@@ -1,0 +1,4 @@
+[deploy]
+rootDirectory = "apps/backend"
+startCommand = ""
+healthcheckPath = "/health"

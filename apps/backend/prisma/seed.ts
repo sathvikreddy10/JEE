@@ -4,9 +4,9 @@ import bcrypt from "bcryptjs";
 const prisma = new PrismaClient();
 
 const DEMO_USERS = [
-  { email: "sathvik@testify.app", name: "Sathvik" },
-  { email: "arjun@testify.app", name: "Arjun" },
-  { email: "priya@testify.app", name: "Priya" },
+  { email: "sathvik@testify.app", name: "Sathvik", role: "ADMIN" },
+  { email: "arjun@testify.app", name: "Arjun", role: "STUDENT" },
+  { email: "priya@testify.app", name: "Priya", role: "STUDENT" },
 ];
 
 async function main() {
@@ -24,7 +24,7 @@ async function main() {
   // Demo users (all password: "password123")
   const passwordHash = await bcrypt.hash("password123", 10);
   for (const u of DEMO_USERS) {
-    await prisma.user.create({ data: { email: u.email, name: u.name, passwordHash } });
+    await prisma.user.create({ data: { email: u.email, name: u.name, passwordHash, role: u.role } });
   }
   console.log(`✅ Seeded ${DEMO_USERS.length} demo users (password: password123)`);
   for (const u of DEMO_USERS) console.log(`   - ${u.email}`);

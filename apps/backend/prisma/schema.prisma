@@ -12,6 +12,7 @@ model User {
   email         String          @unique
   name          String
   passwordHash  String
+  role          String          @default("STUDENT")
   createdAt     DateTime        @default(now())
   sessions      AuthSession[]
   examSessions  ExamSession[]
