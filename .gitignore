@@ -56,4 +56,10 @@ apps/backend/data/*
 login.json
 register_student.json
 start_exam.json
+admin_login.json
+admin_cred.json
+add_member.json
+template.xlsx
+template_b64.txt
+parse_payload.json
 .vercel
