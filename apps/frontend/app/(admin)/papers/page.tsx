@@ -229,10 +229,33 @@ export default function PapersPage() {
   const removeDraft = (idx: number) => setDrafts(p => p.filter((_, i) => i !== idx));
 
   const downloadTemplate = async () => {
-    const res = await fetch("/api/admin/questions/template");
-    const blob = await res.blob();
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "question_template.xlsx";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    try {
+      const res = await fetch("/api/admin/questions/template", { credentials: "include" });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        cli.err("template download", new Error(`HTTP ${res.status}: ${errText || res.statusText}`));
+        alert(`Template download failed: HTTP ${res.status}`);
+        return;
+      }
+      const contentType = res.headers.get("content-type") || "";
+      if (!contentType.includes("spreadsheet")) {
+        cli.err("template download", new Error(`Unexpected content-type: ${contentType}`));
+        alert("Template download failed: server returned an unexpected response.");
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "question_template.xlsx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      cli.success("Template downloaded");
+    } catch (e) {
+      cli.err("template download", e);
+      alert("Template download failed: " + (e as Error).message);
+    }
   };
 
   const downloadPapersExcel = () => {
@@ -251,8 +274,8 @@ export default function PapersPage() {
       if (q.difficulty < bankMinDiff || q.difficulty > bankMaxDiff) return false;
       return true;
     });
-    const csv = [["#","Subject","Topic","Diff","Type","Text","Answer","+Marks","-Pen","Paper"],
-      ...f.map((q,i) => [i+1,q.subject||"",q.topic,q.difficulty,q.type,q.text,q.correctAnswer,q.positiveMarks,q.negativeMarks,q.setName||""])
+    const csv = [["#","Subject","Topic","Diff","Type","Text","Explanation","Options","Answer","+Marks","-Pen","Paper"],
+      ...f.map((q,i) => [i+1,q.subject||"",q.topic,q.difficulty,q.type,q.text,q.explanation||"",q.options?q.options.join(" | "):"",q.correctAnswer,q.positiveMarks,q.negativeMarks,q.setName||""])
     ].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));
     a.download = `bank_${new Date().toISOString().split("T")[0]}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
@@ -282,14 +305,24 @@ export default function PapersPage() {
 
   const confirmExcelImport = () => {
     if (!excelPreview) return;
-    const mapped = excelPreview.map(r => ({
-      type: (r.type || "mcq") as QuestionType, text: r.text || "", options: r.optionA ? [r.optionA, r.optionB || "", r.optionC || "", r.optionD || ""].filter(Boolean) : [],
-      correctAnswer: String(r.correctAnswer || ""), explanation: r.explanation || "",
-      subject: r.subject || "Physics", topic: r.topic || "General",
-      difficulty: Math.max(1, Math.min(10, Number(r.difficulty) || 5)),
-      positiveMarks: Number(r.positiveMarks) || 4, negativeMarks: Number(r.negativeMarks) || 1,
-    }));
-    setDrafts(prev => [...prev, ...mapped]); setExcelPreview(null); setShowExcelConfirm(false);
+    const mapped = excelPreview.map((r) => {
+      const options: string[] = Array.isArray(r.options) ? r.options : [];
+      return {
+        type: (r.type || "mcq") as QuestionType,
+        text: r.text || "",
+        options,
+        correctAnswer: String(r.correctAnswer || ""),
+        explanation: r.explanation || "",
+        subject: r.subject || "Physics",
+        topic: r.topic || "General",
+        difficulty: Math.max(1, Math.min(10, Number(r.difficulty) || 5)),
+        positiveMarks: Number(r.positiveMarks) || 4,
+        negativeMarks: Number(r.negativeMarks) || 1,
+      };
+    });
+    setDrafts((prev) => [...prev, ...mapped]);
+    setExcelPreview(null);
+    setShowExcelConfirm(false);
     cli.success(`Imported ${mapped.length} questions from Excel`);
   };
 

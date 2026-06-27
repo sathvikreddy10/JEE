@@ -1950,16 +1950,51 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const dataRows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
+    // Look up set names so we can resolve setName -> setId
+    const allSets = await prisma.questionSet.findMany({ select: { id: true, name: true } });
+    const setNameToId = new Map(allSets.map((s) => [s.name.toLowerCase(), s.id]));
+
     const rows = dataRows.map((r, idx) => {
       let diff = Number(r.difficulty);
       if (Number.isNaN(diff)) diff = 5;
       else diff = Math.max(1, Math.min(10, Math.round(diff)));
+
+      const type = (r.type || "mcq").trim().toLowerCase();
+      const options = [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""];
+      let correctAnswer = (r.correctAnswer || "A").trim();
+
+      // Normalize correctAnswer for mcq-multiple: accept "A,B" / "A, B" / '["A","B"]'
+      if (type === "mcq-multiple") {
+        if (correctAnswer.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(correctAnswer);
+            if (Array.isArray(parsed)) {
+              correctAnswer = JSON.stringify(parsed.filter((l: unknown) => typeof l === "string").sort());
+            }
+          } catch {
+            // leave as-is; will surface as error on submit
+          }
+        } else {
+          const letters = correctAnswer
+            .split(/[,\s]+/)
+            .filter((l) => ["A", "B", "C", "D"].includes(l));
+          if (letters.length > 0) correctAnswer = JSON.stringify(letters.sort());
+        }
+      }
+
+      // Resolve setId / setName
+      const rawSetId = r.setId ? Number(r.setId) : null;
+      const setName = (r.setName || "").trim();
+      const resolvedSetId = rawSetId || (setName ? setNameToId.get(setName.toLowerCase()) || null : null);
+
       return {
         row: idx + 2,
-        type: (r.type || "mcq").trim().toLowerCase(),
+        setId: resolvedSetId,
+        setName: setName || null,
+        type,
         text: (r.text || "").trim(),
-        options: [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""],
-        correctAnswer: (r.correctAnswer || "A").trim(),
+        options,
+        correctAnswer,
         explanation: (r.explanation || "").trim(),
         subject: (r.subject || "").trim() || null,
         topic: (r.topic || "General").trim(),
