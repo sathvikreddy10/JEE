@@ -727,7 +727,10 @@ export async function computeBatchSnapshot(id: number): Promise<BatchSnapshot> {
 
 export async function getBatchSnapshot(id: number): Promise<BatchSnapshot> {
   const cached = await prisma.analyticsBatchSnapshot.findUnique({ where: { batchId: id } });
-  const batch = await prisma.batch.findUnique({ where: { id } });
+  const batch = await prisma.batch.findUnique({
+    where: { id },
+    include: { _count: { select: { papers: true } } },
+  });
   if (cached && batch) {
     return {
       batch: {
@@ -737,7 +740,7 @@ export async function getBatchSnapshot(id: number): Promise<BatchSnapshot> {
         isActive: batch.isActive,
         createdAt: batch.createdAt,
         memberCount: cached.memberCount,
-        paperCount: 0,
+        paperCount: batch._count.papers,
       },
       kpis: { totalSessions: cached.totalSessions, activeStudents: cached.activeStudents, avgPercent: cached.avgPercent, inactiveStudents: cached.inactiveStudents },
       perStudent: JSON.parse(cached.perStudent),
