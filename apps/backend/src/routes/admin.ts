@@ -1992,9 +1992,16 @@ adminRouter.post("/seed", async (_req, res) => {
     for (const u of demos) {
       const exists = await prisma.user.findUnique({ where: { email: u.email } });
       if (!exists) {
-        await prisma.user.create({ data: { ...u, password: "password123" } });
+        await prisma.user.create({ data: { ...u, password: "password123", role: "STUDENT" } });
         log.info(`Seeded user: ${u.email}`);
       }
+    }
+
+    // 1b. Admin user (required for DB-based admin auth)
+    const adminExists = await prisma.user.findUnique({ where: { email: "admin@testify.app" } });
+    if (!adminExists) {
+      await prisma.user.create({ data: { email: "admin@testify.app", name: "Admin", password: "password123", role: "ADMIN" } });
+      log.info("Seeded admin: admin@testify.app");
     }
 
     // 2. Admin CSV
@@ -2013,9 +2020,9 @@ adminRouter.post("/seed", async (_req, res) => {
       });
       await prisma.question.createMany({
         data: [
-          { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1 },
-          { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1 },
-          { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1 },
+          { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+          { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+          { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1, explanation: "" },
         ],
       });
     }

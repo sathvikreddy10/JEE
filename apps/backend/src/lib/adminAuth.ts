@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { log } from "./logger";
+import { verifyPassword } from "./password";
 
 export interface AdminCredential {
   id: number;
@@ -20,15 +21,26 @@ export async function verifyAdminCredentials(
   email: string,
   password: string
 ): Promise<AdminCredential | null> {
-  const cred = await findAdminByEmail(email);
-  if (!cred) {
-    log.warn(`Admin login: email ${email} not found or not an admin`);
-    return null;
+  const normalizedEmail = email.trim().toLowerCase();
+
+  // 1. Check DB for an ADMIN user
+  const cred = await findAdminByEmail(normalizedEmail);
+  if (cred) {
+    const ok = await verifyPassword(password, cred.password);
+    if (!ok) {
+      log.warn(`Admin login: wrong password for ${normalizedEmail}`);
+      return null;
+    }
+    log.success(`Admin login: ${normalizedEmail}`);
+    return cred;
   }
-  if (password !== cred.password) {
-    log.warn(`Admin login: wrong password for ${email}`);
-    return null;
+
+  // 2. Hardcoded fallback for emergency access (Railway / no seed yet)
+  if (normalizedEmail === "admin@testify.app" && password === "password123") {
+    log.success(`Admin login (fallback): ${normalizedEmail}`);
+    return { id: -1, email: "admin@testify.app", name: "Admin", password: "password123" };
   }
-  log.success(`Admin login: ${email}`);
-  return cred;
+
+  log.warn(`Admin login: email ${normalizedEmail} not found or not an admin`);
+  return null;
 }

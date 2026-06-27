@@ -8,13 +8,30 @@ export const SESSION_COOKIE = process.env.SESSION_COOKIE || "testify_session";
 export const ADMIN_COOKIE = process.env.ADMIN_COOKIE || "testify_admin";
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 36500);
 
+/**
+ * Returns true if cookies should be marked secure.
+ * Defaults to true in production (Railway, Render, etc.) unless FRONTEND_URL
+ * explicitly says http://. This fixes the "login loop" when FRONTEND_URL
+ * is not set but the site is served over HTTPS via Vercel.
+ */
 function isSecureRequest(): boolean {
-  const url = process.env.FRONTEND_URL || "http://localhost:3000";
-  return url.startsWith("https://");
+  const url = process.env.FRONTEND_URL || "";
+  if (url.startsWith("https://")) return true;
+  if (url.startsWith("http://")) return false;
+  return process.env.NODE_ENV === "production" || !!process.env.RAILWAY_ENVIRONMENT;
 }
 
+/**
+ * Returns the cookie domain based on FRONTEND_URL.
+ * - For localhost / 127.0.0.1 / raw IPs, return undefined so the browser
+ *   uses the request origin's domain (allows LAN/Tailscale access).
+ * - For production hostnames, return ".hostname" for subdomain support.
+ * - If FRONTEND_URL is not set, return undefined (browser default) so the
+ *   cookie works with the Vercel proxy without extra env configuration.
+ */
 function cookieDomain(): string | undefined {
-  const url = process.env.FRONTEND_URL || "http://localhost:3000";
+  const url = process.env.FRONTEND_URL || "";
+  if (!url) return undefined;
   try {
     const host = new URL(url).hostname;
     if (
