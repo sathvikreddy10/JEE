@@ -2012,6 +2012,133 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
   }
 });
 
+// GET /admin/questions/export/bank
+// Export the entire question bank as an Excel file matching the import template.
+adminRouter.get("/questions/export/bank", requireAdmin, async (_req, res) => {
+  log.api("GET", "/admin/questions/export/bank");
+  try {
+    const sets = await prisma.questionSet.findMany({
+      orderBy: { id: "asc" },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true, type: true, text: true, options: true, correctAnswer: true,
+            explanation: true, subject: true, topic: true, order: true,
+            difficulty: true, positiveMarks: true, negativeMarks: true,
+          },
+        },
+      },
+    });
+
+    const headers = [
+      "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
+      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+    ];
+
+    const rows: any[][] = [headers];
+    for (const s of sets) {
+      for (const q of s.questions) {
+        const opts = q.options ? (JSON.parse(q.options) as string[]) : [];
+        rows.push([
+          s.id,
+          q.type,
+          q.text,
+          opts[0] ?? "",
+          opts[1] ?? "",
+          opts[2] ?? "",
+          opts[3] ?? "",
+          q.correctAnswer,
+          q.explanation ?? "",
+          q.subject ?? "",
+          q.topic,
+          q.order,
+          q.difficulty,
+          q.positiveMarks,
+          q.negativeMarks,
+        ]);
+      }
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Disposition", `attachment; filename=question_bank_${new Date().toISOString().split("T")[0]}.xlsx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buf);
+  } catch (e) {
+    log.err("GET /admin/questions/export/bank", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/questions/export/paper/:setId
+// Export a single paper's questions as an Excel file matching the import template.
+adminRouter.get("/questions/export/paper/:setId", requireAdmin, async (req, res) => {
+  const setId = Number(req.params.setId);
+  log.api("GET", `/admin/questions/export/paper/${setId}`);
+  try {
+    if (Number.isNaN(setId)) return res.status(400).json({ error: "Invalid setId" });
+
+    const set = await prisma.questionSet.findUnique({
+      where: { id: setId },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true, type: true, text: true, options: true, correctAnswer: true,
+            explanation: true, subject: true, topic: true, order: true,
+            difficulty: true, positiveMarks: true, negativeMarks: true,
+          },
+        },
+      },
+    });
+    if (!set) return res.status(404).json({ error: "Paper not found" });
+
+    const headers = [
+      "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
+      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+    ];
+
+    const rows: any[][] = [headers];
+    for (const q of set.questions) {
+      const opts = q.options ? (JSON.parse(q.options) as string[]) : [];
+      rows.push([
+        set.id,
+        q.type,
+        q.text,
+        opts[0] ?? "",
+        opts[1] ?? "",
+        opts[2] ?? "",
+        opts[3] ?? "",
+        q.correctAnswer,
+        q.explanation ?? "",
+        q.subject ?? "",
+        q.topic,
+        q.order,
+        q.difficulty,
+        q.positiveMarks,
+        q.negativeMarks,
+      ]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const safeName = set.name.replace(/[^a-zA-Z0-9]/g, "_");
+    res.setHeader("Content-Disposition", `attachment; filename=${safeName}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buf);
+  } catch (e) {
+    log.err(`GET /admin/questions/export/paper/${setId}`, e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
 // POST /admin/seed — create demo users, admin CSV, and a practice paper (idempotent)
 adminRouter.post("/seed", requireAdmin, async (_req, res) => {
   try {

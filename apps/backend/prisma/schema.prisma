@@ -8,18 +8,19 @@ datasource db {
 }
 
 model User {
-  id            Int             @id @default(autoincrement())
-  email         String          @unique
-  name          String
-  password     String     @map("passwordHash")
-  role          String          @default("STUDENT")
-  createdAt     DateTime        @default(now())
-  sessions      AuthSession[]
-  examSessions  ExamSession[]
-  batchMembers  BatchMember[]
-  credential    UserCredential?
-  notifications Notification[]
-  pinnedByAdmin AdminPinnedStudent[]
+  id                 Int                       @id @default(autoincrement())
+  email              String                    @unique
+  name               String
+  password          String               @map("passwordHash")
+  role               String                    @default("STUDENT")
+  createdAt          DateTime                  @default(now())
+  sessions           AuthSession[]
+  examSessions       ExamSession[]
+  batchMembers       BatchMember[]
+  credential         UserCredential?
+  notifications      Notification[]
+  pinnedByAdmin      AdminPinnedStudent[]
+  analyticsSnapshot  AnalyticsStudentSnapshot?
 }
 
 model UserCredential {
@@ -81,22 +82,23 @@ model AdminPinnedStudent {
 }
 
 model QuestionSet {
-  id              Int           @id @default(autoincrement())
+  id              Int                     @id @default(autoincrement())
   name            String
   subject         String
   pattern         String
   timeLimit       Int
-  attemptsAllowed Int           @default(1)
-  kind            String        @default("INSTITUTE") // "INSTITUTE" | "PRACTICE"
-  exam            String        @default("JEE_MAIN")  // "JEE_MAIN" | "JEE_ADVANCED" | "NEET" | "CUSTOM"
-  tags            String        @default("[]")        // JSON array of free-form chips
-  markingScheme   String?       // JSON: { positive, negative, partialCredit, partialUnit, skipPenalty }
-  publishedAt     DateTime?     // null until admin clicks "Mark Ready to Schedule"
-  isReadyForDailyChallenge Boolean @default(false)
+  attemptsAllowed Int                     @default(1)
+  kind            String                  @default("INSTITUTE") // "INSTITUTE" | "PRACTICE"
+  exam            String                  @default("JEE_MAIN")  // "JEE_MAIN" | "JEE_ADVANCED" | "NEET" | "CUSTOM"
+  tags            String                  @default("[]")        // JSON array of free-form chips
+  markingScheme   String?                 // JSON: { positive, negative, partialCredit, partialUnit, skipPenalty }
+  publishedAt     DateTime?               // null until admin clicks "Mark Ready to Schedule"
+  isReadyForDailyChallenge Boolean        @default(false)
   questions       Question[]
   sessions        ExamSession[]
   batchPapers     BatchPaper[]
   dailyChallenges BatchDailyChallenge[]
+  analyticsSnapshot AnalyticsPaperSnapshot?
 
   @@unique([name])
 }
@@ -203,16 +205,17 @@ model BatchDailyChallenge {
 // ───────────────────  Batches  ───────────────────
 
 model Batch {
-  id          Int           @id @default(autoincrement())
-  name        String        @unique
+  id          Int                     @id @default(autoincrement())
+  name        String                  @unique
   description String?
-  createdBy   String        // admin email
-  isActive    Boolean       @default(true)
-  createdAt   DateTime      @default(now())
+  createdBy   String                  // admin email
+  isActive    Boolean                 @default(true)
+  createdAt   DateTime                @default(now())
   members     BatchMember[]
   papers      BatchPaper[]
   dailyChallenges BatchDailyChallenge[]
-  admin       Admin?        @relation(fields: [createdBy], references: [email])
+  admin       Admin?                  @relation(fields: [createdBy], references: [email])
+  analyticsSnapshot AnalyticsBatchSnapshot?
 }
 
 model BatchMember {
@@ -245,6 +248,86 @@ model BatchPaper {
   @@index([batchId])
   @@index([setId])
   @@index([goTime])
+}
+
+// ───────────────────  Analytics snapshots  ───────────────────
+// Pre-computed aggregates so the analytics dashboard does not have to
+// parse every session.analytics JSON blob on every request.
+
+model AnalyticsDailySnapshot {
+  id                Int      @id @default(autoincrement())
+  date              String   @unique // YYYY-MM-DD in IST
+  users             Int
+  activeUsers7d     Int
+  completedSessions Int
+  questionSets      Int
+  batches           Int
+  topics            Int
+  avgPercent        Int
+  totalScore        Int
+  totalMax          Int
+  sessionsByDay     String   // JSON: { date, count, avgPercent }[]
+  computedAt        DateTime @default(now())
+
+  @@index([date])
+}
+
+model AnalyticsStudentSnapshot {
+  id             Int      @id @default(autoincrement())
+  userId         Int      @unique
+  completed      Int
+  totalScore     Int
+  totalMax       Int
+  avgPercent     Int
+  bestScore      Int
+  totalTimeSec   Int
+  totalCorrect   Int
+  totalQuestions Int
+  weakTopics     String   // JSON string[]
+  strongTopics   String   // JSON string[]
+  perPaper       String   // JSON
+  lastActivity   DateTime?
+  computedAt     DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([computedAt])
+}
+
+model AnalyticsPaperSnapshot {
+  id              Int         @id @default(autoincrement())
+  setId           Int         @unique
+  attempts        Int
+  uniqueStudents  Int
+  avgScore        Float
+  avgPercent      Int
+  highestPercent  Int
+  lowestPercent   Int
+  perQuestion     String      // JSON
+  topicBreakdown  String      // JSON
+  students        String      // JSON
+  computedAt      DateTime    @default(now())
+  set             QuestionSet @relation(fields: [setId], references: [id], onDelete: Cascade)
+
+  @@index([setId])
+  @@index([computedAt])
+}
+
+model AnalyticsBatchSnapshot {
+  id              Int      @id @default(autoincrement())
+  batchId         Int      @unique
+  memberCount     Int
+  activeStudents  Int
+  inactiveStudents Int
+  totalSessions   Int
+  avgPercent      Int
+  perStudent      String   // JSON
+  perPaper        String   // JSON
+  computedAt      DateTime @default(now())
+  batch           Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId])
+  @@index([computedAt])
 }
 
 // ───────────────────  Notifications  ───────────────────

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 
 /* ─────────────────── Types ─────────────────── */
 
@@ -98,6 +99,22 @@ const kpiColorClass: Record<string, string> = {
 
 export default function AnalyticsPage() {
   const [tab, setTab] = useState<Tab>("overview");
+  const [recomputing, setRecomputing] = useState(false);
+
+  const recompute = async () => {
+    if (recomputing) return;
+    setRecomputing(true);
+    try {
+      await fetchJSON("/api/admin/analytics/recompute", { method: "POST" });
+      cli.success("Analytics snapshots recomputed");
+      window.location.reload();
+    } catch (e) {
+      cli.err("Recompute analytics failed", e);
+      alert("Recompute failed: " + (e as Error).message);
+    } finally {
+      setRecomputing(false);
+    }
+  };
 
   return (
     <div className="p-10 space-y-8 max-w-[1600px] mx-auto">
@@ -106,6 +123,10 @@ export default function AnalyticsPage() {
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Analytics</h1>
           <p className="text-sm text-muted-foreground">Institutional insights across students, papers, and batches.</p>
         </div>
+        <Button variant="outline" size="sm" onClick={recompute} disabled={recomputing}>
+          <RefreshCw className={cn("h-4 w-4 mr-1.5", recomputing && "animate-spin")} />
+          {recomputing ? "Recomputing…" : "Recompute"}
+        </Button>
       </div>
 
       {/* Tabs */}

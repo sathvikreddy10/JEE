@@ -266,29 +266,38 @@ export default function PapersPage() {
     a.download = `papers_${new Date().toISOString().split("T")[0]}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
   };
 
+  const downloadBlob = async (url: string, filename: string) => {
+    try {
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        cli.err("export download", new Error(`HTTP ${res.status}: ${errText || res.statusText}`));
+        alert(`Export failed: HTTP ${res.status}`);
+        return;
+      }
+      const blob = await res.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+      cli.success(`Exported ${filename}`);
+    } catch (e) {
+      cli.err("export download", e);
+      alert("Export failed: " + (e as Error).message);
+    }
+  };
+
   const downloadBankExcel = () => {
-    const f = allQuestions.filter(q => {
-      if (bankSearch && !q.text.toLowerCase().includes(bankSearch.toLowerCase())) return false;
-      if (bankSubject !== "All" && q.subject !== bankSubject) return false;
-      if (bankType !== "All" && q.type !== bankType) return false;
-      if (q.difficulty < bankMinDiff || q.difficulty > bankMaxDiff) return false;
-      return true;
-    });
-    const csv = [["#","Subject","Topic","Diff","Type","Text","Explanation","Options","Answer","+Marks","-Pen","Paper"],
-      ...f.map((q,i) => [i+1,q.subject||"",q.topic,q.difficulty,q.type,q.text,q.explanation||"",q.options?q.options.join(" | "):"",q.correctAnswer,q.positiveMarks,q.negativeMarks,q.setName||""])
-    ].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));
-    a.download = `bank_${new Date().toISOString().split("T")[0]}.csv`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    downloadBlob("/api/admin/questions/export/bank", `question_bank_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const downloadPaperExcel = () => {
-    const csv = [["#","Subject","Topic","Diff","Type","Text","Answer","Explanation","Options","+Marks","-Pen"],
-      ...viewingQuestions.map((q,i) => [i+1,q.subject||"",q.topic,q.difficulty,q.type,q.text,q.correctAnswer,q.explanation||"",q.options?q.options.join(" | "):"",q.positiveMarks,q.negativeMarks])
-    ].map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n");
+    if (!viewingSetId) return;
     const paperName = sets.find(s => s.id === viewingSetId)?.name || "paper";
-    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob(["\uFEFF"+csv],{type:"text/csv;charset=utf-8;"}));
-    a.download = `${paperName.replace(/[^a-zA-Z0-9]/g,"_")}_${new Date().toISOString().split("T")[0]}.csv`;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    downloadBlob(`/api/admin/questions/export/paper/${viewingSetId}`, `${paperName.replace(/[^a-zA-Z0-9]/g, "_")}_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
   const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -474,7 +483,7 @@ export default function PapersPage() {
                 <CardTitle>Question Bank <span className="text-sm font-normal text-muted-foreground ml-2">({allQuestions.length} total)</span></CardTitle>
                 <div className="flex gap-2">
                   <Button variant="outline" size="sm" onClick={loadAll}>Refresh</Button>
-                  <Button variant="outline" size="sm" onClick={downloadBankExcel}><Download className="h-3.5 w-3.5" /> CSV</Button>
+                  <Button variant="outline" size="sm" onClick={downloadBankExcel}><Download className="h-3.5 w-3.5" /> XLSX</Button>
                   <Button size="sm" onClick={() => { setShowCreate(true); setTab("papers") }}><Plus className="h-3.5 w-3.5" /> New</Button>
                 </div>
               </div>
