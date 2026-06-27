@@ -67,7 +67,6 @@ adminRouter.post("/auth/login", async (req, res) => {
     if (!cred) {
       return res.status(401).json({
         error: "Invalid admin email or password",
-        debug: { receivedEmail: cleanEmail, receivedPasswordLen: cleanPassword.length, receivedPassword: cleanPassword },
       });
     }
     const session = await createAdminSession(cred.email);
@@ -85,13 +84,18 @@ adminRouter.post("/auth/login", async (req, res) => {
 
 // POST /admin/auth/logout
 adminRouter.post("/auth/logout", async (req, res) => {
-  const token = req.cookies?.[ADMIN_COOKIE];
-  if (token) {
-    await destroyAdminSession(token);
+  try {
+    const token = req.cookies?.[ADMIN_COOKIE];
+    if (token) {
+      await destroyAdminSession(token);
+    }
+    clearAdminCookie(res);
+    log.success("Admin logout");
+    return res.json({ ok: true });
+  } catch (e) {
+    log.err("POST /admin/auth/logout", e);
+    return res.status(500).json({ error: (e as Error).message });
   }
-  clearAdminCookie(res);
-  log.success("Admin logout");
-  return res.json({ ok: true });
 });
 
 // GET /admin/auth/me
@@ -1974,7 +1978,7 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
 });
 
 // POST /admin/seed — create demo users, admin CSV, and a practice paper (idempotent)
-adminRouter.post("/seed", async (_req, res) => {
+adminRouter.post("/seed", requireAdmin, async (_req, res) => {
   try {
     const bcrypt = (await import("bcryptjs")).default || (await import("bcryptjs"));
     const { writeFile } = await import("fs/promises");

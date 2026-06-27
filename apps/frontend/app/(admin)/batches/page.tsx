@@ -96,6 +96,7 @@ export default function BatchesPage() {
 
   const loadDetail = useCallback(async (id: number) => {
     setLoadingDetail(true);
+    setLastInvite(null);
     try { setDetail(await fetchJSON<BatchDetail>(`/api/batches/${id}`)); }
     catch (e) { cli.err("load batch detail", e); }
     finally { setLoadingDetail(false); }

@@ -93,6 +93,7 @@ export default function DailyChallengePage() {
   };
 
   const handleDelete = async (id: number) => {
+    if (!confirm("Delete this daily challenge?")) return;
     try {
       await fetchJSON(`/api/admin/daily-challenge/${id}`, { method: "DELETE" });
       setChallenges(prev => prev.filter(c => c.id !== id));

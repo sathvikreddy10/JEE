@@ -16,7 +16,8 @@ function LoginPageInner() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = searchParams.get("next") || "/";
+  const rawNext = searchParams.get("next") || "/";
+  const nextPath = /^\/(?!\/)/.test(rawNext) ? rawNext : "/";
 
   const handleSubmit = async (e?: React.FormEvent | React.MouseEvent) => {
     e?.preventDefault?.();

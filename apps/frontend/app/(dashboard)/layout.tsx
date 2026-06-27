@@ -18,14 +18,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (cancelled) return;
         if (!data.user) {
           cli.warn("No user on protected page — redirecting to /login");
-          router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+          const query = typeof window !== "undefined" ? window.location.search : "";
+          const fullPath = pathname + query;
+          router.replace(`/login?next=${encodeURIComponent(fullPath)}`);
         }
       })
       .catch(() => {
         if (cancelled) return;
-        router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+        const query = typeof window !== "undefined" ? window.location.search : "";
+        const fullPath = pathname + query;
+        router.replace(`/login?next=${encodeURIComponent(fullPath)}`);
       });
-    return () => { cancelled = true; };
+    return () => { cancelled = true };
   }, [pathname, router]);
 
   return (
