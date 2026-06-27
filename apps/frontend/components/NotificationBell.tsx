@@ -3,7 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell } from "lucide-react";
-import type { AppNotification } from "@testify/shared";
+interface AppNotification {
+  id: number;
+  userId: number;
+  type: "PAPER_READY" | "PAPER_NOTIFIED" | "PAPER_LIVE" | "BUFFER_CLOSING" | "BUFFER_CLOSED" | "STUDENT_FLAGGED" | "STUDENT_AUTO_ENDED";
+  title: string;
+  body: string;
+  link: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
 
 interface NotificationsResponse {
   notifications: AppNotification[];

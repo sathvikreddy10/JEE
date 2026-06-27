@@ -12,7 +12,13 @@ import { DailyChallenge } from "@/components/dashboard/DailyChallenge";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
-import type { MyBatch } from "@testify/shared";
+interface MyBatch {
+  id: number;
+  name: string;
+  description: string | null;
+  memberCount: number;
+  paperCount: number;
+}
 import { Flame, Zap, Trophy, BookOpen, ArrowRight, Clock, Info, BarChart3, TrendingUp, Target, Award } from "lucide-react";
 
 interface HeatmapDay { date: string; count: number; accuracy: number | null; done: boolean }
