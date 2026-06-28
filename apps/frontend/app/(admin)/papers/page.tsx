@@ -18,6 +18,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
+import { MathKeyboard } from "@/components/admin/MathKeyboard";
 import {
   Plus,
   Download,
@@ -166,28 +167,6 @@ export default function PapersPage() {
     "data-field": field,
   });
 
-  const MATH_KEYS = [
-    { label: "$x$", insert: "$$", offset: -1 },
-    { label: "$$x$$", insert: "$$\n\n$$", offset: -3 },
-    { label: "\\frac{}{}", insert: "\\frac{}{}", offset: -3 },
-    { label: "\\sqrt{}", insert: "\\sqrt{}", offset: -1 },
-    { label: "x^{}", insert: "^{}", offset: -1 },
-    { label: "x_{}", insert: "_{}", offset: -1 },
-    { label: "\\alpha", insert: "\\alpha " },
-    { label: "\\beta", insert: "\\beta " },
-    { label: "\\gamma", insert: "\\gamma " },
-    { label: "\\theta", insert: "\\theta " },
-    { label: "\\pi", insert: "\\pi " },
-    { label: "\\sum", insert: "\\sum_{}^{}" },
-    { label: "\\int", insert: "\\int_{}^{}" },
-    { label: "\\infty", insert: "\\infty " },
-    { label: "\\pm", insert: "\\pm " },
-    { label: "\\cdot", insert: "\\cdot " },
-    { label: "\\times", insert: "\\times " },
-    { label: "\\vec{}", insert: "\\vec{}", offset: -1 },
-    { label: "\\overline{}", insert: "\\overline{}", offset: -1 },
-  ];
-
   const insertMath = (template: string, cursorOffset = 0) => {
     const active = activeFieldRef.current;
     if (!active) return;
@@ -238,26 +217,6 @@ export default function PapersPage() {
     setDrafts(prev => prev.map((d, i) => i !== draftIdx ? d : { ...d, images: d.images?.filter((_, j) => j !== imgIdx) ?? [] }));
   };
 
-  const MathKeyboard = ({ draftIdx }: { draftIdx: number }) => (
-    <div
-      className="mt-3 p-3 rounded-lg flex flex-wrap gap-2"
-      style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
-    >
-      {MATH_KEYS.map((k) => (
-        <button
-          key={k.label}
-          type="button"
-          onClick={() => insertMath(k.insert, k.offset)}
-          className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity"
-          style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
-          title={k.insert}
-        >
-          {k.label}
-        </button>
-      ))}
-    </div>
-  );
-
   const registerEditMathField = (field: string) => ({
     onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
       editActiveFieldRef.current = { el: e.target, field };
@@ -290,22 +249,6 @@ export default function PapersPage() {
       el.setSelectionRange(newCursor, newCursor);
     });
   };
-
-  const EditMathKeyboard = () => (
-    <div className="mt-3 p-3 rounded-lg flex flex-wrap gap-2 bg-muted/30 border border-border">
-      {MATH_KEYS.map((k) => (
-        <button
-          key={k.label}
-          type="button"
-          onClick={() => insertEditMath(k.insert, k.offset)}
-          className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity bg-background border border-border text-foreground"
-          title={k.insert}
-        >
-          {k.label}
-        </button>
-      ))}
-    </div>
-  );
 
   const uploadEditImage = async (file: File) => {
     setEditUploadingImage(true);
@@ -354,9 +297,11 @@ export default function PapersPage() {
     if (!editingQuestion || !viewingSetId) return;
     setSavingQuestion(true);
     try {
+      const effectiveType = editQuestionDraft.type ?? editingQuestion.type ?? "mcq";
+      const isMcq = effectiveType === "mcq" || effectiveType === "mcq-multiple";
       await fetchJSON(`/api/admin/questions/${editingQuestion.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: editQuestionDraft.text, subject: editQuestionDraft.subject, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, images: editQuestionDraft.images && editQuestionDraft.images.length > 0 ? editQuestionDraft.images : undefined, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
+        body: JSON.stringify({ type: editQuestionDraft.type, text: editQuestionDraft.text, subject: editQuestionDraft.subject, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, options: isMcq ? (editQuestionDraft.options ?? editingQuestion.options) : undefined, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, images: editQuestionDraft.images && editQuestionDraft.images.length > 0 ? editQuestionDraft.images : undefined, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
       });
       cli.success(`Updated question #${editingQuestion.id}`);
       setEditingQuestion(null); setEditQuestionDraft({});
@@ -969,7 +914,7 @@ export default function PapersPage() {
                           {mathKeyboardDraftIdx === i ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
                           {mathKeyboardDraftIdx === i ? "Hide math keyboard" : "Show math keyboard"}
                         </button>
-                        {mathKeyboardDraftIdx === i && <MathKeyboard draftIdx={i} />}
+                        {mathKeyboardDraftIdx === i && <MathKeyboard onInsert={insertMath} />}
                       </div>
                     </div>
                   ))}
@@ -1026,7 +971,13 @@ export default function PapersPage() {
                   <div key={q.id} className="p-5 rounded-xl border-2 border-border bg-card">
                     {editingQuestion?.id === q.id ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-4 gap-4">
+                        <div className="grid grid-cols-5 gap-4">
+                          <div>
+                            <label className="text-xs font-bold text-foreground uppercase mb-2 block">Type</label>
+                            <select value={editQuestionDraft.type ?? q.type ?? "mcq"} onChange={e => { const t = e.target.value as QuestionType; setEditQuestionDraft(p => ({ ...p, type: t, correctAnswer: t === "numeric" || t === "fill-in-the-blanks" ? "" : t === "mcq" ? "A" : JSON.stringify([]) })) }} className="h-10 w-full rounded-md border-2 border-input bg-background text-sm px-2">
+                              <option value="mcq">MCQ (single)</option><option value="mcq-multiple">MCQ (multi)</option><option value="numeric">Numeric</option><option value="fill-in-the-blanks">Fill Blanks</option>
+                            </select>
+                          </div>
                           <div>
                             <label className="text-xs font-bold text-foreground uppercase mb-2 block">Subject</label>
                             <select value={editQuestionDraft.subject || q.subject || "Physics"} onChange={e => setEditQuestionDraft(p => ({ ...p, subject: e.target.value }))} className="h-10 w-full rounded-md border-2 border-input bg-background text-sm px-3">
@@ -1047,7 +998,43 @@ export default function PapersPage() {
                           </div>
                         </div>
                         <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Question Text</label><textarea value={editQuestionDraft.text ?? q.text} onChange={e => setEditQuestionDraft(p => ({ ...p, text: e.target.value }))} rows={3} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="$...$ for inline math" {...registerEditMathField("text")} /></div>
-                        <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Correct Answer</label><Input value={editQuestionDraft.correctAnswer ?? q.correctAnswer} onChange={e => setEditQuestionDraft(p => ({ ...p, correctAnswer: e.target.value }))} className="font-mono text-sm" /></div>
+                        {(editQuestionDraft.type ?? q.type ?? "mcq") === "mcq" && (
+                          <div>
+                            <label className="text-xs font-bold text-foreground uppercase mb-2 block">Options · click ✓ to mark correct</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {["A", "B", "C", "D"].map((letter, oi) => {
+                                const opts = editQuestionDraft.options ?? q.options ?? ["", "", "", ""];
+                                const isCorrect = (editQuestionDraft.correctAnswer ?? q.correctAnswer) === letter;
+                                return (
+                                  <div key={letter} className="flex gap-2 items-center">
+                                    <button type="button" onClick={() => setEditQuestionDraft(p => ({ ...p, correctAnswer: letter }))} className={cn("h-8 w-8 rounded-md text-sm font-bold shrink-0 transition-colors", isCorrect ? "bg-primary text-primary-foreground" : "bg-background border-2 border-border text-muted-foreground hover:border-primary")}>{isCorrect ? "✓" : letter}</button>
+                                    <Input value={opts[oi] || ""} onChange={e => { const arr = [...opts]; arr[oi] = e.target.value; setEditQuestionDraft(p => ({ ...p, options: arr })) }} placeholder={`Option ${letter}`} className="h-10 text-sm font-mono" {...registerEditMathField(`option-${oi}`)} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {(editQuestionDraft.type ?? q.type ?? "mcq") === "mcq-multiple" && (
+                          <div>
+                            <label className="text-xs font-bold text-foreground uppercase mb-2 block">Options · click ✓ to mark correct (multiple allowed)</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              {["A", "B", "C", "D"].map((letter, oi) => {
+                                const opts = editQuestionDraft.options ?? q.options ?? ["", "", "", ""];
+                                const isCorrect = (() => { try { return (JSON.parse(editQuestionDraft.correctAnswer ?? q.correctAnswer ?? "[]") as string[]).includes(letter) } catch { return false } })();
+                                return (
+                                  <div key={letter} className="flex gap-2 items-center">
+                                    <button type="button" onClick={() => { let arr: string[]; try { arr = JSON.parse(editQuestionDraft.correctAnswer ?? q.correctAnswer ?? "[]") } catch { arr = [] } const next = arr.includes(letter) ? arr.filter(x => x !== letter) : [...arr, letter].sort(); setEditQuestionDraft(p => ({ ...p, correctAnswer: JSON.stringify(next) })) }} className={cn("h-8 w-8 rounded-md text-sm font-bold shrink-0 transition-colors", isCorrect ? "bg-primary text-primary-foreground" : "bg-background border-2 border-border text-muted-foreground hover:border-primary")}>{isCorrect ? "✓" : letter}</button>
+                                    <Input value={opts[oi] || ""} onChange={e => { const arr = [...opts]; arr[oi] = e.target.value; setEditQuestionDraft(p => ({ ...p, options: arr })) }} placeholder={`Option ${letter}`} className="h-10 text-sm font-mono" {...registerEditMathField(`option-${oi}`)} />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                        {(editQuestionDraft.type ?? q.type ?? "mcq") === "numeric" || (editQuestionDraft.type ?? q.type ?? "mcq") === "fill-in-the-blanks" ? (
+                          <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Correct Answer</label><Input value={editQuestionDraft.correctAnswer ?? q.correctAnswer} onChange={e => setEditQuestionDraft(p => ({ ...p, correctAnswer: e.target.value }))} placeholder={editQuestionDraft.type === "numeric" ? "42" : "expected text"} className="font-mono text-sm" /></div>
+                        ) : null}
                         <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Explanation</label><textarea value={editQuestionDraft.explanation ?? ""} onChange={e => setEditQuestionDraft(p => ({ ...p, explanation: e.target.value }))} rows={2} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="By Coulomb's law, $F = kQq/r^2$..." {...registerEditMathField("explanation")} /></div>
 
                         {/* Edit images */}
@@ -1094,7 +1081,7 @@ export default function PapersPage() {
                             {showEditMathKeyboard ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
                             {showEditMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
                           </button>
-                          {showEditMathKeyboard && <EditMathKeyboard />}
+                          {showEditMathKeyboard && <MathKeyboard onInsert={insertEditMath} />}
                         </div>
 
                         <div className="flex gap-3 pt-2">

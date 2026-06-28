@@ -6,6 +6,7 @@ import { renderMath } from "@/components/exam/MathRenderer";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 import { Keyboard, X } from "lucide-react";
+import { MathKeyboard } from "@/components/admin/MathKeyboard";
 
 type QuestionType = "mcq" | "mcq-multiple" | "numeric" | "fill-in-the-blanks";
 
@@ -132,28 +133,6 @@ export default function AdminPage() {
       el.setSelectionRange(newCursor, newCursor);
     });
   };
-
-  const MATH_KEYS = [
-    { label: "$x$", insert: "$$", offset: -1 },
-    { label: "$$x$$", insert: "$$\n\n$$", offset: -3 },
-    { label: "\\frac{}{}", insert: "\\frac{}{}", offset: -3 },
-    { label: "\\sqrt{}", insert: "\\sqrt{}", offset: -1 },
-    { label: "x^{}", insert: "^{}", offset: -1 },
-    { label: "x_{}", insert: "_{}", offset: -1 },
-    { label: "\\alpha", insert: "\\alpha " },
-    { label: "\\beta", insert: "\\beta " },
-    { label: "\\gamma", insert: "\\gamma " },
-    { label: "\\theta", insert: "\\theta " },
-    { label: "\\pi", insert: "\\pi " },
-    { label: "\\sum", insert: "\\sum_{}^{}" },
-    { label: "\\int", insert: "\\int_{}^{}" },
-    { label: "\\infty", insert: "\\infty " },
-    { label: "\\pm", insert: "\\pm " },
-    { label: "\\cdot", insert: "\\cdot " },
-    { label: "\\times", insert: "\\times " },
-    { label: "\\vec{}", insert: "\\vec{}", offset: -1 },
-    { label: "\\overline{}", insert: "\\overline{}", offset: -1 },
-  ];
 
   const loadSets = useCallback(async () => {
     try {
@@ -593,22 +572,8 @@ export default function AdminPage() {
             </button>
 
             {showMathKeyboard && (
-              <div
-                className="mt-3 p-3 rounded-lg flex flex-wrap gap-2"
-                style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
-              >
-                {MATH_KEYS.map((k) => (
-                  <button
-                    key={k.label}
-                    type="button"
-                    onClick={() => insertMath(k.insert, k.offset)}
-                    className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity"
-                    style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
-                    title={k.insert}
-                  >
-                    {k.label}
-                  </button>
-                ))}
+              <div className="mt-3">
+                <MathKeyboard onInsert={insertMath} />
               </div>
             )}
           </div>
@@ -727,6 +692,11 @@ export default function AdminPage() {
               {showMathKeyboard ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
               {showMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
             </button>
+            {showMathKeyboard && (
+              <div className="mt-3">
+                <MathKeyboard onInsert={insertMath} />
+              </div>
+            )}
           </div>
 
           {/* Images */}
