@@ -809,6 +809,48 @@ export default function AdminPage() {
                 })}
               </div>
             )}
+            {draft.type === "mcq-multiple" && draft.options && (
+              <div className="flex flex-col gap-2.5">
+                {draft.options.map((opt, i) => {
+                  const letter = String.fromCharCode(65 + i);
+                  const correct = (() => {
+                    try { return (JSON.parse(draft.correctAnswer || "[]") as string[]).includes(letter); }
+                    catch { return false; }
+                  })();
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3"
+                      style={{
+                        padding: "12px 14px", borderRadius: 8,
+                        background: correct ? "rgba(34,197,94,0.08)" : "var(--bg-input)",
+                        border: `1px solid ${correct ? "var(--mint)" : "var(--border-subtle)"}`,
+                      }}
+                    >
+                      <span style={{
+                        width: 26, height: 26, borderRadius: 6,
+                        background: correct ? "var(--mint)" : "var(--bg-card)",
+                        border: `1px solid ${correct ? "var(--mint)" : "var(--border-subtle)"}`,
+                        color: correct ? "#fff" : "var(--text-secondary)",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontSize: 11, fontFamily: "var(--font-mono)", fontWeight: 600,
+                      }}>
+                        {letter}
+                      </span>
+                      <span
+                        style={{ fontSize: 14, color: "var(--text-primary)" }}
+                        dangerouslySetInnerHTML={{ __html: renderMath(opt) }}
+                      />
+                      {correct && (
+                        <span className="ml-auto" style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--mint)" }}>
+                          ✓ correct
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {draft.type === "numeric" && (
               <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", color: "var(--text-primary)" }}>
                 Answer: <span style={{ color: "var(--mint)", fontWeight: 600 }}>{draft.correctAnswer || "—"}</span>

@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
 import { MathKeyboard } from "@/components/admin/MathKeyboard";
+import { MathRenderer } from "@/components/exam/MathRenderer";
 import {
   Plus,
   Download,
@@ -916,6 +917,30 @@ export default function PapersPage() {
                         </button>
                         {mathKeyboardDraftIdx === i && <MathKeyboard onInsert={insertMath} />}
                       </div>
+
+                      {/* Live preview */}
+                      <div className="rounded-lg border border-border bg-muted/20 p-4">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Preview</p>
+                        <div className="space-y-3">
+                          <MathRenderer text={d.text || "Question text preview"} />
+                          {(d.type === "mcq" || d.type === "mcq-multiple") && d.options.some(o => o.trim()) && (
+                            <div className="grid grid-cols-2 gap-2">
+                              {d.options.map((opt, oi) => (
+                                <div key={oi} className="flex items-start gap-2 text-sm px-3 py-2 rounded-md bg-background border border-border">
+                                  <span className="font-mono font-bold text-primary shrink-0">{String.fromCharCode(65 + oi)}.</span>
+                                  <MathRenderer text={opt || "Option preview"} />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {d.explanation.trim() && (
+                            <div className="pt-2 border-t border-border">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Explanation</p>
+                              <MathRenderer text={d.explanation} />
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1082,6 +1107,44 @@ export default function PapersPage() {
                             {showEditMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
                           </button>
                           {showEditMathKeyboard && <MathKeyboard onInsert={insertEditMath} />}
+                        </div>
+
+                        {/* Live preview */}
+                        <div className="rounded-lg border border-border bg-muted/20 p-4">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-3">Preview</p>
+                          <div className="space-y-3">
+                            <MathRenderer text={editQuestionDraft.text ?? q.text ?? "Question text preview"} />
+                            {(editQuestionDraft.type ?? q.type ?? "mcq") === "mcq" && (
+                              <div className="grid grid-cols-2 gap-2">
+                                {(editQuestionDraft.options ?? q.options ?? ["", "", "", ""]).map((opt, oi) => (
+                                  <div key={oi} className={cn("flex items-start gap-2 text-sm px-3 py-2 rounded-md bg-background border border-border", (editQuestionDraft.correctAnswer ?? q.correctAnswer) === String.fromCharCode(65 + oi) && "border-success bg-success/5")}>
+                                    <span className="font-mono font-bold text-primary shrink-0">{String.fromCharCode(65 + oi)}.</span>
+                                    <MathRenderer text={opt || "Option preview"} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            {(editQuestionDraft.type ?? q.type ?? "mcq") === "mcq-multiple" && (
+                              <div className="grid grid-cols-2 gap-2">
+                                {(editQuestionDraft.options ?? q.options ?? ["", "", "", ""]).map((opt, oi) => {
+                                  const letter = String.fromCharCode(65 + oi);
+                                  const selected = (() => { try { return (JSON.parse(editQuestionDraft.correctAnswer ?? q.correctAnswer ?? "[]") as string[]).includes(letter) } catch { return false } })();
+                                  return (
+                                    <div key={oi} className={cn("flex items-start gap-2 text-sm px-3 py-2 rounded-md bg-background border border-border", selected && "border-success bg-success/5")}>
+                                      <span className="font-mono font-bold text-primary shrink-0">{letter}.</span>
+                                      <MathRenderer text={opt || "Option preview"} />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            {(editQuestionDraft.explanation ?? q.explanation ?? "").trim() && (
+                              <div className="pt-2 border-t border-border">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Explanation</p>
+                                <MathRenderer text={editQuestionDraft.explanation ?? q.explanation ?? ""} />
+                              </div>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex gap-3 pt-2">
