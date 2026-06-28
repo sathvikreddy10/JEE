@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { log as cli } from "@/lib/logger";
 import { formatTime } from "@/lib/utils";
@@ -56,6 +57,13 @@ interface TopicAnalysis {
   accuracy: number;
 }
 
+interface TopicAcc {
+  topic: string;
+  correct: number;
+  total: number;
+  accuracy: number;
+}
+
 interface ExamAnalytics {
   sessionId: number;
   totalScore?: number;
@@ -78,6 +86,7 @@ export default function AnalysisPage() {
   const router = useRouter();
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
+  const [topicAccuracy, setTopicAccuracy] = useState<TopicAcc[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -85,11 +94,13 @@ export default function AnalysisPage() {
     Promise.all([
       fetchJSON<StatsPayload>("/api/student/stats").catch(() => null),
       fetchJSON<{ sessions: SessionRow[] }>("/api/student/history").catch(() => ({ sessions: [] })),
+      fetchJSON<{ topicAccuracy: TopicAcc[] }>("/api/student/insights").catch(() => ({ topicAccuracy: [] })),
     ])
-      .then(([st, hist]) => {
+      .then(([st, hist, ins]) => {
         if (cancelled) return;
         if (st) setStats(st);
         setSessions(hist.sessions.filter((s) => s.completed));
+        setTopicAccuracy(ins.topicAccuracy ?? []);
         cli.success(`Analytics loaded: ${hist.sessions.length} sessions`);
       })
       .catch((e) => cli.err("fetch analytics", e))
@@ -105,11 +116,17 @@ export default function AnalysisPage() {
       subject: string;
       sessions: SessionRow[];
       bestScore: number;
+      bestTotal: number;
+      bestPercent: number;
       lastScore: number;
+      lastTotal: number;
+      lastPercent: number;
       avgPercent: number;
     }>();
     for (const s of sessions) {
-      const p = (s.score ?? 0) / Math.max(1, s.total ?? 1) * 100;
+      const score = s.score ?? 0;
+      const total = s.total ?? 0;
+      const pct = total > 0 ? Math.round((score / total) * 100) : 0;
       const existing = m.get(s.setId);
       if (!existing) {
         m.set(s.setId, {
@@ -117,20 +134,33 @@ export default function AnalysisPage() {
           setName: s.setName,
           subject: s.subject,
           sessions: [s],
-          bestScore: s.score ?? 0,
-          lastScore: s.score ?? 0,
-          avgPercent: p,
+          bestScore: score,
+          bestTotal: total,
+          bestPercent: pct,
+          lastScore: score,
+          lastTotal: total,
+          lastPercent: pct,
+          avgPercent: pct,
         });
       } else {
         existing.sessions.push(s);
-        existing.bestScore = Math.max(existing.bestScore, s.score ?? 0);
-        existing.avgPercent = (existing.avgPercent * (existing.sessions.length - 1) + p) / existing.sessions.length;
+        if (score > existing.bestScore) {
+          existing.bestScore = score;
+          existing.bestTotal = total;
+          existing.bestPercent = pct;
+        }
+        existing.avgPercent = (existing.avgPercent * (existing.sessions.length - 1) + pct) / existing.sessions.length;
       }
     }
     // Last score = most recent
     for (const v of m.values()) {
       v.sessions.sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime());
-      v.lastScore = v.sessions[0]?.score ?? 0;
+      const last = v.sessions[0];
+      if (last) {
+        v.lastScore = last.score ?? 0;
+        v.lastTotal = last.total ?? 0;
+        v.lastPercent = v.lastTotal > 0 ? Math.round((v.lastScore / v.lastTotal) * 100) : 0;
+      }
     }
     return Array.from(m.values()).sort((a, b) => b.sessions.length - a.sessions.length);
   }, [sessions]);
@@ -166,9 +196,14 @@ export default function AnalysisPage() {
       </div>
 
       {loading && (
-        <Card>
-          <p className="text-sm font-mono" style={{ color: "var(--text-secondary)" }}>Loading…</p>
-        </Card>
+        <div className="flex flex-col" style={{ gap: 24 }}>
+          <Skeleton className="h-24 w-full rounded-2xl" />
+          <Skeleton className="h-64 w-full rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Skeleton className="h-48 rounded-xl" />
+            <Skeleton className="h-48 rounded-xl" />
+          </div>
+        </div>
       )}
 
       {!loading && sessions.length === 0 && (
@@ -264,11 +299,13 @@ export default function AnalysisPage() {
                     <div className="flex items-center gap-6 flex-wrap">
                       <div className="text-center">
                         <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Best</div>
-                        <div className="font-mono text-lg" style={{ color: "var(--mint)" }}>{p.bestScore}</div>
+                        <div className="font-mono text-lg" style={{ color: "var(--mint)" }}>{p.bestPercent}%</div>
+                        <div className="text-[9px] font-mono" style={{ color: "var(--text-tertiary)" }}>{p.bestScore}/{p.bestTotal}</div>
                       </div>
                       <div className="text-center">
                         <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Last</div>
-                        <div className="font-mono text-lg" style={{ color: "var(--cyan)" }}>{p.lastScore}</div>
+                        <div className="font-mono text-lg" style={{ color: "var(--cyan)" }}>{p.lastPercent}%</div>
+                        <div className="text-[9px] font-mono" style={{ color: "var(--text-tertiary)" }}>{p.lastScore}/{p.lastTotal}</div>
                       </div>
                       <div className="text-center">
                         <div className="text-[10px] font-mono uppercase tracking-wider" style={{ color: "var(--text-secondary)" }}>Avg</div>
@@ -278,7 +315,7 @@ export default function AnalysisPage() {
                       </div>
                       <Button
                         size="sm"
-                        onClick={() => router.push(`/results?tab=history`)}
+                        onClick={() => router.push(`/results?tab=history&setId=${p.setId}`)}
                       >
                         View sessions →
                       </Button>
@@ -288,6 +325,42 @@ export default function AnalysisPage() {
               ))}
             </div>
           </div>
+
+          {/* Topic breakdown */}
+          {topicAccuracy.length > 0 && (
+            <div>
+              <h2
+                className="text-xl font-bold mb-5"
+                style={{ fontFamily: "var(--font-brand)", letterSpacing: "-0.015em", color: "var(--text-primary)" }}
+              >
+                Accuracy by topic
+              </h2>
+              <Card>
+                <div className="flex flex-col gap-3">
+                  {topicAccuracy.map((t) => (
+                    <div key={t.topic} className="flex items-center gap-4">
+                      <span className="w-48 text-sm" style={{ color: "var(--text-primary)" }}>{t.topic}</span>
+                      <div className="flex-1 h-3 rounded overflow-hidden" style={{ background: "var(--border-subtle)" }}>
+                        <div
+                          className="h-full"
+                          style={{ width: `${t.accuracy}%`, background: colorByAcc(t.accuracy) }}
+                        />
+                      </div>
+                      <span
+                        className="font-mono text-sm w-16 text-right"
+                        style={{ color: colorByAcc(t.accuracy) }}
+                      >
+                        {t.accuracy}%
+                      </span>
+                      <span className="text-[11px] font-mono" style={{ color: "var(--text-tertiary)" }}>
+                        {t.correct}/{t.total}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+          )}
         </>
       )}
 

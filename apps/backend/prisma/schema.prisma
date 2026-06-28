@@ -286,6 +286,8 @@ model AnalyticsStudentSnapshot {
   weakTopics     String   // JSON string[]
   strongTopics   String   // JSON string[]
   perPaper       String   // JSON
+  topicStrength  String?  // JSON
+  recentSessions String?  // JSON
   lastActivity   DateTime?
   computedAt     DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)

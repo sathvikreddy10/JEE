@@ -105,6 +105,7 @@ function ResultsPageInner() {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "recent";
   const legacySessionId = searchParams.get("sessionId");
+  const filterSetId = searchParams.get("setId");
 
   useEffect(() => {
     if (legacySessionId) {
@@ -145,6 +146,12 @@ function ResultsPageInner() {
   }, []);
 
   const recent = useMemo(() => sessions.slice(0, 5), [sessions]);
+  const filteredSessions = useMemo(() => {
+    if (!filterSetId) return sessions;
+    const id = Number(filterSetId);
+    if (Number.isNaN(id)) return sessions;
+    return sessions.filter((s) => s.setId === id);
+  }, [sessions, filterSetId]);
 
   if (legacySessionId) {
     return (
@@ -264,7 +271,25 @@ function ResultsPageInner() {
       {/* History tab */}
       {!loading && !error && tab === "history" && (
         <div className="flex flex-col gap-3">
-          {sessions.length === 0 ? (
+          {filterSetId && (
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <span className="text-sm text-muted-foreground">
+                Showing sessions for one paper
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.delete("setId");
+                  router.replace(`/results?${params.toString()}`);
+                }}
+              >
+                Clear filter
+              </Button>
+            </div>
+          )}
+          {filteredSessions.length === 0 ? (
             <Card>
               <div className="text-center py-16">
                 <span className="text-4xl mb-4 block">📋</span>
@@ -278,7 +303,7 @@ function ResultsPageInner() {
               </div>
             </Card>
           ) : (
-            sessions.map((s) => {
+            filteredSessions.map((s) => {
               const timeTaken = s.endTime
                 ? Math.floor((new Date(s.endTime).getTime() - new Date(s.startTime).getTime()) / 1000)
                 : null;

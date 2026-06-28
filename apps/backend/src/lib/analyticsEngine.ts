@@ -315,8 +315,8 @@ export async function getStudentSnapshot(userId: number): Promise<StudentSnapsho
         totalQuestions: cached.totalQuestions,
       },
       perPaper: JSON.parse(cached.perPaper),
-      topicStrength: [],
-      recentSessions: [],
+      topicStrength: JSON.parse(cached.topicStrength || "[]"),
+      recentSessions: JSON.parse(cached.recentSessions || "[]"),
     };
   }
   return computeStudentSnapshot(userId);
@@ -339,6 +339,8 @@ export async function saveStudentSnapshot(userId: number): Promise<StudentSnapsh
       weakTopics: JSON.stringify(data.topicStrength.filter((t) => t.percent < 50).map((t) => t.topic)),
       strongTopics: JSON.stringify(data.topicStrength.filter((t) => t.percent >= 80).map((t) => t.topic)),
       perPaper: JSON.stringify(data.perPaper),
+      topicStrength: JSON.stringify(data.topicStrength),
+      recentSessions: JSON.stringify(data.recentSessions),
       lastActivity: data.recentSessions[0]?.startTime ?? null,
     },
     update: {
@@ -353,6 +355,8 @@ export async function saveStudentSnapshot(userId: number): Promise<StudentSnapsh
       weakTopics: JSON.stringify(data.topicStrength.filter((t) => t.percent < 50).map((t) => t.topic)),
       strongTopics: JSON.stringify(data.topicStrength.filter((t) => t.percent >= 80).map((t) => t.topic)),
       perPaper: JSON.stringify(data.perPaper),
+      topicStrength: JSON.stringify(data.topicStrength),
+      recentSessions: JSON.stringify(data.recentSessions),
       lastActivity: data.recentSessions[0]?.startTime ?? null,
       computedAt: new Date(),
     },

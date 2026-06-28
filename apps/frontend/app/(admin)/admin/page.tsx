@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { renderMath } from "@/components/exam/MathRenderer";
 import { log as cli } from "@/lib/logger";
 import { fetchJSON } from "@/lib/api";
+import { Keyboard, X } from "lucide-react";
 
 type QuestionType = "mcq" | "mcq-multiple" | "numeric" | "fill-in-the-blanks";
 
@@ -81,6 +82,78 @@ export default function AdminPage() {
   const [excelUploading, setExcelUploading] = useState(false);
   const [excelResults, setExcelResults] = useState<any>(null);
   const [showExcelModal, setShowExcelModal] = useState(false);
+  const [showMathKeyboard, setShowMathKeyboard] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // Track last focused math-capable input so the virtual keyboard knows where to insert.
+  const activeFieldRef = useRef<{ el: HTMLTextAreaElement | HTMLInputElement; field: string } | null>(null);
+
+  const registerMathField = (field: string) => ({
+    onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      activeFieldRef.current = { el: e.target, field };
+    },
+    onBlur: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      // Keep a snapshot of selection on blur so the keyboard can still insert correctly.
+      activeFieldRef.current = { el: e.target, field };
+    },
+    "data-field": field,
+  });
+
+  const insertMath = (template: string, cursorOffset = 0) => {
+    const active = activeFieldRef.current;
+    if (!active) return;
+
+    const { el, field } = active;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const value = el.value;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const newValue = before + template + after;
+
+    // Update draft state depending on field
+    if (field === "text") {
+      setDraft((d) => ({ ...d, text: newValue }));
+    } else if (field === "explanation") {
+      setDraft((d) => ({ ...d, explanation: newValue }));
+    } else if (field.startsWith("option-")) {
+      const idx = Number(field.split("-")[1]);
+      setDraft((d) => {
+        const arr = [...(d.options ?? [])];
+        arr[idx] = newValue;
+        return { ...d, options: arr };
+      });
+    }
+
+    // Restore cursor position after React re-render
+    const newCursor = start + template.length + cursorOffset;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(newCursor, newCursor);
+    });
+  };
+
+  const MATH_KEYS = [
+    { label: "$x$", insert: "$$", offset: -1 },
+    { label: "$$x$$", insert: "$$\n\n$$", offset: -3 },
+    { label: "\\frac{}{}", insert: "\\frac{}{}", offset: -3 },
+    { label: "\\sqrt{}", insert: "\\sqrt{}", offset: -1 },
+    { label: "x^{}", insert: "^{}", offset: -1 },
+    { label: "x_{}", insert: "_{}", offset: -1 },
+    { label: "\\alpha", insert: "\\alpha " },
+    { label: "\\beta", insert: "\\beta " },
+    { label: "\\gamma", insert: "\\gamma " },
+    { label: "\\theta", insert: "\\theta " },
+    { label: "\\pi", insert: "\\pi " },
+    { label: "\\sum", insert: "\\sum_{}^{}" },
+    { label: "\\int", insert: "\\int_{}^{}" },
+    { label: "\\infty", insert: "\\infty " },
+    { label: "\\pm", insert: "\\pm " },
+    { label: "\\cdot", insert: "\\cdot " },
+    { label: "\\times", insert: "\\times " },
+    { label: "\\vec{}", insert: "\\vec{}", offset: -1 },
+    { label: "\\overline{}", insert: "\\overline{}", offset: -1 },
+  ];
 
   const loadSets = useCallback(async () => {
     try {
@@ -187,6 +260,7 @@ export default function AdminPage() {
 
   const uploadImage = async (file: File) => {
     setUploading(true);
+    setUploadError(null);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -194,7 +268,9 @@ export default function AdminPage() {
       cli.success(`Uploaded → ${data.url}`);
       return data.url;
     } catch (e) {
+      const msg = (e as Error).message || "Upload failed";
       cli.err("upload", e);
+      setUploadError(msg);
       return null;
     } finally {
       setUploading(false);
@@ -207,6 +283,7 @@ export default function AdminPage() {
     const url = await uploadImage(file);
     if (url) {
       setDraft({ ...draft, images: [...(draft.images ?? []), { url, caption: "" }] });
+      setUploadError(null);
     }
     if (fileRef.current) fileRef.current.value = "";
   };
@@ -503,7 +580,37 @@ export default function AdminPage() {
               rows={4}
               style={{ ...inputStyle, fontFamily: "var(--font-mono)", resize: "vertical", minHeight: 96 }}
               placeholder="Type your question. Use $x^2$ for inline math and $$x^2$$ on its own line for display math."
+              {...registerMathField("text")}
             />
+            <button
+              type="button"
+              onClick={() => setShowMathKeyboard((v) => !v)}
+              className="mt-3 flex items-center gap-2 text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {showMathKeyboard ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
+              {showMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
+            </button>
+
+            {showMathKeyboard && (
+              <div
+                className="mt-3 p-3 rounded-lg flex flex-wrap gap-2"
+                style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+              >
+                {MATH_KEYS.map((k) => (
+                  <button
+                    key={k.label}
+                    type="button"
+                    onClick={() => insertMath(k.insert, k.offset)}
+                    className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity"
+                    style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
+                    title={k.insert}
+                  >
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* MCQ Options (single or multiple correct) */}
@@ -561,6 +668,7 @@ export default function AdminPage() {
                         }}
                         placeholder={`Option ${letter}`}
                         style={{ ...inputStyle, flex: 1 }}
+                        {...registerMathField(`option-${i}`)}
                       />
                       <button
                         onClick={toggleCorrect}
@@ -608,12 +716,25 @@ export default function AdminPage() {
               rows={4}
               style={{ ...inputStyle, fontFamily: "var(--font-mono)", resize: "vertical", minHeight: 96 }}
               placeholder="By Coulomb's law, $F = kQq/r^2$..."
+              {...registerMathField("explanation")}
             />
+            <button
+              type="button"
+              onClick={() => setShowMathKeyboard((v) => !v)}
+              className="mt-3 flex items-center gap-2 text-xs font-medium"
+              style={{ color: "var(--text-secondary)" }}
+            >
+              {showMathKeyboard ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
+              {showMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
+            </button>
           </div>
 
           {/* Images */}
           <div className="mb-8">
             <label style={labelStyle}>Images</label>
+            {uploadError && (
+              <p className="text-xs mb-2" style={{ color: "var(--crimson)" }}>{uploadError}</p>
+            )}
             <div className="flex flex-wrap gap-3">
               {(draft.images ?? []).map((img, i) => (
                 <div

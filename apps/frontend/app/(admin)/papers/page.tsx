@@ -34,6 +34,8 @@ import {
   Zap,
   BookOpen,
   Clock,
+  Keyboard,
+  ImagePlus,
 } from "lucide-react";
 
 /* ─── Types ─── */
@@ -62,7 +64,8 @@ interface BankQuestion {
 }
 
 interface DraftQuestion { type: QuestionType; text: string; options: string[]; correctAnswer: string;
-  explanation: string; subject: string; topic: string; difficulty: number; positiveMarks: number; negativeMarks: number }
+  explanation: string; subject: string; topic: string; difficulty: number; positiveMarks: number; negativeMarks: number;
+  images: { url: string; caption?: string }[] }
 
 /* ─── Constants ─── */
 const SUBJECTS = ["Physics", "Chemistry", "Mathematics", "Biology", "Zoology", "English", "General Knowledge", "Quantitative Aptitude", "Logical Reasoning", "Computer Science", "General Science", "History", "Geography", "Political Science", "Economics", "Optional Language"];
@@ -77,7 +80,7 @@ const KINDS: { value: SetKind; label: string; hint: string }[] = [
 ];
 
 const blankDraft = (): DraftQuestion => ({
-  type: "mcq", text: "", options: ["", "", "", ""], correctAnswer: "A", explanation: "",
+  type: "mcq", text: "", options: ["", "", "", ""], correctAnswer: "A", explanation: "", images: [],
   subject: "Physics", topic: "", difficulty: 5, positiveMarks: 4, negativeMarks: 1,
 });
 
@@ -105,6 +108,11 @@ export default function PapersPage() {
   const [editQuestionDraft, setEditQuestionDraft] = useState<Partial<BankQuestion>>({});
   const [savingQuestion, setSavingQuestion] = useState(false);
   const [deletingQuestion, setDeletingQuestion] = useState(false);
+  const [showEditMathKeyboard, setShowEditMathKeyboard] = useState(false);
+  const editActiveFieldRef = useRef<{ el: HTMLTextAreaElement | HTMLInputElement; field: string } | null>(null);
+  const editFileRef = useRef<HTMLInputElement>(null);
+  const [editUploadingImage, setEditUploadingImage] = useState(false);
+  const [editUploadError, setEditUploadError] = useState<string | null>(null);
 
   const [bankSearch, setBankSearch] = useState("");
   const [bankSubject, setBankSubject] = useState("All");
@@ -140,6 +148,184 @@ export default function PapersPage() {
   const addTag = () => { const t = tagInput.trim(); if (!t || tags.includes(t)) { setTagInput(""); return } setTags(p => [...p, t]); setTagInput(""); };
   const removeTag = (t: string) => setTags(p => p.filter(x => x !== t));
 
+  /* ─── Math keyboard + image upload helpers ─── */
+  const [mathKeyboardDraftIdx, setMathKeyboardDraftIdx] = useState<number | null>(null);
+  const activeFieldRef = useRef<{ el: HTMLTextAreaElement | HTMLInputElement; draftIdx: number; field: string } | null>(null);
+  const fileRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [uploadingImages, setUploadingImages] = useState<Set<number>>(new Set());
+  const [uploadErrors, setUploadErrors] = useState<Record<number, string | null>>({});
+
+  const registerDraftMathField = (draftIdx: number, field: string) => ({
+    onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      activeFieldRef.current = { el: e.target, draftIdx, field };
+      setMathKeyboardDraftIdx(draftIdx);
+    },
+    onBlur: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      activeFieldRef.current = { el: e.target, draftIdx, field };
+    },
+    "data-field": field,
+  });
+
+  const MATH_KEYS = [
+    { label: "$x$", insert: "$$", offset: -1 },
+    { label: "$$x$$", insert: "$$\n\n$$", offset: -3 },
+    { label: "\\frac{}{}", insert: "\\frac{}{}", offset: -3 },
+    { label: "\\sqrt{}", insert: "\\sqrt{}", offset: -1 },
+    { label: "x^{}", insert: "^{}", offset: -1 },
+    { label: "x_{}", insert: "_{}", offset: -1 },
+    { label: "\\alpha", insert: "\\alpha " },
+    { label: "\\beta", insert: "\\beta " },
+    { label: "\\gamma", insert: "\\gamma " },
+    { label: "\\theta", insert: "\\theta " },
+    { label: "\\pi", insert: "\\pi " },
+    { label: "\\sum", insert: "\\sum_{}^{}" },
+    { label: "\\int", insert: "\\int_{}^{}" },
+    { label: "\\infty", insert: "\\infty " },
+    { label: "\\pm", insert: "\\pm " },
+    { label: "\\cdot", insert: "\\cdot " },
+    { label: "\\times", insert: "\\times " },
+    { label: "\\vec{}", insert: "\\vec{}", offset: -1 },
+    { label: "\\overline{}", insert: "\\overline{}", offset: -1 },
+  ];
+
+  const insertMath = (template: string, cursorOffset = 0) => {
+    const active = activeFieldRef.current;
+    if (!active) return;
+    const { el, draftIdx, field } = active;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const value = el.value;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const newValue = before + template + after;
+
+    setDrafts(prev => prev.map((d, i) => {
+      if (i !== draftIdx) return d;
+      if (field === "text") return { ...d, text: newValue };
+      if (field === "explanation") return { ...d, explanation: newValue };
+      if (field.startsWith("option-")) {
+        const oi = Number(field.split("-")[1]);
+        const arr = [...d.options];
+        arr[oi] = newValue;
+        return { ...d, options: arr };
+      }
+      return d;
+    }));
+
+    const newCursor = start + template.length + cursorOffset;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(newCursor, newCursor);
+    });
+  };
+
+  const uploadDraftImage = async (draftIdx: number, file: File) => {
+    setUploadingImages(prev => new Set(prev).add(draftIdx));
+    setUploadErrors(prev => ({ ...prev, [draftIdx]: null }));
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const data = await fetchJSON<{ url: string }>("/api/upload", { method: "POST", body: form });
+      setDrafts(prev => prev.map((d, i) => i !== draftIdx ? d : { ...d, images: [...(d.images ?? []), { url: data.url, caption: "" }] }));
+    } catch (e) {
+      setUploadErrors(prev => ({ ...prev, [draftIdx]: (e as Error).message || "Upload failed" }));
+    } finally {
+      setUploadingImages(prev => { const next = new Set(prev); next.delete(draftIdx); return next; });
+    }
+  };
+
+  const removeDraftImage = (draftIdx: number, imgIdx: number) => {
+    setDrafts(prev => prev.map((d, i) => i !== draftIdx ? d : { ...d, images: d.images?.filter((_, j) => j !== imgIdx) ?? [] }));
+  };
+
+  const MathKeyboard = ({ draftIdx }: { draftIdx: number }) => (
+    <div
+      className="mt-3 p-3 rounded-lg flex flex-wrap gap-2"
+      style={{ background: "var(--bg-card)", border: "1px solid var(--border-subtle)" }}
+    >
+      {MATH_KEYS.map((k) => (
+        <button
+          key={k.label}
+          type="button"
+          onClick={() => insertMath(k.insert, k.offset)}
+          className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity"
+          style={{ background: "var(--bg-input)", border: "1px solid var(--border-subtle)", color: "var(--text-primary)" }}
+          title={k.insert}
+        >
+          {k.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const registerEditMathField = (field: string) => ({
+    onFocus: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      editActiveFieldRef.current = { el: e.target, field };
+    },
+    onBlur: (e: React.FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+      editActiveFieldRef.current = { el: e.target, field };
+    },
+    "data-field": field,
+  });
+
+  const insertEditMath = (template: string, cursorOffset = 0) => {
+    const active = editActiveFieldRef.current;
+    if (!active) return;
+    const { el, field } = active;
+    const start = el.selectionStart ?? 0;
+    const end = el.selectionEnd ?? 0;
+    const value = el.value;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const newValue = before + template + after;
+
+    setEditQuestionDraft(prev => ({
+      ...prev,
+      [field]: newValue,
+    }));
+
+    const newCursor = start + template.length + cursorOffset;
+    requestAnimationFrame(() => {
+      el.focus();
+      el.setSelectionRange(newCursor, newCursor);
+    });
+  };
+
+  const EditMathKeyboard = () => (
+    <div className="mt-3 p-3 rounded-lg flex flex-wrap gap-2 bg-muted/30 border border-border">
+      {MATH_KEYS.map((k) => (
+        <button
+          key={k.label}
+          type="button"
+          onClick={() => insertEditMath(k.insert, k.offset)}
+          className="px-2.5 py-1.5 rounded-md text-xs font-mono hover:opacity-80 transition-opacity bg-background border border-border text-foreground"
+          title={k.insert}
+        >
+          {k.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const uploadEditImage = async (file: File) => {
+    setEditUploadingImage(true);
+    setEditUploadError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const data = await fetchJSON<{ url: string }>("/api/upload", { method: "POST", body: form });
+      setEditQuestionDraft(prev => ({ ...prev, images: [...(prev.images ?? []), { url: data.url, caption: "" }] }));
+    } catch (e) {
+      setEditUploadError((e as Error).message || "Upload failed");
+    } finally {
+      setEditUploadingImage(false);
+    }
+  };
+
+  const removeEditImage = (idx: number) => {
+    setEditQuestionDraft(prev => ({ ...prev, images: prev.images?.filter((_, j) => j !== idx) ?? [] }));
+  };
+
   /* ─── Data ─── */
   const loadAll = useCallback(async () => {
     setLoading(true);
@@ -170,7 +356,7 @@ export default function PapersPage() {
     try {
       await fetchJSON(`/api/admin/questions/${editingQuestion.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: editQuestionDraft.text, subject: editQuestionDraft.subject, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
+        body: JSON.stringify({ text: editQuestionDraft.text, subject: editQuestionDraft.subject, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, images: editQuestionDraft.images && editQuestionDraft.images.length > 0 ? editQuestionDraft.images : undefined, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
       });
       cli.success(`Updated question #${editingQuestion.id}`);
       setEditingQuestion(null); setEditQuestionDraft({});
@@ -322,6 +508,7 @@ export default function PapersPage() {
         options,
         correctAnswer: String(r.correctAnswer || ""),
         explanation: r.explanation || "",
+        images: [],
         subject: r.subject || "Physics",
         topic: r.topic || "General",
         difficulty: Math.max(1, Math.min(10, Number(r.difficulty) || 5)),
@@ -341,7 +528,7 @@ export default function PapersPage() {
       const payload = {
         name: name.trim(), subject, pattern, kind, exam, tags, timeLimit: Number(timeLimit),
         attemptsAllowed: Number(attemptsAllowed), isReadyForDailyChallenge,
-        questions: drafts.map((d, i) => ({ type: d.type, text: d.text.trim(), options: d.type === "mcq" || d.type === "mcq-multiple" ? d.options.filter(Boolean) : undefined, correctAnswer: d.correctAnswer, explanation: d.explanation, subject: d.subject.trim(), topic: d.topic.trim() || "General", difficulty: Math.max(1, Math.min(10, Number(d.difficulty) || 5)), positiveMarks: Number(d.positiveMarks), negativeMarks: Number(d.negativeMarks), order: i + 1 })),
+        questions: drafts.map((d, i) => ({ type: d.type, text: d.text.trim(), options: d.type === "mcq" || d.type === "mcq-multiple" ? d.options.filter(Boolean) : undefined, correctAnswer: d.correctAnswer, explanation: d.explanation, images: d.images && d.images.length > 0 ? d.images : undefined, subject: d.subject.trim(), topic: d.topic.trim() || "General", difficulty: Math.max(1, Math.min(10, Number(d.difficulty) || 5)), positiveMarks: Number(d.positiveMarks), negativeMarks: Number(d.negativeMarks), order: i + 1 })),
         batchAssignments: kind === "INSTITUTE" ? assignments.map(a => ({ batchId: a.batchId, scheduledStart: new Date(a.scheduledStart).toISOString(), scheduledEnd: new Date(a.scheduledEnd).toISOString(), bufferMinutes: a.bufferMinutes })) : [],
       };
       await fetchJSON("/api/admin/sets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -543,7 +730,7 @@ export default function PapersPage() {
                         <td className="px-4 py-3 text-xs font-mono font-semibold">+{q.positiveMarks}</td>
                         <td className="px-4 py-3 text-[10px] text-muted-foreground truncate max-w-[100px]">{q.setName || "—"}</td>
                         <td className="px-4 py-3">
-                          <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => { setDrafts(prev => [...prev, { type: q.type, text: q.text, options: q.options || ["", "", "", ""], correctAnswer: q.correctAnswer, explanation: q.explanation || "", subject: q.subject || "Physics", topic: q.topic, difficulty: q.difficulty, positiveMarks: q.positiveMarks, negativeMarks: q.negativeMarks }]); setShowCreate(true); setTab("papers") }}>Copy</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => { setDrafts(prev => [...prev, { type: q.type, text: q.text, options: q.options || ["", "", "", ""], correctAnswer: q.correctAnswer, explanation: q.explanation || "", images: q.images ?? [], subject: q.subject || "Physics", topic: q.topic, difficulty: q.difficulty, positiveMarks: q.positiveMarks, negativeMarks: q.negativeMarks }]); setShowCreate(true); setTab("papers") }}>Copy</Button>
                         </td>
                       </tr>
                     ))}
@@ -706,7 +893,7 @@ export default function PapersPage() {
                       </div>
                       <div>
                         <label className="text-xs font-bold text-foreground uppercase mb-2 block">Question Text</label>
-                        <textarea value={d.text} onChange={e => updateDraft(i, { text: e.target.value })} required rows={3} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y" placeholder="$...$ for inline math" />
+                        <textarea value={d.text} onChange={e => updateDraft(i, { text: e.target.value })} required rows={3} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="$...$ for inline math" {...registerDraftMathField(i, "text")} />
                       </div>
                       {(d.type === "mcq" || d.type === "mcq-multiple") && (
                         <div>
@@ -720,7 +907,7 @@ export default function PapersPage() {
                                     className={cn("h-8 w-8 rounded-md text-sm font-bold shrink-0 transition-colors", isCorrect ? "bg-primary text-primary-foreground" : "bg-background border-2 border-border text-muted-foreground hover:border-primary")}>
                                     {isCorrect ? "✓" : letter}
                                   </button>
-                                  <Input value={d.options[oi] || ""} onChange={e => { const arr = [...d.options]; arr[oi] = e.target.value; updateDraft(i, { options: arr }) }} placeholder={`Option ${letter}`} className="h-10 text-sm" />
+                                  <Input value={d.options[oi] || ""} onChange={e => { const arr = [...d.options]; arr[oi] = e.target.value; updateDraft(i, { options: arr }) }} placeholder={`Option ${letter}`} className="h-10 text-sm font-mono" {...registerDraftMathField(i, `option-${oi}`)} />
                                 </div>
                               );
                             })}
@@ -733,6 +920,57 @@ export default function PapersPage() {
                           <Input value={d.correctAnswer} onChange={e => updateDraft(i, { correctAnswer: e.target.value })} placeholder={d.type === "numeric" ? "42" : "expected text"} className="font-mono h-10" />
                         </div>
                       )}
+                      <div>
+                        <label className="text-xs font-bold text-foreground uppercase mb-2 block">Explanation</label>
+                        <textarea value={d.explanation} onChange={e => updateDraft(i, { explanation: e.target.value })} rows={2} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="By Coulomb's law, $F = kQq/r^2$..." {...registerDraftMathField(i, "explanation")} />
+                      </div>
+
+                      {/* Images */}
+                      <div>
+                        <label className="text-xs font-bold text-foreground uppercase mb-2 block">Images</label>
+                        {uploadErrors[i] && <p className="text-xs text-destructive mb-2">{uploadErrors[i]}</p>}
+                        <div className="flex flex-wrap gap-3">
+                          {(d.images ?? []).map((img, idx) => (
+                            <div key={idx} className="relative w-24 h-16 rounded-md overflow-hidden border-2 border-border bg-background">
+                              <img src={img.url} alt="" className="w-full h-full object-cover" />
+                              <button type="button" onClick={() => removeDraftImage(i, idx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">×</button>
+                            </div>
+                          ))}
+                          <button
+                            type="button"
+                            disabled={uploadingImages.has(i)}
+                            onClick={() => fileRefs.current[i]?.click()}
+                            className="w-24 h-16 rounded-md border-2 border-dashed border-border bg-muted/30 text-muted-foreground text-xs flex flex-col items-center justify-center gap-1 hover:bg-muted/50 transition-colors"
+                          >
+                            <ImagePlus className="h-4 w-4" />
+                            {uploadingImages.has(i) ? "Uploading…" : "Add Image"}
+                          </button>
+                          <input
+                            ref={el => { fileRefs.current[i] = el; }}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={e => {
+                              const file = e.target.files?.[0];
+                              if (file) uploadDraftImage(i, file);
+                              if (e.target) e.target.value = "";
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Math keyboard toggle */}
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setMathKeyboardDraftIdx(prev => prev === i ? null : i)}
+                          className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                          {mathKeyboardDraftIdx === i ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
+                          {mathKeyboardDraftIdx === i ? "Hide math keyboard" : "Show math keyboard"}
+                        </button>
+                        {mathKeyboardDraftIdx === i && <MathKeyboard draftIdx={i} />}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -808,12 +1046,60 @@ export default function PapersPage() {
                             <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">− Penalty</label><Input type="number" value={editQuestionDraft.negativeMarks ?? q.negativeMarks} onChange={e => setEditQuestionDraft(p => ({ ...p, negativeMarks: Number(e.target.value) }))} className="h-10 text-sm" /></div>
                           </div>
                         </div>
-                        <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Question Text</label><textarea value={editQuestionDraft.text ?? q.text} onChange={e => setEditQuestionDraft(p => ({ ...p, text: e.target.value }))} rows={3} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y" /></div>
+                        <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Question Text</label><textarea value={editQuestionDraft.text ?? q.text} onChange={e => setEditQuestionDraft(p => ({ ...p, text: e.target.value }))} rows={3} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="$...$ for inline math" {...registerEditMathField("text")} /></div>
                         <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Correct Answer</label><Input value={editQuestionDraft.correctAnswer ?? q.correctAnswer} onChange={e => setEditQuestionDraft(p => ({ ...p, correctAnswer: e.target.value }))} className="font-mono text-sm" /></div>
-                        <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Explanation</label><textarea value={editQuestionDraft.explanation ?? ""} onChange={e => setEditQuestionDraft(p => ({ ...p, explanation: e.target.value }))} rows={2} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y" /></div>
+                        <div><label className="text-xs font-bold text-foreground uppercase mb-2 block">Explanation</label><textarea value={editQuestionDraft.explanation ?? ""} onChange={e => setEditQuestionDraft(p => ({ ...p, explanation: e.target.value }))} rows={2} className="flex w-full rounded-md border-2 border-input bg-background px-4 py-3 text-sm resize-y font-mono" placeholder="By Coulomb's law, $F = kQq/r^2$..." {...registerEditMathField("explanation")} /></div>
+
+                        {/* Edit images */}
+                        <div>
+                          <label className="text-xs font-bold text-foreground uppercase mb-2 block">Images</label>
+                          {editUploadError && <p className="text-xs text-destructive mb-2">{editUploadError}</p>}
+                          <div className="flex flex-wrap gap-3">
+                            {(editQuestionDraft.images ?? q.images ?? []).map((img, idx) => (
+                              <div key={idx} className="relative w-24 h-16 rounded-md overflow-hidden border-2 border-border bg-background">
+                                <img src={img.url} alt="" className="w-full h-full object-cover" />
+                                <button type="button" onClick={() => removeEditImage(idx)} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">×</button>
+                              </div>
+                            ))}
+                            <button
+                              type="button"
+                              disabled={editUploadingImage}
+                              onClick={() => editFileRef.current?.click()}
+                              className="w-24 h-16 rounded-md border-2 border-dashed border-border bg-muted/30 text-muted-foreground text-xs flex flex-col items-center justify-center gap-1 hover:bg-muted/50 transition-colors"
+                            >
+                              <ImagePlus className="h-4 w-4" />
+                              {editUploadingImage ? "Uploading…" : "Add Image"}
+                            </button>
+                            <input
+                              ref={editFileRef}
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={e => {
+                                const file = e.target.files?.[0];
+                                if (file) uploadEditImage(file);
+                                if (e.target) e.target.value = "";
+                              }}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Edit math keyboard */}
+                        <div>
+                          <button
+                            type="button"
+                            onClick={() => setShowEditMathKeyboard(v => !v)}
+                            className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+                          >
+                            {showEditMathKeyboard ? <X className="h-3.5 w-3.5" /> : <Keyboard className="h-3.5 w-3.5" />}
+                            {showEditMathKeyboard ? "Hide math keyboard" : "Show math keyboard"}
+                          </button>
+                          {showEditMathKeyboard && <EditMathKeyboard />}
+                        </div>
+
                         <div className="flex gap-3 pt-2">
                           <Button onClick={saveEditedQuestion} disabled={savingQuestion}>{savingQuestion ? "Saving…" : "Save Changes"}</Button>
-                          <Button variant="outline" onClick={() => { setEditingQuestion(null); setEditQuestionDraft({}) }}>Cancel</Button>
+                          <Button variant="outline" onClick={() => { setEditingQuestion(null); setEditQuestionDraft({}); setShowEditMathKeyboard(false); setEditUploadError(null); }}>Cancel</Button>
                         </div>
                       </div>
                     ) : (
@@ -831,6 +1117,13 @@ export default function PapersPage() {
                           </div>
                         </div>
                         <p className="text-sm text-foreground mb-3 leading-relaxed">{q.text}</p>
+                        {q.images && q.images.length > 0 && (
+                          <div className="flex flex-wrap gap-3 mb-3">
+                            {q.images.map((img, idx) => (
+                              <img key={idx} src={img.url} alt="" className="max-h-32 rounded-lg border-2 border-border" />
+                            ))}
+                          </div>
+                        )}
                         {q.options && q.options.length > 0 && (
                           <div className="flex flex-col gap-2 mb-3">
                             {q.options.map((opt, i) => (
