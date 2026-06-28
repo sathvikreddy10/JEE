@@ -239,10 +239,19 @@ export default function PapersPage() {
     const after = value.slice(end);
     const newValue = before + template + after;
 
-    setEditQuestionDraft(prev => ({
-      ...prev,
-      [field]: newValue,
-    }));
+    if (field.startsWith("option-")) {
+      const idx = Number(field.split("-")[1]);
+      setEditQuestionDraft(prev => {
+        const arr = [...(prev.options ?? [])];
+        arr[idx] = newValue;
+        return { ...prev, options: arr };
+      });
+    } else {
+      setEditQuestionDraft(prev => ({
+        ...prev,
+        [field]: newValue,
+      }));
+    }
 
     const newCursor = start + template.length + cursorOffset;
     requestAnimationFrame(() => {

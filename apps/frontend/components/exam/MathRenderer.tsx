@@ -11,6 +11,17 @@ interface MathRendererProps {
 export function renderMath(text: string): string {
   let result = text;
 
+  // If the text contains LaTeX commands but no dollar delimiters, render the
+  // whole thing as inline math. This makes keyboard-inserted LaTeX preview
+  // correctly without forcing users to manually wrap every fragment in $...$.
+  if (/\\[a-zA-Z]/.test(result) && !result.includes("$")) {
+    try {
+      return katex.renderToString(result, { displayMode: false, throwOnError: false });
+    } catch {
+      return result;
+    }
+  }
+
   // Display math: $$...$$
   result = result.replace(/\$\$([^$]+)\$\$/g, (_, math) => {
     try {
