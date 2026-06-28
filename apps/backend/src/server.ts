@@ -22,8 +22,61 @@ import { lifecycleRouter } from "./routes/lifecycle";
 import { notificationsRouter } from "./routes/notifications";
 import { startScheduler } from "./lib/scheduler";
 import { prisma } from "./lib/db";
+import { hashPassword } from "./lib/password";
 
 config(); // load .env
+
+/* ─────────────── Non-destructive startup seed ─────────────── */
+async function ensureSeedData() {
+  // 1. Admin user (required for DB-based admin auth)
+  const adminExists = await prisma.user.findUnique({ where: { email: "admin@testify.app" } });
+  if (!adminExists) {
+    const pwd = await hashPassword("password123");
+    await prisma.user.create({
+      data: { email: "admin@testify.app", name: "Admin", password: pwd, role: "ADMIN" },
+    });
+    log.info("Created fallback admin: admin@testify.app / password123");
+  }
+
+  // 2. Demo students
+  const demoUsers = [
+    { email: "sathvik@testify.app", name: "Sathvik" },
+    { email: "arjun@testify.app", name: "Arjun" },
+    { email: "priya@testify.app", name: "Priya" },
+  ];
+  for (const u of demoUsers) {
+    const exists = await prisma.user.findUnique({ where: { email: u.email } });
+    if (!exists) {
+      const pwd = await hashPassword("password123");
+      await prisma.user.create({ data: { ...u, password: pwd, role: "STUDENT" } });
+      log.info(`Seeded user: ${u.email}`);
+    }
+  }
+
+  // 3. Demo paper
+  const setCount = await prisma.questionSet.count();
+  if (setCount === 0) {
+    const set = await prisma.questionSet.create({
+      data: {
+        name: "JEE Main 2025",
+        subject: "Physics",
+        pattern: "JEE Main",
+        timeLimit: 1800,
+        kind: "PRACTICE",
+        exam: "JEE_MAIN",
+        attemptsAllowed: 99,
+      },
+    });
+    await prisma.question.createMany({
+      data: [
+        { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+        { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+        { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+      ],
+    });
+    log.info(`Seeded 1 practice paper with 3 questions`);
+  }
+}
 
 // Global safety net: log unhandled rejections and exit gracefully
 process.on("unhandledRejection", (reason) => {
@@ -144,16 +197,19 @@ server.on("error", (err: any) => {
   process.exit(1);
 });
 
-// Ensure Prisma is connected before accepting requests
-prisma.$connect().then(() => {
-  log.info("Prisma connected to PostgreSQL");
-  server.listen(PORT, "0.0.0.0", () => {
-    log.success(`Backend listening on http://localhost:${PORT}`);
-    log.info(`CORS origin: ${FRONTEND_URL}`);
+// Ensure Prisma is connected and seed data exists before accepting requests
+prisma.$connect()
+  .then(() => ensureSeedData())
+  .then(() => {
+    log.info("Prisma connected to PostgreSQL");
+    server.listen(PORT, "0.0.0.0", () => {
+      log.success(`Backend listening on port ${PORT}`);
+      log.info(`CORS origin: ${FRONTEND_URL}`);
+    });
+  })
+  .catch((err) => {
+    log.err("Failed to connect Prisma", err);
+    process.exit(1);
   });
-}).catch((err) => {
-  log.err("Failed to connect Prisma", err);
-  process.exit(1);
-});
 
 export { app, server };

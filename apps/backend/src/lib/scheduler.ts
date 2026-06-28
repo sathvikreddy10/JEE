@@ -1,6 +1,7 @@
 import { prisma } from "./db";
 import { log } from "./logger";
 import { buildSessionAnalytics } from "./marking";
+import { recomputeAllSnapshots, istDateKey } from "./analyticsEngine";
 
 /**
  * Runs every 30s. Fires BUFFER_CLOSING notifications to batch members
@@ -15,10 +16,17 @@ export function startScheduler() {
   const WINDOW_MS = 90_000; // fire when (deadline - now) ∈ [2min, 2min+90s] to account for tick jitter
   const CLOSING_SOON_MS = 2 * 60_000; // T-2min
 
+  let lastAnalyticsDate = "";
+
   log.info("Scheduler started", { tickMs: TICK_MS });
   setInterval(async () => {
     try {
       await tick(WINDOW_MS, CLOSING_SOON_MS);
+      const today = istDateKey(new Date());
+      if (lastAnalyticsDate !== today) {
+        await recomputeAllSnapshots().catch((e) => log.err("scheduler analytics recompute failed", e));
+        lastAnalyticsDate = today;
+      }
     } catch (e) {
       log.err("scheduler tick failed", e);
     }

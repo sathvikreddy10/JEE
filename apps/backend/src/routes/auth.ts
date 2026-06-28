@@ -2,6 +2,7 @@ import { Router } from "express";
 import { prisma } from "../lib/db";
 import { log } from "../lib/logger";
 import { createSession, destroySession, SESSION_COOKIE, setSessionCookie, clearSessionCookie, userOr401 } from "../lib/auth";
+import { hashPassword, verifyPassword } from "../lib/password";
 
 export const authRouter = Router();
 
@@ -30,8 +31,9 @@ authRouter.post("/register", async (req, res) => {
       return res.status(409).json({ error: "Email already registered" });
     }
 
+    const passwordHash = await hashPassword(cleanPassword);
     const user = await prisma.user.create({
-      data: { email: cleanEmail, name: cleanName, password: cleanPassword },
+      data: { email: cleanEmail, name: cleanName, password: passwordHash },
       select: { id: true, email: true, name: true },
     });
     log.db("CREATE", "User", { id: user.id, email: cleanEmail, name: cleanName });
@@ -67,7 +69,7 @@ authRouter.post("/login", async (req, res) => {
       return res.status(401).json({ error: "Invalid email or password" });
     }
 
-    const ok = cleanPassword === user.password;
+    const ok = await verifyPassword(cleanPassword, user.password);
     if (!ok) {
       log.warn(`Login failed: wrong password for ${cleanEmail}`);
       return res.status(401).json({ error: "Invalid email or password" });

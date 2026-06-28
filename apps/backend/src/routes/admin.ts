@@ -67,7 +67,6 @@ adminRouter.post("/auth/login", async (req, res) => {
     if (!cred) {
       return res.status(401).json({
         error: "Invalid admin email or password",
-        debug: { receivedEmail: cleanEmail, receivedPasswordLen: cleanPassword.length, receivedPassword: cleanPassword },
       });
     }
     const session = await createAdminSession(cred.email);
@@ -85,13 +84,18 @@ adminRouter.post("/auth/login", async (req, res) => {
 
 // POST /admin/auth/logout
 adminRouter.post("/auth/logout", async (req, res) => {
-  const token = req.cookies?.[ADMIN_COOKIE];
-  if (token) {
-    await destroyAdminSession(token);
+  try {
+    const token = req.cookies?.[ADMIN_COOKIE];
+    if (token) {
+      await destroyAdminSession(token);
+    }
+    clearAdminCookie(res);
+    log.success("Admin logout");
+    return res.json({ ok: true });
+  } catch (e) {
+    log.err("POST /admin/auth/logout", e);
+    return res.status(500).json({ error: (e as Error).message });
   }
-  clearAdminCookie(res);
-  log.success("Admin logout");
-  return res.json({ ok: true });
 });
 
 // GET /admin/auth/me
@@ -1946,16 +1950,51 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const dataRows: Record<string, string>[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
+    // Look up set names so we can resolve setName -> setId
+    const allSets = await prisma.questionSet.findMany({ select: { id: true, name: true } });
+    const setNameToId = new Map(allSets.map((s) => [s.name.toLowerCase(), s.id]));
+
     const rows = dataRows.map((r, idx) => {
       let diff = Number(r.difficulty);
       if (Number.isNaN(diff)) diff = 5;
       else diff = Math.max(1, Math.min(10, Math.round(diff)));
+
+      const type = (r.type || "mcq").trim().toLowerCase();
+      const options = [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""];
+      let correctAnswer = (r.correctAnswer || "A").trim();
+
+      // Normalize correctAnswer for mcq-multiple: accept "A,B" / "A, B" / '["A","B"]'
+      if (type === "mcq-multiple") {
+        if (correctAnswer.startsWith("[")) {
+          try {
+            const parsed = JSON.parse(correctAnswer);
+            if (Array.isArray(parsed)) {
+              correctAnswer = JSON.stringify(parsed.filter((l: unknown) => typeof l === "string").sort());
+            }
+          } catch {
+            // leave as-is; will surface as error on submit
+          }
+        } else {
+          const letters = correctAnswer
+            .split(/[,\s]+/)
+            .filter((l) => ["A", "B", "C", "D"].includes(l));
+          if (letters.length > 0) correctAnswer = JSON.stringify(letters.sort());
+        }
+      }
+
+      // Resolve setId / setName
+      const rawSetId = r.setId ? Number(r.setId) : null;
+      const setName = (r.setName || "").trim();
+      const resolvedSetId = rawSetId || (setName ? setNameToId.get(setName.toLowerCase()) || null : null);
+
       return {
         row: idx + 2,
-        type: (r.type || "mcq").trim().toLowerCase(),
+        setId: resolvedSetId,
+        setName: setName || null,
+        type,
         text: (r.text || "").trim(),
-        options: [r.optionA || "", r.optionB || "", r.optionC || "", r.optionD || ""],
-        correctAnswer: (r.correctAnswer || "A").trim(),
+        options,
+        correctAnswer,
         explanation: (r.explanation || "").trim(),
         subject: (r.subject || "").trim() || null,
         topic: (r.topic || "General").trim(),
@@ -1973,8 +2012,135 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
   }
 });
 
+// GET /admin/questions/export/bank
+// Export the entire question bank as an Excel file matching the import template.
+adminRouter.get("/questions/export/bank", requireAdmin, async (_req, res) => {
+  log.api("GET", "/admin/questions/export/bank");
+  try {
+    const sets = await prisma.questionSet.findMany({
+      orderBy: { id: "asc" },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true, type: true, text: true, options: true, correctAnswer: true,
+            explanation: true, subject: true, topic: true, order: true,
+            difficulty: true, positiveMarks: true, negativeMarks: true,
+          },
+        },
+      },
+    });
+
+    const headers = [
+      "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
+      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+    ];
+
+    const rows: any[][] = [headers];
+    for (const s of sets) {
+      for (const q of s.questions) {
+        const opts = q.options ? (JSON.parse(q.options) as string[]) : [];
+        rows.push([
+          s.id,
+          q.type,
+          q.text,
+          opts[0] ?? "",
+          opts[1] ?? "",
+          opts[2] ?? "",
+          opts[3] ?? "",
+          q.correctAnswer,
+          q.explanation ?? "",
+          q.subject ?? "",
+          q.topic,
+          q.order,
+          q.difficulty,
+          q.positiveMarks,
+          q.negativeMarks,
+        ]);
+      }
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    res.setHeader("Content-Disposition", `attachment; filename=question_bank_${new Date().toISOString().split("T")[0]}.xlsx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buf);
+  } catch (e) {
+    log.err("GET /admin/questions/export/bank", e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
+// GET /admin/questions/export/paper/:setId
+// Export a single paper's questions as an Excel file matching the import template.
+adminRouter.get("/questions/export/paper/:setId", requireAdmin, async (req, res) => {
+  const setId = Number(req.params.setId);
+  log.api("GET", `/admin/questions/export/paper/${setId}`);
+  try {
+    if (Number.isNaN(setId)) return res.status(400).json({ error: "Invalid setId" });
+
+    const set = await prisma.questionSet.findUnique({
+      where: { id: setId },
+      include: {
+        questions: {
+          orderBy: { order: "asc" },
+          select: {
+            id: true, type: true, text: true, options: true, correctAnswer: true,
+            explanation: true, subject: true, topic: true, order: true,
+            difficulty: true, positiveMarks: true, negativeMarks: true,
+          },
+        },
+      },
+    });
+    if (!set) return res.status(404).json({ error: "Paper not found" });
+
+    const headers = [
+      "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
+      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+    ];
+
+    const rows: any[][] = [headers];
+    for (const q of set.questions) {
+      const opts = q.options ? (JSON.parse(q.options) as string[]) : [];
+      rows.push([
+        set.id,
+        q.type,
+        q.text,
+        opts[0] ?? "",
+        opts[1] ?? "",
+        opts[2] ?? "",
+        opts[3] ?? "",
+        q.correctAnswer,
+        q.explanation ?? "",
+        q.subject ?? "",
+        q.topic,
+        q.order,
+        q.difficulty,
+        q.positiveMarks,
+        q.negativeMarks,
+      ]);
+    }
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Questions");
+    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
+
+    const safeName = set.name.replace(/[^a-zA-Z0-9]/g, "_");
+    res.setHeader("Content-Disposition", `attachment; filename=${safeName}_${new Date().toISOString().split("T")[0]}.xlsx`);
+    res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    return res.send(buf);
+  } catch (e) {
+    log.err(`GET /admin/questions/export/paper/${setId}`, e);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
 // POST /admin/seed — create demo users, admin CSV, and a practice paper (idempotent)
-adminRouter.post("/seed", async (_req, res) => {
+adminRouter.post("/seed", requireAdmin, async (_req, res) => {
   try {
     const bcrypt = (await import("bcryptjs")).default || (await import("bcryptjs"));
     const { writeFile } = await import("fs/promises");
@@ -1992,9 +2158,16 @@ adminRouter.post("/seed", async (_req, res) => {
     for (const u of demos) {
       const exists = await prisma.user.findUnique({ where: { email: u.email } });
       if (!exists) {
-        await prisma.user.create({ data: { ...u, password: "password123" } });
+        await prisma.user.create({ data: { ...u, password: "password123", role: "STUDENT" } });
         log.info(`Seeded user: ${u.email}`);
       }
+    }
+
+    // 1b. Admin user (required for DB-based admin auth)
+    const adminExists = await prisma.user.findUnique({ where: { email: "admin@testify.app" } });
+    if (!adminExists) {
+      await prisma.user.create({ data: { email: "admin@testify.app", name: "Admin", password: "password123", role: "ADMIN" } });
+      log.info("Seeded admin: admin@testify.app");
     }
 
     // 2. Admin CSV
@@ -2013,9 +2186,9 @@ adminRouter.post("/seed", async (_req, res) => {
       });
       await prisma.question.createMany({
         data: [
-          { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1 },
-          { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1 },
-          { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1 },
+          { setId: set.id, type: "mcq", text: "Speed of light (m/s)?", options: JSON.stringify(["3×10⁶","3×10⁷","3×10⁸","3×10⁹"]), correctAnswer: "C", topic: "Optics", order: 1, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+          { setId: set.id, type: "mcq", text: "Newton's first law:", options: JSON.stringify(["Inertia","Acceleration","Action-reaction","Gravitation"]), correctAnswer: "A", topic: "Mechanics", order: 2, positiveMarks: 4, negativeMarks: 1, explanation: "" },
+          { setId: set.id, type: "mcq", text: "Closest planet to Sun?", options: JSON.stringify(["Venus","Earth","Mercury","Mars"]), correctAnswer: "C", topic: "Astronomy", order: 3, positiveMarks: 4, negativeMarks: 1, explanation: "" },
         ],
       });
     }

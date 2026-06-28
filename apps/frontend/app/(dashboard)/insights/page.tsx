@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/utils";
 import { fetchJSON } from "@/lib/api";
@@ -19,6 +21,8 @@ import {
   AlertTriangle,
   Sparkles,
   Activity,
+  RotateCcw,
+  ArrowRight,
 } from "lucide-react";
 
 interface ScorePoint {
@@ -77,98 +81,106 @@ function fmtDuration(sec: number) {
 function LineChart({ data, height = 220 }: { data: ScorePoint[]; height?: number }) {
   if (data.length === 0) return <div className="text-center text-sm text-muted-foreground py-12">No data yet</div>;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const color = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#2563eb";
-  const muted = getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#6b7280";
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
 
-    const w = rect.width;
-    const h = rect.height;
-    const pad = { top: 24, right: 16, bottom: 28, left: 36 };
-    const innerW = w - pad.left - pad.right;
-    const innerH = h - pad.top - pad.bottom;
+    const draw = () => {
+      const color = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#2563eb";
+      const muted = getComputedStyle(document.documentElement).getPropertyValue("--muted-foreground").trim() || "#6b7280";
+      const dpr = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * dpr;
+      canvas.height = rect.height * dpr;
+      ctx.scale(dpr, dpr);
 
-    // Clear
-    ctx.clearRect(0, 0, w, h);
+      const w = rect.width;
+      const h = rect.height;
+      const pad = { top: 24, right: 16, bottom: 28, left: 36 };
+      const innerW = w - pad.left - pad.right;
+      const innerH = h - pad.top - pad.bottom;
 
-    // Grid lines
-    ctx.strokeStyle = muted;
-    ctx.lineWidth = 0.5;
-    ctx.globalAlpha = 0.15;
-    [0, 25, 50, 75, 100].forEach((v) => {
-      const y = pad.top + (1 - v / 100) * innerH;
+      // Clear
+      ctx.clearRect(0, 0, w, h);
+
+      // Grid lines
+      ctx.strokeStyle = muted;
+      ctx.lineWidth = 0.5;
+      ctx.globalAlpha = 0.15;
+      [0, 25, 50, 75, 100].forEach((v) => {
+        const y = pad.top + (1 - v / 100) * innerH;
+        ctx.beginPath();
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(pad.left + innerW, y);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = 1;
+
+      // Points
+      const points = data.map((d, i) => ({
+        x: pad.left + (i / Math.max(1, data.length - 1)) * innerW,
+        y: pad.top + (1 - d.percent / 100) * innerH,
+        percent: d.percent,
+      }));
+
+      // Area fill
+      const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + innerH);
+      grad.addColorStop(0, color);
+      grad.addColorStop(1, "rgba(0,0,0,0)");
+      ctx.fillStyle = grad;
+      ctx.globalAlpha = 0.12;
       ctx.beginPath();
-      ctx.moveTo(pad.left, y);
-      ctx.lineTo(pad.left + innerW, y);
-      ctx.stroke();
-    });
-    ctx.globalAlpha = 1;
-
-    // Points
-    const points = data.map((d, i) => ({
-      x: pad.left + (i / Math.max(1, data.length - 1)) * innerW,
-      y: pad.top + (1 - d.percent / 100) * innerH,
-      percent: d.percent,
-    }));
-
-    // Area fill
-    const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + innerH);
-    grad.addColorStop(0, color);
-    grad.addColorStop(1, "rgba(0,0,0,0)");
-    ctx.fillStyle = grad;
-    ctx.globalAlpha = 0.12;
-    ctx.beginPath();
-    ctx.moveTo(points[0].x, pad.top + innerH);
-    points.forEach((p) => ctx.lineTo(p.x, p.y));
-    ctx.lineTo(points[points.length - 1].x, pad.top + innerH);
-    ctx.closePath();
-    ctx.fill();
-    ctx.globalAlpha = 1;
-
-    // Line
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.lineJoin = "round";
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    points.forEach((p, i) => {
-      if (i === 0) ctx.moveTo(p.x, p.y);
-      else ctx.lineTo(p.x, p.y);
-    });
-    ctx.stroke();
-
-    // Points
-    points.forEach((p) => {
-      ctx.fillStyle = "#fff";
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.moveTo(points[0].x, pad.top + innerH);
+      points.forEach((p) => ctx.lineTo(p.x, p.y));
+      ctx.lineTo(points[points.length - 1].x, pad.top + innerH);
+      ctx.closePath();
       ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Line
       ctx.strokeStyle = color;
       ctx.lineWidth = 2;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
       ctx.beginPath();
-      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
       ctx.stroke();
-    });
 
-    // Y axis labels
-    ctx.fillStyle = muted;
-    ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    [0, 50, 100].forEach((v) => {
-      const y = pad.top + (1 - v / 100) * innerH;
-      ctx.fillText(`${v}%`, pad.left - 8, y);
-    });
-  }, [data, color, muted]);
+      // Points
+      points.forEach((p) => {
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+        ctx.stroke();
+      });
+
+      // Y axis labels
+      ctx.fillStyle = muted;
+      ctx.font = "11px ui-monospace, SFMono-Regular, Menlo, monospace";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      [0, 50, 100].forEach((v) => {
+        const y = pad.top + (1 - v / 100) * innerH;
+        ctx.fillText(`${v}%`, pad.left - 8, y);
+      });
+    };
+
+    draw();
+    const ro = new ResizeObserver(draw);
+    ro.observe(canvas);
+    return () => ro.disconnect();
+  }, [data]);
 
   return (
     <div className="w-full">
@@ -266,17 +278,26 @@ function RingStat({ value, label, icon: Icon, color = "primary" }: { value: stri
 /* ────────── Page ────────── */
 
 export default function InsightsPage() {
+  const router = useRouter();
   const [data, setData] = useState<InsightsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     setLoading(true);
-    fetchJSON<InsightsPayload>("/api/student/insights")
-      .then((d) => { setData(d); cli.success(`Insights loaded: ${d.summary.totalSessions} sessions`) })
-      .catch((e) => setError((e as Error).message))
-      .finally(() => setLoading(false));
+    setError(null);
+    try {
+      const d = await fetchJSON<InsightsPayload>("/api/student/insights");
+      setData(d);
+      cli.success(`Insights loaded: ${d.summary.totalSessions} sessions`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   // Compute trend (last 5 vs prior 5)
   const trend = useMemo(() => {
@@ -291,14 +312,28 @@ export default function InsightsPage() {
     return { delta, direction: delta > 2 ? "up" as const : delta < -2 ? "down" as const : "flat" as const };
   }, [data]);
 
+  const bestPercent = useMemo(() => {
+    if (!data || data.scoreTrend.length === 0) return 0;
+    return Math.max(...data.scoreTrend.map((s) => s.percent));
+  }, [data]);
+
   if (loading) {
     return (
-      <div className="space-y-6">
-        <Skeleton className="h-24 w-full rounded-2xl" />
-        <div className="grid grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)}
+      <div className="space-y-8">
+        <Skeleton className="h-32 w-full rounded-2xl" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
         <Skeleton className="h-80 w-full rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-96 w-full rounded-xl" />
+          <Skeleton className="h-96 w-full rounded-xl" />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <Skeleton className="h-80 w-full rounded-xl" />
+          <Skeleton className="h-80 w-full rounded-xl" />
+        </div>
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -308,7 +343,10 @@ export default function InsightsPage() {
       <Card>
         <CardContent className="text-center py-12">
           <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-destructive" />
-          <p className="text-sm text-destructive">Failed to load insights: {error}</p>
+          <p className="text-sm text-destructive mb-5">Failed to load insights: {error}</p>
+          <Button onClick={load} variant="outline">
+            <RotateCcw className="h-4 w-4 mr-2" /> Retry
+          </Button>
         </CardContent>
       </Card>
     );
@@ -327,18 +365,18 @@ export default function InsightsPage() {
             <div className="flex items-center gap-3 mb-2">
               <h1 className="text-3xl font-bold tracking-tight text-foreground">Your Insights</h1>
               <Badge variant="info">
-                <Activity className="h-3 w-3" /> Live
+                <Activity className="h-3 w-3" /> {data.summary.totalSessions} session{data.summary.totalSessions !== 1 ? "s" : ""}
               </Badge>
             </div>
             <p className="text-sm text-muted-foreground">
               Personalized analytics across {data.summary.totalSessions} test{data.summary.totalSessions !== 1 ? "s" : ""} and {data.summary.totalQuestions} question{data.summary.totalQuestions !== 1 ? "s" : ""}.
             </p>
           </div>
-          {trend.direction !== "flat" && (
+          {trend.direction !== "flat" && data.scoreTrend.length >= 10 && (
             <div className={cn("flex items-center gap-2 px-4 py-2 rounded-xl", trend.direction === "up" ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")}>
               {trend.direction === "up" ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
               <span className="text-sm font-bold">
-                {trend.delta > 0 ? "+" : ""}{trend.delta}% vs prior 5
+                {trend.delta > 0 ? "+" : ""}{trend.delta}% vs previous 5 tests
               </span>
             </div>
           )}
@@ -350,9 +388,12 @@ export default function InsightsPage() {
           <CardContent className="text-center py-20">
             <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
             <h3 className="text-lg font-semibold mb-2 text-foreground">No data yet</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+            <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
               Complete your first test to start seeing personalized insights, topic breakdowns, and score trends.
             </p>
+            <Button onClick={() => router.push("/tests")}>
+              Browse Tests <ArrowRight className="h-4 w-4 ml-2" />
+            </Button>
           </CardContent>
         </Card>
       ) : (
@@ -360,8 +401,8 @@ export default function InsightsPage() {
           {/* Top stats */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <RingStat value={`${data.summary.lifetimeAccuracy}%`} label="Accuracy" icon={Target} color="primary" />
-            <RingStat value={data.summary.totalSessions} label="Tests" icon={BookOpen} color="info" />
-            <RingStat value={data.summary.bestScore} label="Best Score" icon={Award} color="success" />
+            <RingStat value={`${bestPercent}%`} label="Best Score" icon={Award} color="success" />
+            <RingStat value={`${data.summary.avgPercent}%`} label="Avg Score" icon={BarChart3} color="info" />
             <RingStat value={fmtTime(data.timeAnalysis.avgTimePerQuestion)} label="Avg / Question" icon={Clock} color="warning" />
           </div>
 
@@ -480,10 +521,13 @@ export default function InsightsPage() {
           {data.topicAccuracy.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <BookOpen className="h-4 w-4 text-primary" />
-                  All Topics ({data.topicAccuracy.length})
-                </CardTitle>
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                    All Topics ({data.topicAccuracy.length})
+                  </CardTitle>
+                  <span className="text-[10px] font-mono text-muted-foreground">sorted weakest first</span>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="rounded-lg border overflow-x-auto">

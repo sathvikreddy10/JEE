@@ -126,7 +126,8 @@ function ExamPageInner() {
 
   // Read activeIndex from URL on mount
   const urlActiveIndex = searchParams.get("activeIndex");
-  const initialActiveIndex = urlActiveIndex ? Math.max(0, Number(urlActiveIndex)) : 0;
+  const parsedActiveIndex = urlActiveIndex ? Number(urlActiveIndex) : 0;
+  const initialActiveIndex = Number.isNaN(parsedActiveIndex) ? 0 : Math.max(0, parsedActiveIndex);
 
   // Keep endExamRef in sync with the latest endExam on every render
   useEffect(() => {
@@ -276,7 +277,12 @@ function ExamPageInner() {
           return;
         }
 
-        applyExamState(data, Number(sessionIdParam));
+        const sid = Number(sessionIdParam);
+        if (Number.isNaN(sid)) {
+          setError("Invalid session ID");
+          return;
+        }
+        applyExamState(data, sid);
       } catch (e: any) {
         cli.err("init exam", e);
         if (!cancelled) {
@@ -787,7 +793,7 @@ function ExamPageInner() {
         className="h-[56px] flex items-center justify-between px-4 sm:px-6 bg-card border-b border-border"
       >
         <div className="flex items-center gap-6">
-          <span className="font-semibold text-sm text-foreground">Practice Session</span>
+          <span className="font-semibold text-sm text-foreground">{isPractice ? "Practice Session" : "Exam Session"}</span>
           <span className="text-xs font-mono text-muted-foreground">
             {questions[0]?.topic || "Mixed"} • {totalQuestions} Questions
           </span>
@@ -867,7 +873,7 @@ function ExamPageInner() {
                         aria-checked={isSelected}
                         tabIndex={0}
                         onClick={() => handleOptionSelect(letter)}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleOptionSelect(letter); } }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); handleOptionSelect(letter); } }}
                         className={cn(
                           "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
                           isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
@@ -918,7 +924,7 @@ function ExamPageInner() {
                         aria-checked={isSelected}
                         tabIndex={0}
                         onClick={toggle}
-                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); toggle(); } }}
                         className={cn(
                           "flex items-center gap-4 p-4 rounded border cursor-pointer transition-all text-left w-full",
                           isSelected ? "bg-primary/10 border-primary" : "bg-transparent border-border hover:bg-muted/50"
