@@ -429,7 +429,9 @@ export default function InsightsPage() {
 
   const hasData = data.summary.totalSessions > 0;
 
-  return (
+  const mainContent = (() => {
+    try {
+      return (
     <div className="space-y-8 max-w-[1400px] mx-auto">
       {/* Hero */}
       <div className="rounded-2xl border-2 border-border bg-card p-8 shadow-sm">
@@ -848,5 +850,19 @@ export default function InsightsPage() {
         </>
       )}
     </div>
-  );
+      );
+    } catch (e) {
+      return (
+        <Card className="border-destructive">
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+            <p className="text-sm text-destructive font-mono mb-2">Render error on Insights</p>
+            <p className="text-xs text-muted-foreground font-mono">{(e as Error).message}</p>
+          </CardContent>
+        </Card>
+      );
+    }
+  })();
+
+  return mainContent;
 }
