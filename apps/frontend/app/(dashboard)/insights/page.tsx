@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { useEffect, useState, useMemo, useRef, useCallback, Component, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -102,6 +102,30 @@ function fmtDuration(sec: number) {
   const h = Math.floor(sec / 3600);
   const m = Math.floor((sec % 3600) / 60);
   return `${h}h ${m}m`;
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <Card className="border-destructive">
+          <CardContent className="p-8 text-center">
+            <AlertTriangle className="h-10 w-10 mx-auto mb-3 text-destructive" />
+            <p className="text-sm text-destructive font-mono mb-2">Render error on Insights</p>
+            <p className="text-xs text-muted-foreground font-mono">{this.state.error?.message}</p>
+          </CardContent>
+        </Card>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 /* ────────── SVG Chart Components ────────── */
@@ -864,5 +888,5 @@ export default function InsightsPage() {
     }
   })();
 
-  return mainContent;
+  return <ErrorBoundary>{mainContent}</ErrorBoundary>;
 }
