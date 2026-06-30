@@ -411,7 +411,7 @@ studentRouter.get("/insights", async (req, res) => {
         topicAccuracy: [],
         chapterAccuracy: [],
         difficultyAccuracy: [],
-        timeAnalysis: { avgTimePerQuestion: 0, totalTimeSec: 0, fastestSec: 0, slowestSec: 0 },
+        timeAnalysis: { avgTimePerQuestion: 0, totalTimeSec: 0, totalQuestions: 0, fastestSec: 0, slowestSec: 0 },
         strengths: [],
         weaknesses: [],
         summary: {

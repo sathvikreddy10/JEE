@@ -104,6 +104,46 @@ function fmtDuration(sec: number) {
   return `${h}h ${m}m`;
 }
 
+function normalizeInsights(d: InsightsPayload): InsightsPayload {
+  return {
+    scoreTrend: Array.isArray(d?.scoreTrend) ? d.scoreTrend : [],
+    subjectAccuracy: Array.isArray(d?.subjectAccuracy) ? d.subjectAccuracy : [],
+    topicAccuracy: Array.isArray(d?.topicAccuracy) ? d.topicAccuracy : [],
+    chapterAccuracy: Array.isArray(d?.chapterAccuracy) ? d.chapterAccuracy : [],
+    difficultyAccuracy: Array.isArray(d?.difficultyAccuracy) ? d.difficultyAccuracy : [],
+    timeAnalysis: {
+      avgTimePerQuestion: d?.timeAnalysis?.avgTimePerQuestion ?? 0,
+      totalTimeSec: d?.timeAnalysis?.totalTimeSec ?? 0,
+      totalQuestions: d?.timeAnalysis?.totalQuestions ?? 0,
+      fastestSec: d?.timeAnalysis?.fastestSec ?? 0,
+      slowestSec: d?.timeAnalysis?.slowestSec ?? 0,
+    },
+    strengths: Array.isArray(d?.strengths) ? d.strengths : [],
+    weaknesses: Array.isArray(d?.weaknesses) ? d.weaknesses : [],
+    summary: {
+      totalSessions: d?.summary?.totalSessions ?? 0,
+      totalQuestions: d?.summary?.totalQuestions ?? 0,
+      totalCorrect: d?.summary?.totalCorrect ?? 0,
+      lifetimeAccuracy: d?.summary?.lifetimeAccuracy ?? 0,
+      avgScore: d?.summary?.avgScore ?? 0,
+      bestScore: d?.summary?.bestScore ?? 0,
+      avgPercent: d?.summary?.avgPercent ?? 0,
+    },
+  };
+}
+
+function normalizeStats(s: StatsPayload | null): StatsPayload | null {
+  if (!s) return null;
+  return {
+    streak: s.streak ?? 0,
+    bestStreak: s.bestStreak ?? 0,
+    totalSessions: s.totalSessions ?? 0,
+    lifetimeAccuracy: s.lifetimeAccuracy ?? 0,
+    heatmap: Array.isArray(s.heatmap) ? s.heatmap : [],
+    weekly: Array.isArray(s.weekly) ? s.weekly : [],
+  };
+}
+
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
   constructor(props: { children: ReactNode }) {
     super(props);
@@ -344,8 +384,8 @@ export default function InsightsPage() {
         fetchJSON<InsightsPayload>("/api/student/insights"),
         fetchJSON<StatsPayload>("/api/student/stats").catch(() => null),
       ]);
-      setData(d);
-      setStats(s);
+      setData(normalizeInsights(d));
+      setStats(normalizeStats(s));
       cli.success(`Insights loaded: ${d.summary.totalSessions} sessions`);
     } catch (e) {
       setError((e as Error).message);
