@@ -108,6 +108,8 @@ export interface AnalyticsQuestion {
   type: string;
   text: string;
   options: string | null;
+  subject?: string | null;
+  chapter?: string | null;
   topic: string;
   imageUrl: string | null;
   images: string | null;
@@ -152,6 +154,19 @@ export interface SessionAnalytics {
     accuracy: number;
     avgTime: number;
   }[];
+  chapterAnalysis: {
+    name: string;
+    total: number;
+    correct: number;
+    incorrect: number;
+    skipped: number;
+    partial: number;
+    timeSpent: number;
+    marks: number;
+    maxMarks: number;
+    accuracy: number;
+    avgTime: number;
+  }[];
   weakAreas: string[];
   strongAreas: string[];
   answeredCorrectly: number;
@@ -162,6 +177,8 @@ export interface SessionAnalytics {
     type: string;
     text: string;
     options: string[] | null;
+    subject: string | null;
+    chapter: string | null;
     topic: string;
     imageUrl: string | null;
     images: unknown;
@@ -261,6 +278,8 @@ export function buildSessionAnalytics(args: {
       type: q.type,
       text: q.text,
       options: parseOptions(q.options),
+      subject: q.subject ?? null,
+      chapter: q.chapter ?? null,
       topic: q.topic,
       imageUrl: q.imageUrl,
       images: parseImages(q.images),
@@ -285,6 +304,8 @@ export function buildSessionAnalytics(args: {
       type: "deleted",
       text: dq.text ?? "[Question deleted by admin]",
       options: null,
+      subject: null,
+      chapter: null,
       topic: dq.topic ?? "(deleted)",
       imageUrl: null,
       images: null,
@@ -301,43 +322,45 @@ export function buildSessionAnalytics(args: {
     });
   }
 
-  const topicStats: Record<
-    string,
-    { total: number; correct: number; incorrect: number; skipped: number; partial: number; time: number; marks: number; maxMarks: number }
-  > = {};
-  for (const q of questionResults) {
-    if (!topicStats[q.topic]) {
-      topicStats[q.topic] = { total: 0, correct: 0, incorrect: 0, skipped: 0, partial: 0, time: 0, marks: 0, maxMarks: 0 };
+  function rollupBy(keyFn: (q: typeof questionResults[number]) => string) {
+    const stats: Record<string, { total: number; correct: number; incorrect: number; skipped: number; partial: number; time: number; marks: number; maxMarks: number }> = {};
+    for (const q of questionResults) {
+      const key = keyFn(q);
+      if (!stats[key]) {
+        stats[key] = { total: 0, correct: 0, incorrect: 0, skipped: 0, partial: 0, time: 0, marks: 0, maxMarks: 0 };
+      }
+      const t = stats[key];
+      t.total++;
+      if (q.isCorrect) t.correct++;
+      else if (q.isPartial) t.partial++;
+      else if (q.isSkipped) t.skipped++;
+      else t.incorrect++;
+      t.time += q.timeSpent;
+      t.marks += q.marks;
+      t.maxMarks += q.positiveMarks ?? 4;
     }
-    const t = topicStats[q.topic];
-    t.total++;
-    if (q.isCorrect) t.correct++;
-    else if (q.isPartial) t.partial++;
-    else if (q.isSkipped) t.skipped++;
-    else t.incorrect++;
-    t.time += q.timeSpent;
-    t.marks += q.marks;
-    t.maxMarks += q.positiveMarks ?? 4;
+    return Object.entries(stats)
+      .map(([name, s]) => ({
+        name,
+        total: s.total,
+        correct: s.correct,
+        incorrect: s.incorrect,
+        skipped: s.skipped,
+        partial: s.partial,
+        timeSpent: s.time,
+        marks: s.marks,
+        maxMarks: s.maxMarks,
+        accuracy: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+        avgTime: s.total > 0 ? Math.round(s.time / s.total) : 0,
+      }))
+      .sort((a, b) => a.accuracy - b.accuracy);
   }
 
-  const topicAnalysis = Object.entries(topicStats)
-    .map(([name, stats]) => ({
-      name,
-      total: stats.total,
-      correct: stats.correct,
-      incorrect: stats.incorrect,
-      skipped: stats.skipped,
-      partial: stats.partial,
-      timeSpent: stats.time,
-      marks: stats.marks,
-      maxMarks: stats.maxMarks,
-      accuracy: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
-      avgTime: stats.total > 0 ? Math.round(stats.time / stats.total) : 0,
-    }))
-    .sort((a, b) => a.accuracy - b.accuracy);
+  const topicAnalysis = rollupBy((q) => q.topic);
+  const chapterAnalysis = rollupBy((q) => q.chapter || q.topic);
 
-  const weakAreas = topicAnalysis.filter((t) => t.accuracy < 50 && t.total > 0).map((t) => t.name);
-  const strongAreas = topicAnalysis.filter((t) => t.accuracy >= 80 && t.total > 0).map((t) => t.name);
+  const weakAreas = chapterAnalysis.filter((t) => t.accuracy < 50 && t.total > 0).map((t) => t.name);
+  const strongAreas = chapterAnalysis.filter((t) => t.accuracy >= 80 && t.total > 0).map((t) => t.name);
 
   const totalQuestions = questions.length + deletedQuestions.length;
   const finalScore = totalScore + deletedBonus;
@@ -373,6 +396,7 @@ export function buildSessionAnalytics(args: {
     avgTimeOnAnswered,
     performanceBand,
     topicAnalysis,
+    chapterAnalysis,
     weakAreas,
     strongAreas,
     answeredCorrectly: correctCount,

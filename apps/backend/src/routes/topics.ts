@@ -240,6 +240,8 @@ topicsRouter.post("/merge", requireAdmin, async (req, res) => {
             type: q.type,
             text: q.text,
             options: q.options,
+            subject: q.subject,
+            chapter: q.chapter,
             topic: q.topicRel?.name ?? q.topic,
             imageUrl: q.imageUrl,
             images: q.images,

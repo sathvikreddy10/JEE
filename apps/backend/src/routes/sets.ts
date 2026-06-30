@@ -290,6 +290,8 @@ setsRouter.get("/:id", async (req, res) => {
             type: true,
             text: true,
             options: true,
+            subject: true,
+            chapter: true,
             topic: true,
             order: true,
             imageUrl: true,

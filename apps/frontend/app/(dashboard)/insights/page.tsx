@@ -43,6 +43,7 @@ interface ScorePoint {
 }
 interface SubjectAcc { subject: string; correct: number; total: number; accuracy: number; sessions: number }
 interface TopicAcc { topic: string; correct: number; total: number; accuracy: number }
+interface ChapterAcc { chapter: string; correct: number; total: number; accuracy: number }
 interface DiffAcc { difficulty: number; correct: number; total: number; accuracy: number }
 interface TimeAnalysis { avgTimePerQuestion: number; totalTimeSec: number; totalQuestions: number; fastestSec: number; slowestSec: number }
 interface InsightsSummary {
@@ -58,10 +59,11 @@ interface InsightsPayload {
   scoreTrend: ScorePoint[];
   subjectAccuracy: SubjectAcc[];
   topicAccuracy: TopicAcc[];
+  chapterAccuracy: ChapterAcc[];
   difficultyAccuracy: DiffAcc[];
   timeAnalysis: TimeAnalysis;
-  strengths: TopicAcc[];
-  weaknesses: TopicAcc[];
+  strengths: ChapterAcc[];
+  weaknesses: ChapterAcc[];
   summary: InsightsSummary;
 }
 
@@ -370,11 +372,11 @@ export default function InsightsPage() {
     if (!data) return [];
     const recs: { icon: typeof Lightbulb; text: string; tone: "warning" | "success" | "info" }[] = [];
     if (data.weaknesses.length > 0) {
-      const names = data.weaknesses.slice(0, 3).map((w) => w.topic).join(", ");
-      recs.push({ icon: AlertTriangle, text: `Focus on weak topics: ${names}.`, tone: "warning" });
+      const names = data.weaknesses.slice(0, 3).map((w) => w.chapter).join(", ");
+      recs.push({ icon: AlertTriangle, text: `Focus on weak chapters: ${names}.`, tone: "warning" });
     }
     if (data.strengths.length > 0) {
-      recs.push({ icon: Award, text: `Maintain strengths in ${data.strengths[0].topic}.`, tone: "success" });
+      recs.push({ icon: Award, text: `Maintain strengths in ${data.strengths[0].chapter}.`, tone: "success" });
     }
     if (consistency && consistency.std > 15) {
       recs.push({ icon: Activity, text: `Scores vary by ${consistency.std}%. Build consistency with timed practice.`, tone: "info" });
@@ -460,7 +462,7 @@ export default function InsightsPage() {
             <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground/30" />
             <h3 className="text-lg font-semibold mb-2 text-foreground">No data yet</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto mb-6">
-              Complete your first test to start seeing personalized insights, topic breakdowns, and score trends.
+              Complete your first test to start seeing personalized insights, chapter breakdowns, and score trends.
             </p>
             <Button onClick={() => router.push("/tests")}>
               Browse Tests <ArrowRight className="h-4 w-4 ml-2" />
@@ -715,13 +717,13 @@ export default function InsightsPage() {
               </CardHeader>
               <CardContent>
                 {data.strengths.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-6">No strong topics yet — keep practicing!</p>
+                  <p className="text-sm text-muted-foreground text-center py-6">No strong chapters yet — keep practicing!</p>
                 ) : (
                   <div className="space-y-2">
                     {data.strengths.map((s) => (
-                      <div key={s.topic} className="flex items-center justify-between p-3 rounded-lg border-2 border-success/30 bg-success/5">
+                      <div key={s.chapter} className="flex items-center justify-between p-3 rounded-lg border-2 border-success/30 bg-success/5">
                         <div>
-                          <p className="font-semibold text-sm text-foreground">{s.topic}</p>
+                          <p className="font-semibold text-sm text-foreground">{s.chapter}</p>
                           <p className="text-[10px] font-mono text-muted-foreground">{s.correct}/{s.total} correct</p>
                         </div>
                         <Badge variant="success">{s.accuracy}%</Badge>
@@ -745,9 +747,9 @@ export default function InsightsPage() {
                 ) : (
                   <div className="space-y-2">
                     {data.weaknesses.map((s) => (
-                      <div key={s.topic} className="flex items-center justify-between p-3 rounded-lg border-2 border-warning/30 bg-warning/5">
+                      <div key={s.chapter} className="flex items-center justify-between p-3 rounded-lg border-2 border-warning/30 bg-warning/5">
                         <div>
-                          <p className="font-semibold text-sm text-foreground">{s.topic}</p>
+                          <p className="font-semibold text-sm text-foreground">{s.chapter}</p>
                           <p className="text-[10px] font-mono text-muted-foreground">{s.correct}/{s.total} correct</p>
                         </div>
                         <Badge variant="warning">{s.accuracy}%</Badge>
@@ -759,14 +761,14 @@ export default function InsightsPage() {
             </Card>
           </div>
 
-          {/* All topics table */}
-          {data.topicAccuracy.length > 0 && (
+          {/* All chapters table */}
+          {data.chapterAccuracy.length > 0 && (
             <Card>
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <CardTitle className="text-base flex items-center gap-2">
                     <BookOpen className="h-4 w-4 text-primary" />
-                    All Topics ({data.topicAccuracy.length})
+                    All Chapters ({data.chapterAccuracy.length})
                   </CardTitle>
                   <span className="text-[10px] font-mono text-muted-foreground">sorted weakest first</span>
                 </div>
@@ -776,18 +778,18 @@ export default function InsightsPage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b-2 border-border bg-muted/30">
-                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-foreground uppercase tracking-wider">Topic</th>
+                        <th className="text-left px-4 py-2.5 text-[10px] font-bold text-foreground uppercase tracking-wider">Chapter</th>
                         <th className="text-center px-4 py-2.5 text-[10px] font-bold text-foreground uppercase tracking-wider">Attempts</th>
                         <th className="text-center px-4 py-2.5 text-[10px] font-bold text-foreground uppercase tracking-wider">Correct</th>
                         <th className="text-right px-4 py-2.5 text-[10px] font-bold text-foreground uppercase tracking-wider">Accuracy</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {data.topicAccuracy
+                      {data.chapterAccuracy
                         .sort((a, b) => a.accuracy - b.accuracy)
                         .map((t) => (
-                          <tr key={t.topic} className="border-b border-border hover:bg-muted/30 transition-colors">
-                            <td className="px-4 py-2.5 text-xs font-medium text-foreground">{t.topic}</td>
+                          <tr key={t.chapter} className="border-b border-border hover:bg-muted/30 transition-colors">
+                            <td className="px-4 py-2.5 text-xs font-medium text-foreground">{t.chapter}</td>
                             <td className="px-4 py-2.5 text-center text-xs font-mono text-muted-foreground">{t.total}</td>
                             <td className="px-4 py-2.5 text-center text-xs font-mono text-muted-foreground">{t.correct}</td>
                             <td className="px-4 py-2.5 text-right">

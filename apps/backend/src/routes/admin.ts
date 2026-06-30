@@ -141,6 +141,8 @@ async function recomputeSessionsForSet(setId: number): Promise<number> {
         type: q.type,
         text: q.text,
         options: q.options,
+        subject: q.subject,
+        chapter: q.chapter,
         topic: q.topic,
         imageUrl: q.imageUrl,
         images: q.images,
@@ -454,6 +456,7 @@ adminRouter.post("/sets", requireAdmin, async (req, res) => {
             correctAnswer: String(q.correctAnswer),
             explanation: q.explanation ?? "",
             subject: q.subject?.trim() || null,
+            chapter: q.chapter?.trim() || null,
             topic: cleanTopicName,
             topicId: topicRow?.id,
             imageUrl: q.imageUrl ?? null,
@@ -823,6 +826,7 @@ adminRouter.get("/questions/all", requireAdmin, async (_req, res) => {
             options: true,
             correctAnswer: true,
             subject: true,
+            chapter: true,
             topic: true,
             imageUrl: true,
             images: true,
@@ -846,6 +850,7 @@ adminRouter.get("/questions/all", requireAdmin, async (_req, res) => {
           options: q.options ? JSON.parse(q.options) : null,
           correctAnswer: q.correctAnswer,
           subject: q.subject,
+          chapter: q.chapter,
           topic: q.topic,
           imageUrl: q.imageUrl,
           images: q.images ? JSON.parse(q.images) : null,
@@ -944,6 +949,8 @@ adminRouter.post("/questions", requireAdmin, async (req, res) => {
         options: body.options ? JSON.stringify(body.options) : null,
         correctAnswer: String(body.correctAnswer),
         explanation: body.explanation ?? "",
+        subject: body.subject?.trim() || null,
+        chapter: body.chapter?.trim() || null,
         topic: cleanTopicName,
         topicId: topicRow.id,
         imageUrl: body.imageUrl ?? null,
@@ -985,6 +992,7 @@ adminRouter.put("/questions/:id", requireAdmin, async (req, res) => {
     if (body.correctAnswer !== undefined) data.correctAnswer = String(body.correctAnswer);
     if (body.explanation !== undefined) data.explanation = body.explanation;
     if (body.subject !== undefined) data.subject = String(body.subject).trim() || null;
+    if (body.chapter !== undefined) data.chapter = String(body.chapter).trim() || null;
     if (body.difficulty !== undefined) {
       const diff = Math.max(1, Math.min(10, Number(body.difficulty) || 5));
       data.difficulty = diff;
@@ -1729,7 +1737,7 @@ adminRouter.get("/questions/template", requireAdmin, async (_req, res) => {
   try {
     const headers = [
       "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
-      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks"
+      "correctAnswer", "explanation", "subject", "chapter", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
     ];
     const example = [
       1, "mcq", "What is the value of $g$?", "9.8 m/s²", "10 m/s²", "9.81 m/s²", "8.9 m/s²",
@@ -1997,6 +2005,7 @@ adminRouter.post("/questions/parse-excel", requireAdmin, async (req, res) => {
         correctAnswer,
         explanation: (r.explanation || "").trim(),
         subject: (r.subject || "").trim() || null,
+        chapter: (r.chapter || "").trim() || null,
         topic: (r.topic || "General").trim(),
         difficulty: diff,
         positiveMarks: Number(r.positiveMarks) || 4,
@@ -2024,7 +2033,7 @@ adminRouter.get("/questions/export/bank", requireAdmin, async (_req, res) => {
           orderBy: { order: "asc" },
           select: {
             id: true, type: true, text: true, options: true, correctAnswer: true,
-            explanation: true, subject: true, topic: true, order: true,
+            explanation: true, subject: true, chapter: true, topic: true, order: true,
             difficulty: true, positiveMarks: true, negativeMarks: true,
           },
         },
@@ -2033,7 +2042,7 @@ adminRouter.get("/questions/export/bank", requireAdmin, async (_req, res) => {
 
     const headers = [
       "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
-      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+      "correctAnswer", "explanation", "subject", "chapter", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
     ];
 
     const rows: any[][] = [headers];
@@ -2051,6 +2060,7 @@ adminRouter.get("/questions/export/bank", requireAdmin, async (_req, res) => {
           q.correctAnswer,
           q.explanation ?? "",
           q.subject ?? "",
+          q.chapter ?? "",
           q.topic,
           q.order,
           q.difficulty,
@@ -2089,7 +2099,7 @@ adminRouter.get("/questions/export/paper/:setId", requireAdmin, async (req, res)
           orderBy: { order: "asc" },
           select: {
             id: true, type: true, text: true, options: true, correctAnswer: true,
-            explanation: true, subject: true, topic: true, order: true,
+            explanation: true, subject: true, chapter: true, topic: true, order: true,
             difficulty: true, positiveMarks: true, negativeMarks: true,
           },
         },
@@ -2099,7 +2109,7 @@ adminRouter.get("/questions/export/paper/:setId", requireAdmin, async (req, res)
 
     const headers = [
       "setId", "type", "text", "optionA", "optionB", "optionC", "optionD",
-      "correctAnswer", "explanation", "subject", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
+      "correctAnswer", "explanation", "subject", "chapter", "topic", "order", "difficulty", "positiveMarks", "negativeMarks",
     ];
 
     const rows: any[][] = [headers];
@@ -2116,6 +2126,7 @@ adminRouter.get("/questions/export/paper/:setId", requireAdmin, async (req, res)
         q.correctAnswer,
         q.explanation ?? "",
         q.subject ?? "",
+        q.chapter ?? "",
         q.topic,
         q.order,
         q.difficulty,

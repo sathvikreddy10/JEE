@@ -28,6 +28,8 @@ interface QuestionResult {
   type: string;
   text: string;
   options: string[] | null;
+  subject: string | null;
+  chapter: string | null;
   topic: string;
   imageUrl: string | null;
   images: unknown;
@@ -62,7 +64,7 @@ interface ExamAnalytics {
   avgTimePerQuestion: number;
   avgTimeOnAnswered: number;
   performanceBand: "excellent" | "good" | "average" | "needs-work";
-  topicAnalysis: TopicAnalysis[];
+  chapterAnalysis: TopicAnalysis[];
   weakAreas: string[];
   strongAreas: string[];
   answeredCorrectly: number;
@@ -104,11 +106,11 @@ export default function SessionResultPage() {
     return () => { cancelled = true; };
   }, [sessionId]);
 
-  const topicGroups = useMemo(() => {
+  const chapterGroups = useMemo(() => {
     if (!data) return [];
-    return data.topicAnalysis.map((t) => ({
+    return data.chapterAnalysis.map((t) => ({
       ...t,
-      questions: data.questions.filter((q) => q.topic === t.name),
+      questions: data.questions.filter((q) => (q.chapter || q.topic) === t.name),
     }));
   }, [data]);
 
@@ -522,15 +524,15 @@ export default function SessionResultPage() {
 
       <Leaderboard sessionId={data.sessionId} />
 
-      {topicGroups.length > 0 && (
+      {chapterGroups.length > 0 && (
         <div>
           <div className="flex items-end justify-between mb-8">
             <div>
               <h2 className="text-[28px] font-bold font-brand tracking-tight text-foreground">
-                Topic-wise Response Review
+                Chapter-wise Response Review
               </h2>
               <p className="text-sm mt-2 text-muted-foreground">
-                Click any question to see full solution · Topics sorted by accuracy (weakest first)
+                Click any question to see full solution · Chapters sorted by accuracy (weakest first)
               </p>
             </div>
             <Button variant="outline" onClick={() => router.push(`/review/${data.sessionId}`)}>
@@ -539,41 +541,41 @@ export default function SessionResultPage() {
           </div>
 
           <div className="flex flex-col gap-7">
-            {topicGroups.map((topic) => {
-              const accentClasses = topic.accuracy >= 70 ? "text-success" : topic.accuracy >= 40 ? "text-warning" : "text-destructive";
-              const accentBg = topic.accuracy >= 70 ? "bg-success" : topic.accuracy >= 40 ? "bg-warning" : "bg-destructive";
+            {chapterGroups.map((chapter) => {
+              const accentClasses = chapter.accuracy >= 70 ? "text-success" : chapter.accuracy >= 40 ? "text-warning" : "text-destructive";
+              const accentBg = chapter.accuracy >= 70 ? "bg-success" : chapter.accuracy >= 40 ? "bg-warning" : "bg-destructive";
               return (
-                <Card key={topic.name} className="p-0 overflow-hidden">
-                  <div className={cn("flex items-center p-4 sm:p-5 sm:px-7 bg-input border-b border-border-subtle border-l-4", topic.accuracy >= 70 ? "border-l-success" : topic.accuracy >= 40 ? "border-l-warning" : "border-l-destructive")}>
+                <Card key={chapter.name} className="p-0 overflow-hidden">
+                  <div className={cn("flex items-center p-4 sm:p-5 sm:px-7 bg-input border-b border-border-subtle border-l-4", chapter.accuracy >= 70 ? "border-l-success" : chapter.accuracy >= 40 ? "border-l-warning" : "border-l-destructive")}>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 sm:gap-3 mb-2 flex-wrap">
                         <h3 className="text-[15px] sm:text-[17px] font-bold text-foreground truncate max-w-[160px] sm:max-w-none">
-                          {topic.name}
+                          {chapter.name}
                         </h3>
-                        <Badge variant={topic.accuracy >= 70 ? "success" : topic.accuracy >= 40 ? "warning" : "destructive"}>
-                          {topic.accuracy}%
+                        <Badge variant={chapter.accuracy >= 70 ? "success" : chapter.accuracy >= 40 ? "warning" : "destructive"}>
+                          {chapter.accuracy}%
                         </Badge>
                         <span className="text-[11px] sm:text-xs font-mono text-muted-foreground">
-                          {topic.correct}/{topic.total}
+                          {chapter.correct}/{chapter.total}
                         </span>
                       </div>
                       <div className="flex items-center gap-3 sm:gap-5 text-[11px] sm:text-xs font-mono text-muted-foreground flex-wrap">
-                        <span className="text-success">✓{topic.correct}</span>
-                        <span className="text-destructive">✗{topic.incorrect}</span>
-                        {topic.skipped > 0 && <span>—{topic.skipped}</span>}
-                        <span className="text-primary">⏱{formatTime(topic.timeSpent)}</span>
+                        <span className="text-success">✓{chapter.correct}</span>
+                        <span className="text-destructive">✗{chapter.incorrect}</span>
+                        {chapter.skipped > 0 && <span>—{chapter.skipped}</span>}
+                        <span className="text-primary">⏱{formatTime(chapter.timeSpent)}</span>
                         <span className="sm:ml-auto text-muted-foreground/70">
-                          {topic.questions.length} Q
+                          {chapter.questions.length} Q
                         </span>
                       </div>
                       <div className="mt-3 h-1.5 rounded-full overflow-hidden bg-border-subtle">
-                        <div className={cn("h-full rounded-full transition-all", accentBg)} style={{ width: `${topic.accuracy}%` }} />
+                        <div className={cn("h-full rounded-full transition-all", accentBg)} style={{ width: `${chapter.accuracy}%` }} />
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    {topic.questions.map((q, i) => {
+                    {chapter.questions.map((q, i) => {
                       const isAnswered = q.yourAnswer !== null;
                       const isCorrect = isAnswered && q.isCorrect;
                       const status = q.isSkipped

@@ -57,8 +57,8 @@ interface TopicAnalysis {
   accuracy: number;
 }
 
-interface TopicAcc {
-  topic: string;
+interface ChapterAcc {
+  chapter: string;
   correct: number;
   total: number;
   accuracy: number;
@@ -86,7 +86,7 @@ export default function AnalysisPage() {
   const router = useRouter();
   const [stats, setStats] = useState<StatsPayload | null>(null);
   const [sessions, setSessions] = useState<SessionRow[]>([]);
-  const [topicAccuracy, setTopicAccuracy] = useState<TopicAcc[]>([]);
+  const [chapterAccuracy, setChapterAccuracy] = useState<ChapterAcc[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -94,13 +94,13 @@ export default function AnalysisPage() {
     Promise.all([
       fetchJSON<StatsPayload>("/api/student/stats").catch(() => null),
       fetchJSON<{ sessions: SessionRow[] }>("/api/student/history").catch(() => ({ sessions: [] })),
-      fetchJSON<{ topicAccuracy: TopicAcc[] }>("/api/student/insights").catch(() => ({ topicAccuracy: [] })),
+      fetchJSON<{ chapterAccuracy: ChapterAcc[] }>("/api/student/insights").catch(() => ({ chapterAccuracy: [] })),
     ])
       .then(([st, hist, ins]) => {
         if (cancelled) return;
         if (st) setStats(st);
         setSessions(hist.sessions.filter((s) => s.completed));
-        setTopicAccuracy(ins.topicAccuracy ?? []);
+        setChapterAccuracy(ins.chapterAccuracy ?? []);
         cli.success(`Analytics loaded: ${hist.sessions.length} sessions`);
       })
       .catch((e) => cli.err("fetch analytics", e))
@@ -191,7 +191,7 @@ export default function AnalysisPage() {
           Analysis
         </h1>
         <p className="text-sm" style={{ color: "var(--text-secondary)" }}>
-          Your real performance, broken down by paper, subject, and topic.
+          Your real performance, broken down by paper, subject, and chapter.
         </p>
       </div>
 
@@ -326,20 +326,20 @@ export default function AnalysisPage() {
             </div>
           </div>
 
-          {/* Topic breakdown */}
-          {topicAccuracy.length > 0 && (
+          {/* Chapter breakdown */}
+          {chapterAccuracy.length > 0 && (
             <div>
               <h2
                 className="text-xl font-bold mb-5"
                 style={{ fontFamily: "var(--font-brand)", letterSpacing: "-0.015em", color: "var(--text-primary)" }}
               >
-                Accuracy by topic
+                Accuracy by chapter
               </h2>
               <Card>
                 <div className="flex flex-col gap-3">
-                  {topicAccuracy.map((t) => (
-                    <div key={t.topic} className="flex items-center gap-4">
-                      <span className="w-48 text-sm" style={{ color: "var(--text-primary)" }}>{t.topic}</span>
+                  {chapterAccuracy.map((t) => (
+                    <div key={t.chapter} className="flex items-center gap-4">
+                      <span className="w-48 text-sm" style={{ color: "var(--text-primary)" }}>{t.chapter}</span>
                       <div className="flex-1 h-3 rounded overflow-hidden" style={{ background: "var(--border-subtle)" }}>
                         <div
                           className="h-full"

@@ -60,13 +60,13 @@ interface AdminSet {
 
 interface BankQuestion {
   id: number; type: QuestionType; text: string; options: string[] | null; correctAnswer: string;
-  explanation: string; subject: string | null; topic: string; imageUrl: string | null;
+  explanation: string; subject: string | null; chapter: string | null; topic: string; imageUrl: string | null;
   images: { url: string; caption?: string }[] | null; order: number; difficulty: number;
   positiveMarks: number; negativeMarks: number; setId?: number; setName?: string;
 }
 
 interface DraftQuestion { type: QuestionType; text: string; options: string[]; correctAnswer: string;
-  explanation: string; subject: string; topic: string; difficulty: number; positiveMarks: number; negativeMarks: number;
+  explanation: string; subject: string; chapter: string; topic: string; difficulty: number; positiveMarks: number; negativeMarks: number;
   images: { url: string; caption?: string }[] }
 
 /* ─── Constants ─── */
@@ -83,7 +83,7 @@ const KINDS: { value: SetKind; label: string; hint: string }[] = [
 
 const blankDraft = (): DraftQuestion => ({
   type: "mcq", text: "", options: ["", "", "", ""], correctAnswer: "A", explanation: "", images: [],
-  subject: "Physics", topic: "", difficulty: 5, positiveMarks: 4, negativeMarks: 1,
+  subject: "Physics", chapter: "", topic: "", difficulty: 5, positiveMarks: 4, negativeMarks: 1,
 });
 
 function nowPlus(hours: number): string {
@@ -311,7 +311,7 @@ export default function PapersPage() {
       const isMcq = effectiveType === "mcq" || effectiveType === "mcq-multiple";
       await fetchJSON(`/api/admin/questions/${editingQuestion.id}`, {
         method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: editQuestionDraft.type, text: editQuestionDraft.text, subject: editQuestionDraft.subject, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, options: isMcq ? (editQuestionDraft.options ?? editingQuestion.options) : undefined, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, images: editQuestionDraft.images && editQuestionDraft.images.length > 0 ? editQuestionDraft.images : undefined, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
+        body: JSON.stringify({ type: editQuestionDraft.type, text: editQuestionDraft.text, subject: editQuestionDraft.subject, chapter: editQuestionDraft.chapter, topic: editQuestionDraft.topic, difficulty: editQuestionDraft.difficulty, options: isMcq ? (editQuestionDraft.options ?? editingQuestion.options) : undefined, correctAnswer: editQuestionDraft.correctAnswer, explanation: editQuestionDraft.explanation, images: editQuestionDraft.images && editQuestionDraft.images.length > 0 ? editQuestionDraft.images : undefined, positiveMarks: editQuestionDraft.positiveMarks, negativeMarks: editQuestionDraft.negativeMarks }),
       });
       cli.success(`Updated question #${editingQuestion.id}`);
       setEditingQuestion(null); setEditQuestionDraft({});
@@ -465,6 +465,7 @@ export default function PapersPage() {
         explanation: r.explanation || "",
         images: [],
         subject: r.subject || "Physics",
+        chapter: r.chapter || "",
         topic: r.topic || "General",
         difficulty: Math.max(1, Math.min(10, Number(r.difficulty) || 5)),
         positiveMarks: Number(r.positiveMarks) || 4,
@@ -483,7 +484,7 @@ export default function PapersPage() {
       const payload = {
         name: name.trim(), subject, pattern, kind, exam, tags, timeLimit: Number(timeLimit),
         attemptsAllowed: Number(attemptsAllowed), isReadyForDailyChallenge,
-        questions: drafts.map((d, i) => ({ type: d.type, text: d.text.trim(), options: d.type === "mcq" || d.type === "mcq-multiple" ? d.options.filter(Boolean) : undefined, correctAnswer: d.correctAnswer, explanation: d.explanation, images: d.images && d.images.length > 0 ? d.images : undefined, subject: d.subject.trim(), topic: d.topic.trim() || "General", difficulty: Math.max(1, Math.min(10, Number(d.difficulty) || 5)), positiveMarks: Number(d.positiveMarks), negativeMarks: Number(d.negativeMarks), order: i + 1 })),
+          questions: drafts.map((d, i) => ({ type: d.type, text: d.text.trim(), options: d.type === "mcq" || d.type === "mcq-multiple" ? d.options.filter(Boolean) : undefined, correctAnswer: d.correctAnswer, explanation: d.explanation, images: d.images && d.images.length > 0 ? d.images : undefined, subject: d.subject.trim(), chapter: d.chapter.trim() || null, topic: d.topic.trim() || "General", difficulty: Math.max(1, Math.min(10, Number(d.difficulty) || 5)), positiveMarks: Number(d.positiveMarks), negativeMarks: Number(d.negativeMarks), order: i + 1 })),
         batchAssignments: kind === "INSTITUTE" ? assignments.map(a => ({ batchId: a.batchId, scheduledStart: new Date(a.scheduledStart).toISOString(), scheduledEnd: new Date(a.scheduledEnd).toISOString(), bufferMinutes: a.bufferMinutes })) : [],
       };
       await fetchJSON("/api/admin/sets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
@@ -662,6 +663,7 @@ export default function PapersPage() {
                     <tr className="border-b-2 border-border bg-muted/30">
                       <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">#</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">Sub</th>
+                      <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">Chapter</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">Topic</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">Diff</th>
                       <th className="text-left px-4 py-3 text-[10px] font-bold text-foreground uppercase tracking-wider">Type</th>
@@ -676,6 +678,7 @@ export default function PapersPage() {
                       <tr key={q.id} className="border-b border-border hover:bg-muted/40 transition-colors">
                         <td className="px-4 py-3 text-xs text-muted-foreground font-mono">{i + 1}</td>
                         <td className="px-4 py-3 text-xs font-medium">{q.subject || "—"}</td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground">{q.chapter || "—"}</td>
                         <td className="px-4 py-3 text-xs text-muted-foreground">{q.topic}</td>
                         <td className="px-4 py-3">
                           <span className={cn("text-[10px] font-bold font-mono px-2 py-0.5 rounded", q.difficulty <= 3 ? "bg-success text-success-foreground" : q.difficulty >= 8 ? "bg-destructive text-destructive-foreground" : "bg-warning text-warning-foreground")}>{q.difficulty}</span>
@@ -685,7 +688,7 @@ export default function PapersPage() {
                         <td className="px-4 py-3 text-xs font-mono font-semibold">+{q.positiveMarks}</td>
                         <td className="px-4 py-3 text-[10px] text-muted-foreground truncate max-w-[100px]">{q.setName || "—"}</td>
                         <td className="px-4 py-3">
-                          <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => { setDrafts(prev => [...prev, { type: q.type, text: q.text, options: q.options || ["", "", "", ""], correctAnswer: q.correctAnswer, explanation: q.explanation || "", images: q.images ?? [], subject: q.subject || "Physics", topic: q.topic, difficulty: q.difficulty, positiveMarks: q.positiveMarks, negativeMarks: q.negativeMarks }]); setShowCreate(true); setTab("papers") }}>Copy</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-[10px]" onClick={() => { setDrafts(prev => [...prev, { type: q.type, text: q.text, options: q.options || ["", "", "", ""], correctAnswer: q.correctAnswer, explanation: q.explanation || "", images: q.images ?? [], subject: q.subject || "Physics", chapter: q.chapter || "", topic: q.topic, difficulty: q.difficulty, positiveMarks: q.positiveMarks, negativeMarks: q.negativeMarks }]); setShowCreate(true); setTab("papers") }}>Copy</Button>
                         </td>
                       </tr>
                     ))}
@@ -820,7 +823,7 @@ export default function PapersPage() {
                         <span className="text-sm font-bold font-mono text-foreground">Q{i + 1}</span>
                         {drafts.length > 1 && <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => removeDraft(i)}><Trash2 className="h-4 w-4" /> Remove</Button>}
                       </div>
-                      <div className="grid grid-cols-5 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <div>
                           <label className="text-xs font-bold text-foreground uppercase mb-2 block">Type</label>
                           <select value={d.type} onChange={e => { const t = e.target.value as QuestionType; updateDraft(i, { type: t, correctAnswer: t === "numeric" || t === "fill-in-the-blanks" ? "" : t === "mcq" ? "A" : JSON.stringify(["A"]) }) }} className="h-10 w-full rounded-md border-2 border-input bg-background text-sm px-2">
@@ -834,8 +837,12 @@ export default function PapersPage() {
                           </select>
                         </div>
                         <div>
+                          <label className="text-xs font-bold text-foreground uppercase mb-2 block">Chapter</label>
+                          <Input value={d.chapter} onChange={e => updateDraft(i, { chapter: e.target.value })} placeholder="e.g. Kinematics" className="h-10 text-sm" />
+                        </div>
+                        <div>
                           <label className="text-xs font-bold text-foreground uppercase mb-2 block">Topic</label>
-                          <Input value={d.topic} onChange={e => updateDraft(i, { topic: e.target.value })} placeholder="e.g. Kinematics" className="h-10 text-sm" />
+                          <Input value={d.topic} onChange={e => updateDraft(i, { topic: e.target.value })} placeholder="e.g. Motion in 1D" className="h-10 text-sm" />
                         </div>
                         <div>
                           <label className="text-xs font-bold text-foreground uppercase mb-2 block">Difficulty <span className="font-mono text-primary">{d.difficulty}</span></label>
@@ -1005,7 +1012,7 @@ export default function PapersPage() {
                   <div key={q.id} className="p-5 rounded-xl border-2 border-border bg-card">
                     {editingQuestion?.id === q.id ? (
                       <div className="space-y-4">
-                        <div className="grid grid-cols-5 gap-4">
+                        <div className="grid grid-cols-3 gap-4">
                           <div>
                             <label className="text-xs font-bold text-foreground uppercase mb-2 block">Type</label>
                             <select value={editQuestionDraft.type ?? q.type ?? "mcq"} onChange={e => { const t = e.target.value as QuestionType; setEditQuestionDraft(p => ({ ...p, type: t, correctAnswer: t === "numeric" || t === "fill-in-the-blanks" ? "" : t === "mcq" ? "A" : JSON.stringify([]) })) }} className="h-10 w-full rounded-md border-2 border-input bg-background text-sm px-2">
@@ -1017,6 +1024,10 @@ export default function PapersPage() {
                             <select value={editQuestionDraft.subject || q.subject || "Physics"} onChange={e => setEditQuestionDraft(p => ({ ...p, subject: e.target.value }))} className="h-10 w-full rounded-md border-2 border-input bg-background text-sm px-3">
                               {SUBJECTS.map(s => <option key={s}>{s}</option>)}
                             </select>
+                          </div>
+                          <div>
+                            <label className="text-xs font-bold text-foreground uppercase mb-2 block">Chapter</label>
+                            <Input value={editQuestionDraft.chapter ?? q.chapter ?? ""} onChange={e => setEditQuestionDraft(p => ({ ...p, chapter: e.target.value }))} className="h-10 text-sm" />
                           </div>
                           <div>
                             <label className="text-xs font-bold text-foreground uppercase mb-2 block">Topic</label>
@@ -1168,6 +1179,7 @@ export default function PapersPage() {
                             <span className="text-sm font-mono font-bold text-foreground">Q{idx + 1}</span>
                             <Badge variant={q.difficulty <= 3 ? "success" : q.difficulty >= 8 ? "destructive" : "warning"}>Diff: {q.difficulty}</Badge>
                             <Badge variant="info">{q.subject || "—"}</Badge>
+                            {q.chapter && <Badge variant="warning">{q.chapter}</Badge>}
                             <Badge variant="muted">{q.topic}</Badge>
                           </div>
                           <div className="flex gap-2 shrink-0">

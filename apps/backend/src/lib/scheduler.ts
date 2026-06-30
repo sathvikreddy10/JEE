@@ -58,6 +58,8 @@ async function tick(windowMs: number, closingSoonMs: number) {
           type: q.type,
           text: q.text,
           options: q.options,
+          subject: q.subject,
+          chapter: q.chapter,
           topic: q.topic,
           imageUrl: q.imageUrl,
           images: q.images,

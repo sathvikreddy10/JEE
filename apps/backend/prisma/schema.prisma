@@ -112,6 +112,7 @@ model Question {
   correctAnswer String
   explanation   String
   subject       String?
+  chapter       String?
   topic         String
   topicId       Int?
   imageUrl      String?
@@ -126,6 +127,7 @@ model Question {
 
   @@index([topicId])
   @@index([topic])
+  @@index([chapter])
   @@index([subject])
 }
 

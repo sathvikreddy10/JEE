@@ -18,6 +18,8 @@ interface Question {
   options: string[] | null;
   correctAnswer: string;
   explanation: string;
+  subject: string;
+  chapter: string;
   topic: string;
   imageUrl: string | null;
   images: { url: string; caption?: string }[] | null;
@@ -40,6 +42,8 @@ const EMPTY: Omit<Question, "id"> = {
   options: ["", "", "", ""],
   correctAnswer: "A",
   explanation: "",
+  subject: "",
+  chapter: "",
   topic: "",
   imageUrl: null,
   images: null,
@@ -181,6 +185,8 @@ export default function AdminPage() {
       options: q.options ?? ["", "", "", ""],
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
+      subject: q.subject ?? "",
+      chapter: q.chapter ?? "",
       topic: q.topic,
       imageUrl: q.imageUrl,
       images: q.images,
@@ -406,9 +412,9 @@ export default function AdminPage() {
                     >
                       {q.type}
                     </span>
-                    {q.topic && (
+                    {[q.subject, q.chapter, q.topic].filter(Boolean).join(" · ") && (
                       <span style={{ fontSize: 11, color: "var(--text-secondary)", fontFamily: "var(--font-mono)" }}>
-                        {q.topic}
+                        {[q.subject, q.chapter, q.topic].filter(Boolean).join(" · ")}
                       </span>
                     )}
                     <button
@@ -463,8 +469,8 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Set / Type / Topic / Order */}
-          <div className="grid grid-cols-2 gap-5 mb-7">
+          {/* Set / Type / Subject / Chapter / Topic / Order */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-5 mb-7">
             <div>
               <label style={labelStyle}>Set</label>
               <select
@@ -504,11 +510,29 @@ export default function AdminPage() {
               </select>
             </div>
             <div>
+              <label style={labelStyle}>Subject</label>
+              <input
+                value={draft.subject}
+                onChange={(e) => setDraft({ ...draft, subject: e.target.value })}
+                placeholder="e.g. Physics"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Chapter</label>
+              <input
+                value={draft.chapter}
+                onChange={(e) => setDraft({ ...draft, chapter: e.target.value })}
+                placeholder="e.g. Electric Charges and Fields"
+                style={inputStyle}
+              />
+            </div>
+            <div>
               <label style={labelStyle}>Topic</label>
               <input
                 value={draft.topic}
                 onChange={(e) => setDraft({ ...draft, topic: e.target.value })}
-                placeholder="e.g. Electrostatics"
+                placeholder="e.g. Coulomb's Law"
                 style={inputStyle}
               />
             </div>

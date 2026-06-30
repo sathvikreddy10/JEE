@@ -409,6 +409,7 @@ studentRouter.get("/insights", async (req, res) => {
         scoreTrend: [],
         subjectAccuracy: [],
         topicAccuracy: [],
+        chapterAccuracy: [],
         difficultyAccuracy: [],
         timeAnalysis: { avgTimePerQuestion: 0, totalTimeSec: 0, fastestSec: 0, slowestSec: 0 },
         strengths: [],
@@ -474,8 +475,9 @@ studentRouter.get("/insights", async (req, res) => {
       }))
       .sort((a, b) => b.accuracy - a.accuracy);
 
-    // ─── 3. Topic-wise accuracy (aggregate across all questions) ───
+    // ─── 3. Topic & chapter accuracy (aggregate across all questions) ───
     const topicMap = new Map<string, { correct: number; total: number }>();
+    const chapterMap = new Map<string, { correct: number; total: number }>();
     for (const s of sessions) {
       if (!s.analytics) continue;
       try {
@@ -483,16 +485,29 @@ studentRouter.get("/insights", async (req, res) => {
         const questions = a.questions ?? [];
         for (const q of questions) {
           const topic = q.topic || "General";
-          const entry = topicMap.get(topic) ?? { correct: 0, total: 0 };
-          entry.total += 1;
-          if (q.isCorrect) entry.correct += 1;
-          topicMap.set(topic, entry);
+          const chapter = q.chapter || topic;
+          const tEntry = topicMap.get(topic) ?? { correct: 0, total: 0 };
+          tEntry.total += 1;
+          if (q.isCorrect) tEntry.correct += 1;
+          topicMap.set(topic, tEntry);
+          const cEntry = chapterMap.get(chapter) ?? { correct: 0, total: 0 };
+          cEntry.total += 1;
+          if (q.isCorrect) cEntry.correct += 1;
+          chapterMap.set(chapter, cEntry);
         }
       } catch { /* skip */ }
     }
     const topicAccuracy = Array.from(topicMap.entries())
       .map(([topic, v]) => ({
         topic,
+        correct: v.correct,
+        total: v.total,
+        accuracy: v.total > 0 ? Math.round((v.correct / v.total) * 100) : 0,
+      }))
+      .sort((a, b) => b.total - a.total);
+    const chapterAccuracy = Array.from(chapterMap.entries())
+      .map(([chapter, v]) => ({
+        chapter,
         correct: v.correct,
         total: v.total,
         accuracy: v.total > 0 ? Math.round((v.correct / v.total) * 100) : 0,
@@ -568,17 +583,19 @@ studentRouter.get("/insights", async (req, res) => {
       slowestSec,
     };
 
-    // ─── 6. Strengths and weaknesses (min 3 attempts) ───
-    const TOPIC_MIN_ATTEMPTS = 3;
-    const qualifiedTopics = topicAccuracy.filter((t) => t.total >= TOPIC_MIN_ATTEMPTS);
-    const strengths = qualifiedTopics
+    // ─── 6. Strengths and weaknesses by chapter (min 3 attempts) ───
+    const CHAPTER_MIN_ATTEMPTS = 3;
+    const qualifiedChapters = chapterAccuracy.filter((t) => t.total >= CHAPTER_MIN_ATTEMPTS);
+    const strengths = qualifiedChapters
       .filter((t) => t.accuracy >= 70)
       .sort((a, b) => b.accuracy - a.accuracy)
-      .slice(0, 5);
-    const weaknesses = qualifiedTopics
+      .slice(0, 5)
+      .map((t) => ({ ...t, topic: t.chapter }));
+    const weaknesses = qualifiedChapters
       .filter((t) => t.accuracy < 60)
       .sort((a, b) => a.accuracy - b.accuracy)
-      .slice(0, 5);
+      .slice(0, 5)
+      .map((t) => ({ ...t, topic: t.chapter }));
 
     // ─── 7. Summary ───
     const allScores = sessions.map((s) => s.score ?? 0);
@@ -601,6 +618,7 @@ studentRouter.get("/insights", async (req, res) => {
       scoreTrend,
       subjectAccuracy,
       topicAccuracy,
+      chapterAccuracy,
       difficultyAccuracy,
       timeAnalysis,
       strengths,
