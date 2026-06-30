@@ -23,6 +23,11 @@ import {
   Activity,
   RotateCcw,
   ArrowRight,
+  Calendar,
+  Flame,
+  Lightbulb,
+  ChevronRight,
+  PieChart,
 } from "lucide-react";
 
 interface ScorePoint {
@@ -58,6 +63,27 @@ interface InsightsPayload {
   strengths: TopicAcc[];
   weaknesses: TopicAcc[];
   summary: InsightsSummary;
+}
+
+interface HeatmapDay {
+  date: string;
+  count: number;
+  accuracy: number | null;
+  done: boolean;
+}
+interface WeekDay {
+  day: string;
+  date: string;
+  accuracy: number | null;
+  attempts: number;
+}
+interface StatsPayload {
+  streak: number;
+  bestStreak: number;
+  totalSessions: number;
+  lifetimeAccuracy: number;
+  heatmap: HeatmapDay[];
+  weekly: WeekDay[];
 }
 
 function fmtTime(sec: number) {
@@ -280,6 +306,7 @@ function RingStat({ value, label, icon: Icon, color = "primary" }: { value: stri
 export default function InsightsPage() {
   const router = useRouter();
   const [data, setData] = useState<InsightsPayload | null>(null);
+  const [stats, setStats] = useState<StatsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -287,8 +314,12 @@ export default function InsightsPage() {
     setLoading(true);
     setError(null);
     try {
-      const d = await fetchJSON<InsightsPayload>("/api/student/insights");
+      const [d, s] = await Promise.all([
+        fetchJSON<InsightsPayload>("/api/student/insights"),
+        fetchJSON<StatsPayload>("/api/student/stats").catch(() => null),
+      ]);
       setData(d);
+      setStats(s);
       cli.success(`Insights loaded: ${d.summary.totalSessions} sessions`);
     } catch (e) {
       setError((e as Error).message);
@@ -316,6 +347,46 @@ export default function InsightsPage() {
     if (!data || data.scoreTrend.length === 0) return 0;
     return Math.max(...data.scoreTrend.map((s) => s.percent));
   }, [data]);
+
+  const consistency = useMemo(() => {
+    if (!data || data.scoreTrend.length < 2) return null;
+    const vals = data.scoreTrend.map((s) => s.percent);
+    const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+    const variance = vals.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / vals.length;
+    const std = Math.sqrt(variance);
+    // 0 std => 100 consistency; higher std => lower consistency
+    const score = Math.max(0, Math.round(100 - std));
+    return { mean: Math.round(mean), std: Math.round(std), score };
+  }, [data]);
+
+  const subjectSplit = useMemo(() => {
+    if (!data || data.subjectAccuracy.length === 0) return [];
+    const total = data.subjectAccuracy.reduce((acc, s) => acc + s.total, 0);
+    if (total === 0) return [];
+    return data.subjectAccuracy.map((s) => ({ ...s, share: Math.round((s.total / total) * 100) })).sort((a, b) => b.share - a.share);
+  }, [data]);
+
+  const recommendations = useMemo(() => {
+    if (!data) return [];
+    const recs: { icon: typeof Lightbulb; text: string; tone: "warning" | "success" | "info" }[] = [];
+    if (data.weaknesses.length > 0) {
+      const names = data.weaknesses.slice(0, 3).map((w) => w.topic).join(", ");
+      recs.push({ icon: AlertTriangle, text: `Focus on weak topics: ${names}.`, tone: "warning" });
+    }
+    if (data.strengths.length > 0) {
+      recs.push({ icon: Award, text: `Maintain strengths in ${data.strengths[0].topic}.`, tone: "success" });
+    }
+    if (consistency && consistency.std > 15) {
+      recs.push({ icon: Activity, text: `Scores vary by ${consistency.std}%. Build consistency with timed practice.`, tone: "info" });
+    }
+    if (data.timeAnalysis.avgTimePerQuestion > 90) {
+      recs.push({ icon: Clock, text: "You're averaging over 90s per question — speed drills can help.", tone: "info" });
+    }
+    if (recs.length === 0) {
+      recs.push({ icon: Sparkles, text: "Keep up the balanced practice across all topics.", tone: "success" });
+    }
+    return recs;
+  }, [data, consistency]);
 
   if (loading) {
     return (
@@ -406,6 +477,52 @@ export default function InsightsPage() {
             <RingStat value={fmtTime(data.timeAnalysis.avgTimePerQuestion)} label="Avg / Question" icon={Clock} color="warning" />
           </div>
 
+          {/* Secondary stats: consistency, streak, total time */}
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Consistency</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{consistency ? `${consistency.score}%` : "—"}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-info/10 text-info flex items-center justify-center shrink-0">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Lower score volatility = higher consistency</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Current Streak</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{stats?.streak ?? 0}<span className="text-sm text-muted-foreground font-normal"> days</span></p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-warning/10 text-warning flex items-center justify-center shrink-0">
+                    <Flame className="h-5 w-5" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Best streak: {stats?.bestStreak ?? 0} days</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-1">Total Practice Time</p>
+                    <p className="text-2xl font-bold font-mono text-foreground">{fmtDuration(data.timeAnalysis.totalTimeSec)}</p>
+                  </div>
+                  <div className="h-10 w-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                    <Clock className="h-5 w-5" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-2">Across {data.summary.totalSessions} sessions</p>
+              </CardContent>
+            </Card>
+          </div>
+
           {/* Score trend */}
           <Card>
             <CardHeader className="pb-3">
@@ -421,6 +538,131 @@ export default function InsightsPage() {
               <LineChart data={data.scoreTrend} />
             </CardContent>
           </Card>
+
+          {/* Recommendations + Recent sessions */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Lightbulb className="h-4 w-4 text-warning" />
+                  Recommendations
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recommendations.map((r, i) => (
+                    <div key={i} className={cn(
+                      "flex items-start gap-3 p-3 rounded-lg border-2",
+                      r.tone === "warning" ? "bg-warning/5 border-warning/30" :
+                      r.tone === "success" ? "bg-success/5 border-success/30" :
+                      "bg-info/5 border-info/30"
+                    )}>
+                      <div className={cn("h-8 w-8 rounded-lg flex items-center justify-center shrink-0",
+                        r.tone === "warning" ? "bg-warning/10 text-warning" :
+                        r.tone === "success" ? "bg-success/10 text-success" :
+                        "bg-info/10 text-info"
+                      )}>
+                        <r.icon className="h-4 w-4" />
+                      </div>
+                      <p className="text-sm text-foreground leading-relaxed">{r.text}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Recent Sessions
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => router.push("/results?tab=history")}>View all</Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  {data.scoreTrend.slice(-5).reverse().map((s) => (
+                    <button
+                      key={s.sessionId}
+                      onClick={() => router.push(`/results/session/${s.sessionId}`)}
+                      className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/40 transition-colors text-left"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate">{s.setName}</p>
+                        <p className="text-[10px] font-mono text-muted-foreground">{new Date(s.date).toLocaleDateString()} · {s.subject}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className={cn("text-sm font-bold font-mono", s.percent >= 70 ? "text-success" : s.percent >= 40 ? "text-warning" : "text-destructive")}>
+                          {s.percent}%
+                        </span>
+                        <span className="text-[10px] font-mono text-muted-foreground">{s.score}/{s.total}</span>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Subject split */}
+          {subjectSplit.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <PieChart className="h-4 w-4 text-info" />
+                  Question Distribution by Subject
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {subjectSplit.map((s) => (
+                    <div key={s.subject} className="space-y-1.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-medium text-foreground">{s.subject}</span>
+                        <span className="font-mono text-muted-foreground">{s.correct}/{s.total} correct · {s.accuracy}%</span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <div className={cn("h-full rounded-full transition-all duration-500", s.accuracy >= 70 ? "bg-success" : s.accuracy >= 50 ? "bg-info" : s.accuracy >= 30 ? "bg-warning" : "bg-destructive")} style={{ width: `${s.share}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Activity heatmap */}
+          {stats && stats.heatmap.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-success" />
+                  Last 30 Days Activity
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-wrap gap-1.5">
+                  {stats.heatmap.map((d) => (
+                    <div key={d.date} className="w-5 h-5 rounded-sm" title={`${d.date}${d.done ? ` • ${d.accuracy}% accuracy` : ""}`}
+                      style={{ background: !d.done ? "var(--border)" : d.accuracy! >= 80 ? "var(--success)" : d.accuracy! >= 50 ? "var(--info)" : "var(--warning)", opacity: d.done ? 0.85 : 0.5 }} />
+                  ))}
+                </div>
+                <div className="flex gap-4 mt-3 text-[10px] font-mono text-muted-foreground">
+                  <span>Less</span>
+                  <span className="inline-flex gap-1 items-center">
+                    <span className="w-3 h-3 rounded-sm bg-border opacity-50" />
+                    <span className="w-3 h-3 rounded-sm bg-warning" />
+                    <span className="w-3 h-3 rounded-sm bg-info" />
+                    <span className="w-3 h-3 rounded-sm bg-success" />
+                  </span>
+                  <span>More</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Two-column: Subjects + Difficulty */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

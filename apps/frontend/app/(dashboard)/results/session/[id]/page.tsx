@@ -39,6 +39,7 @@ interface QuestionResult {
   isSkipped: boolean;
   markedForReview?: boolean;
   marks?: number;
+  positiveMarks?: number;
   timeSpent: number;
 }
 
@@ -109,6 +110,52 @@ export default function SessionResultPage() {
       ...t,
       questions: data.questions.filter((q) => q.topic === t.name),
     }));
+  }, [data]);
+
+  const typeBreakdown = useMemo(() => {
+    if (!data) return [];
+    const map = new Map<string, { type: string; total: number; correct: number }>();
+    for (const q of data.questions) {
+      const entry = map.get(q.type) ?? { type: q.type, total: 0, correct: 0 };
+      entry.total++;
+      if (q.isCorrect) entry.correct++;
+      map.set(q.type, entry);
+    }
+    return Array.from(map.values())
+      .map((t) => ({ ...t, accuracy: t.total > 0 ? Math.round((t.correct / t.total) * 100) : 0 }))
+      .sort((a, b) => b.total - a.total);
+  }, [data]);
+
+  const marksFlow = useMemo(() => {
+    if (!data) return null;
+    let gained = 0;
+    let lost = 0;
+    let missed = 0;
+    for (const q of data.questions) {
+      if (q.isCorrect) gained += q.positiveMarks ?? 0;
+      else if (!q.isSkipped && (q.marks ?? 0) < 0) lost += Math.abs(q.marks ?? 0);
+      else if (q.isSkipped) missed += q.positiveMarks ?? 0;
+    }
+    return { gained, lost, missed, net: gained - lost, potentialIfNoNeg: gained, potentialIfNoSkips: gained + missed };
+  }, [data]);
+
+  const timeInsights = useMemo(() => {
+    if (!data || data.questions.length === 0) return null;
+    const answered = data.questions.filter((q) => !q.isSkipped && q.timeSpent > 0);
+    const sorted = [...answered].sort((a, b) => a.timeSpent - b.timeSpent);
+    return {
+      fastest: sorted.slice(0, 3),
+      slowest: sorted.slice(-3).reverse(),
+      avgAnswered: answered.length > 0 ? Math.round(answered.reduce((acc, q) => acc + q.timeSpent, 0) / answered.length) : 0,
+    };
+  }, [data]);
+
+  const mustReview = useMemo(() => {
+    if (!data) return [];
+    return data.questions
+      .filter((q) => !q.isCorrect && !q.isSkipped)
+      .sort((a, b) => ((b.marks ?? 0) - (a.marks ?? 0)))
+      .slice(0, 5);
   }, [data]);
 
   if (loading) {
@@ -348,6 +395,130 @@ export default function SessionResultPage() {
           </Card>
         ))}
       </div>
+
+      {/* Question type breakdown + Marks flow */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <Card className="p-8">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-5 font-mono text-foreground">
+            Question Type Breakdown
+          </h3>
+          {typeBreakdown.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No type data.</p>
+          ) : (
+            <div className="space-y-4">
+              {typeBreakdown.map((t) => (
+                <div key={t.type} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-medium text-foreground capitalize">{t.type.replace(/-/g, " ")}</span>
+                    <span className="font-mono text-muted-foreground">{t.correct}/{t.total} · {t.accuracy}%</span>
+                  </div>
+                  <div className="h-2.5 rounded-full bg-border overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all", t.accuracy >= 70 ? "bg-success" : t.accuracy >= 40 ? "bg-warning" : "bg-destructive")} style={{ width: `${t.accuracy}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-8">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-5 font-mono text-foreground">
+            Marks Flow
+          </h3>
+          {marksFlow ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3 rounded-lg border-2 border-success/30 bg-success/5">
+                <span className="text-sm font-medium text-foreground">Marks gained</span>
+                <span className="text-lg font-bold font-mono text-success">+{marksFlow.gained}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border-2 border-destructive/30 bg-destructive/5">
+                <span className="text-sm font-medium text-foreground">Lost to negative marking</span>
+                <span className="text-lg font-bold font-mono text-destructive">−{marksFlow.lost}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg border-2 border-muted/50 bg-muted/20">
+                <span className="text-sm font-medium text-foreground">Missed by skipping</span>
+                <span className="text-lg font-bold font-mono text-muted-foreground">−{marksFlow.missed}</span>
+              </div>
+              <div className="pt-3 border-t border-border">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">Net score</span>
+                  <span className="font-bold font-mono text-foreground">{totalScore} / {maxPossible}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs mt-2 text-muted-foreground">
+                  <span>Without negative marking: <strong className="text-foreground">{marksFlow.gained + marksFlow.missed}</strong></span>
+                  <span>If all answered: <strong className="text-foreground">{marksFlow.potentialIfNoSkips}</strong></span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No marks data.</p>
+          )}
+        </Card>
+      </div>
+
+      {/* Time insights */}
+      {timeInsights && (
+        <Card className="p-8">
+          <div className="flex items-end justify-between mb-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider font-mono text-foreground">
+              Time Insights
+            </h3>
+            <span className="text-xs font-mono text-muted-foreground">
+              Avg on answered: {timeInsights.avgAnswered}s
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <p className="text-xs font-semibold text-success mb-3">Fastest correct answers</p>
+              <div className="space-y-2">
+                {timeInsights.fastest.length === 0 && <p className="text-xs text-muted-foreground">No timed answers.</p>}
+                {timeInsights.fastest.map((q) => (
+                  <button key={q.id} onClick={() => router.push(`/review/${data.sessionId}/${q.id}`)} className="w-full flex items-center justify-between p-2.5 rounded-lg border border-border hover:bg-muted/40 text-left">
+                    <span className="text-xs font-medium text-foreground truncate">Q{q.order} · <span dangerouslySetInnerHTML={{ __html: renderMath(q.text) }} className="inline" /></span>
+                    <span className="text-xs font-mono font-bold text-success shrink-0">{q.timeSpent}s</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-warning mb-3">Slowest answers</p>
+              <div className="space-y-2">
+                {timeInsights.slowest.length === 0 && <p className="text-xs text-muted-foreground">No timed answers.</p>}
+                {timeInsights.slowest.map((q) => (
+                  <button key={q.id} onClick={() => router.push(`/review/${data.sessionId}/${q.id}`)} className="w-full flex items-center justify-between p-2.5 rounded-lg border border-border hover:bg-muted/40 text-left">
+                    <span className="text-xs font-medium text-foreground truncate">Q{q.order} · <span dangerouslySetInnerHTML={{ __html: renderMath(q.text) }} className="inline" /></span>
+                    <span className="text-xs font-mono font-bold text-warning shrink-0">{q.timeSpent}s</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Must review */}
+      {mustReview.length > 0 && (
+        <Card className="p-8 border-l-4 border-l-destructive">
+          <h3 className="text-sm font-bold uppercase tracking-wider mb-5 font-mono text-destructive">
+            Must Review — Incorrect Attempts
+          </h3>
+          <div className="space-y-2">
+            {mustReview.map((q) => (
+              <button key={q.id} onClick={() => router.push(`/review/${data.sessionId}/${q.id}`)} className="w-full flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/40 text-left">
+                <div className="min-w-0">
+                  <span className="text-xs font-medium text-foreground">Q{q.order} · <span dangerouslySetInnerHTML={{ __html: renderMath(q.text) }} className="inline" /></span>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-muted-foreground">
+                    <span className="text-destructive">Yours: {q.yourAnswer || "—"}</span>
+                    <span className="text-success">Correct: {q.correctAnswer}</span>
+                    <span>{q.topic}</span>
+                  </div>
+                </div>
+                <span className="text-xs font-mono font-bold text-destructive shrink-0">{q.marks}</span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Leaderboard sessionId={data.sessionId} />
 
